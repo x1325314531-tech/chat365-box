@@ -1,4 +1,6 @@
 // whatsapp-content.js
+// 版本：2026-01-30 v2 - 添加 IndexedDB 存储发送消息原文
+console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)');
 
 function printElementEvery5Seconds() {
     console.info('✅ 进入 WhatsApp.js 脚本');
@@ -185,7 +187,7 @@ async function executeTranslationFlow(inputText) {
 }
 
 // 将原文添加到已发送的消息上
-function addOriginalTextToSentMessage(originalText, translatedText) {
+async function addOriginalTextToSentMessage(originalText, translatedText) {
     try {
         // 查找最新发送的消息（message-out 是发送的消息）
         const sentMessages = document.querySelectorAll('.message-out');
@@ -216,6 +218,10 @@ function addOriginalTextToSentMessage(originalText, translatedText) {
             console.log('⚠️ 消息内容不匹配，跳过');
             return;
         }
+        
+        // 保存原文到本地存储（IndexedDB）
+        await saveSentMessage(translatedText, originalText);
+        console.log('💾 原文已保存到本地:', originalText);
         
         // 创建原文显示节点（与接收消息翻译UI一致）
         let originalNode = document.createElement('div');
@@ -360,6 +366,9 @@ function monitorMainNode() {
 
     // 处理消息列表翻译 - 只翻译对方发送的接收消息（英文 -> 中文）
     async function processMessageList() {
+        // 恢复发送消息的原文显示（从本地存储）
+        await restoreSentMessageOriginals();
+        
         // 直接查找接收消息中的文本 span
         // WhatsApp 结构: .message-in 包含消息内容，其中 span[dir] 包含实际文本
         let incomingMessages = document.querySelectorAll('.message-in span[dir="ltr"]:not([data-translate-status]), .message-in span[dir="rtl"]:not([data-translate-status])');
@@ -536,3 +545,184 @@ document.addEventListener("visibilitychange", checkPageVisibility);
 checkPageVisibility();
 
 console.log('✅ WhatsApp翻译插件已加载完成');
+
+// ==================== IndexedDB 存储发送消息原文 ====================
+
+// 打开或创建存储发送消息原文的数据库
+function openSentMessagesDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('WhatsAppSentMessagesDB', 1);
+        
+        request.onupgradeneeded = function(event) {
+            const db = event.target.result;
+            // 创建对象存储，使用翻译后文本作为主键
+            if (!db.objectStoreNames.contains('sentMessages')) {
+                const store = db.createObjectStore('sentMessages', { keyPath: 'translatedText' });
+                store.createIndex('originalText', 'originalText', { unique: false });
+                store.createIndex('timestamp', 'timestamp', { unique: false });
+            }
+        };
+        
+        request.onsuccess = function(event) {
+            resolve(event.target.result);
+        };
+        
+        request.onerror = function(event) {
+            reject(`数据库打开失败: ${event.target.errorCode}`);
+        };
+    });
+}
+
+// 保存发送消息的原文
+async function saveSentMessage(translatedText, originalText) {
+    try {
+        console.log('💾 准备保存到 IndexedDB:', { translatedText: translatedText.substring(0, 50), originalText });
+        const db = await openSentMessagesDB();
+        const transaction = db.transaction(['sentMessages'], 'readwrite');
+        const store = transaction.objectStore('sentMessages');
+        
+        const message = {
+            translatedText: translatedText,
+            originalText: originalText,
+            timestamp: Date.now()
+        };
+        
+        return new Promise((resolve, reject) => {
+            const request = store.put(message);
+            request.onsuccess = () => {
+                console.log('✅ IndexedDB 保存成功:', { translatedText: translatedText.substring(0, 50), originalText });
+                resolve();
+            };
+            request.onerror = (event) => {
+                console.error('❌ IndexedDB 保存失败:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    } catch (error) {
+        console.error('保存发送消息失败:', error);
+    }
+}
+
+// 根据翻译后文本获取原文
+async function getSentMessage(translatedText) {
+    try {
+        const db = await openSentMessagesDB();
+        const transaction = db.transaction(['sentMessages'], 'readonly');
+        const store = transaction.objectStore('sentMessages');
+        
+        return new Promise((resolve, reject) => {
+            const request = store.get(translatedText);
+            request.onsuccess = (event) => resolve(event.target.result);
+            request.onerror = (event) => reject(event.target.error);
+        });
+    } catch (error) {
+        console.error('获取发送消息失败:', error);
+        return null;
+    }
+}
+
+// 恢复发送消息的原文显示
+async function restoreSentMessageOriginals() {
+    try {
+        // 查找所有发送的消息
+        const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"]:not([data-original-restored]), .message-out span[dir="rtl"]:not([data-original-restored])');
+        
+        if (sentMessages.length > 0) {
+            console.log('🔍 扫描发送消息，找到数量:', sentMessages.length);
+        }
+        
+        for (let span of sentMessages) {
+            // 跳过已经有原文显示的
+            if (span.querySelector('.original-text-result')) {
+                span.setAttribute('data-original-restored', 'true');
+                continue;
+            }
+            
+            // 获取消息文本
+            const msgText = span.textContent.trim();
+            if (!msgText || msgText.length < 2) {
+                continue;
+            }
+            
+            console.log('🔍 检查发送消息:', msgText.substring(0, 50));
+            
+            // 从本地存储获取原文
+            const record = await getSentMessage(msgText);
+            console.log('📦 查询结果:', record);
+            
+            if (record && record.originalText) {
+                // 创建原文显示节点
+                let originalNode = document.createElement('div');
+                originalNode.className = 'original-text-result';
+                originalNode.style.cssText = `
+                    font-size: 13px;
+                    color: #25D366;
+                    border-top: 1px dashed #ccc;
+                    padding-top: 5px;
+                    margin-top: 5px;
+                    font-style: italic;
+                `;
+                originalNode.textContent = record.originalText;
+                
+                span.appendChild(originalNode);
+                span.setAttribute('data-original-restored', 'true');
+                console.log('🔄 已恢复原文显示:', record.originalText);
+            } else {
+                // 尝试遍历数据库查找匹配
+                const allRecords = await getAllSentMessages();
+                let found = false;
+                for (let rec of allRecords) {
+                    // 检查消息文本是否包含存储的翻译文本（以处理可能的格式差异）
+                    if (msgText.includes(rec.translatedText.substring(0, 20)) || 
+                        rec.translatedText.includes(msgText.substring(0, 20))) {
+                        console.log('🔄 通过模糊匹配找到原文:', rec.originalText);
+                        
+                        let originalNode = document.createElement('div');
+                        originalNode.className = 'original-text-result';
+                        originalNode.style.cssText = `
+                            font-size: 13px;
+                            color: #25D366;
+                            border-top: 1px dashed #ccc;
+                            padding-top: 5px;
+                            margin-top: 5px;
+                            font-style: italic;
+                        `;
+                        originalNode.textContent = rec.originalText;
+                        
+                        span.appendChild(originalNode);
+                        span.setAttribute('data-original-restored', 'true');
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    // 标记为已检查，避免重复查询
+                    span.setAttribute('data-original-restored', 'checked');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('恢复发送消息原文失败:', error);
+    }
+}
+
+// 获取所有发送消息记录
+async function getAllSentMessages() {
+    try {
+        const db = await openSentMessagesDB();
+        const transaction = db.transaction(['sentMessages'], 'readonly');
+        const store = transaction.objectStore('sentMessages');
+        
+        return new Promise((resolve, reject) => {
+            const request = store.getAll();
+            request.onsuccess = (event) => {
+                console.log('📦 数据库中的所有记录:', event.target.result);
+                resolve(event.target.result || []);
+            };
+            request.onerror = (event) => reject(event.target.error);
+        });
+    } catch (error) {
+        console.error('获取所有发送消息失败:', error);
+        return [];
+    }
+}
