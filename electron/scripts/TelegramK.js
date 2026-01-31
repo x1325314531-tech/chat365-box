@@ -156,6 +156,7 @@ function monitorMainNode() {
 
     // 处理消息列表翻译
     async function processMessageList() {
+        if (!globalConfig?.receiveAutoTranslate) return;
         let messageSpans = document.querySelectorAll('div.message.spoilers-container[dir]:not([data-translate-status])');
         // 过滤：检查每个 span 是否位于 role="application" 的 div 之下
         let filteredSpans = Array.from(messageSpans).filter(span => {
@@ -312,6 +313,7 @@ function startMonitor() {
 function handleKeydown(event) {
     let editableDiv = document.querySelector('div[contenteditable="true"]');
     if (event.key === 'Enter' && !event.shiftKey) {
+        if (!globalConfig?.sendAutoTranslate) return;
         let loadingNode = document.getElementById('editDivLoadingNode');
         if (loadingNode) {
             console.log('消息正在处理:');

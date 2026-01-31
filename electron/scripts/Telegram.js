@@ -269,6 +269,7 @@ function monitorMainNode() {
 
     // 处理消息列表翻译
     async function processMessageList() {
+        if (!globalConfig?.receiveAutoTranslate) return;
         let messageSpans = document.querySelectorAll("div.text-content.clearfix.with-meta:not([data-translate-status])");
 
 
@@ -426,6 +427,8 @@ function handleKeydown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
 
         let loadingNode = document.getElementById('editDivLoadingNode');
+
+        if (!globalConfig?.sendAutoTranslate) return;
 
         if (loadingNode) {
             console.log('消息正在处理:');

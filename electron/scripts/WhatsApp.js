@@ -92,6 +92,12 @@ function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.ctrlKey) {
         console.log('⏺️ Enter键按下，开始处理翻译');
 
+        // 检查全局发送自动翻译开关
+        if (!globalConfig?.sendAutoTranslate) {
+            console.log('🔇 发送自动翻译未开启，跳过拦截');
+            return;
+        }
+
         // 立即阻止事件传播
         event.preventDefault();
         event.stopPropagation();
@@ -385,6 +391,11 @@ function monitorMainNode() {
         // 恢复发送消息的原文显示（从本地存储）
         await restoreSentMessageOriginals();
         
+        // 检查全局接收自动翻译开关
+        if (!globalConfig?.receiveAutoTranslate) {
+            return;
+        }
+
         // 直接查找接收消息中的文本 span
         // WhatsApp 结构: .message-in 包含消息内容，其中 span[dir] 包含实际文本
         let incomingMessages = document.querySelectorAll('.message-in span[dir="ltr"]:not([data-translate-status]), .message-in span[dir="rtl"]:not([data-translate-status])');
