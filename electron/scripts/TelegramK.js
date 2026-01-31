@@ -1,4 +1,18 @@
 let languages = []
+let globalConfig = null;
+
+// 同步全局配置
+async function syncGlobalConfig() {
+    try {
+        const config = await window.electronAPI.getTranslateConfig();
+        if (config) {
+            globalConfig = config;
+            console.log('🔄 全局配置同步成功:', globalConfig);
+        }
+    } catch (e) {
+        console.error('❌ 同步全局配置失败:', e);
+    }
+}
 function printElementEvery5Seconds() {
     setInterval(() => {
         const element = document.querySelector("#new-menu > div")
@@ -93,6 +107,8 @@ function monitorMainNode() {
                     // 调用主函数，开始观察
                     observeNewMessages();
                     //定时查找消息节点列表
+                    syncGlobalConfig(); // 初始同步
+                    setInterval(syncGlobalConfig, 10000); // 每10秒同步一次
                     setInterval(processMessageList,500)
                     break;
                 }
@@ -770,13 +786,13 @@ function operationNode(action, node, parentNode = undefined) {
         node.remove();
     }
 }
-// 获取存储的语言
+// 获取存储的语言 (用户母语，接收消息的目标语言)
 function getLocalLanguage() {
-    return localStorage.getItem('localLanguage-tg') || 'zh';  // 默认语言为 '中文'
+    return globalConfig?.receiveTargetLang || localStorage.getItem('localLanguage-tg') || 'zh';
 }
-// 获取存储的语言
+// 获取存储的语言 (对方语言，发送消息的目标语言)
 function getTargetLanguage() {
-    return localStorage.getItem('targetLanguage-tg') || 'en';  // 默认语言为 '英文'
+    return globalConfig?.sendTargetLang || localStorage.getItem('targetLanguage-tg') || 'en';
 }
 // 打开或创建数据库，并在升级时使用复合主键
 function openDatabase() {

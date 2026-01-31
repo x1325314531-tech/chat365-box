@@ -22,6 +22,20 @@ function printElementEvery5Seconds() {
 }
 
 let languages = []
+let globalConfig = null;
+
+// 同步全局配置
+async function syncGlobalConfig() {
+    try {
+        const config = await window.electronAPI.getTranslateConfig();
+        if (config) {
+            globalConfig = config;
+            console.log('🔄 全局配置同步成功:', globalConfig);
+        }
+    } catch (e) {
+        console.error('❌ 同步全局配置失败:', e);
+    }
+}
 
 function notify() {
     window.electronAPI.newMsgNotify({platform:'WhatsApp'})
@@ -313,16 +327,16 @@ function operationNode(action, node, parentNode = undefined) {
     }
 }
 
-// 获取本地语言
+// 获取本地语言 (用户母语，接收消息的目标语言)
 function getLocalLanguage() {
-    const storedLanguage = localStorage.getItem('localLanguage');
-    return storedLanguage || 'zh';
+    console.log('接收目前', globalConfig?.receiveTargetLang);
+     
+    return globalConfig?.receiveTargetLang || localStorage.getItem('localLanguage') || 'zh';
 }
 
-// 获取目标语言
+// 获取目标语言 (对方语言，发送消息的目标语言)
 function getTargetLanguage() {
-    const storedLanguage = localStorage.getItem('targetLanguage');
-    return storedLanguage || 'en';
+    return globalConfig?.sendTargetLang || localStorage.getItem('targetLanguage') || 'en';
 }
 
 // 监控主节点
@@ -335,6 +349,8 @@ function monitorMainNode() {
                     observer.disconnect();
                     observePaneSide(mainNode);
                     getLanguageList();
+                    syncGlobalConfig(); // 初始同步
+                    setInterval(syncGlobalConfig, 10000); // 每10秒同步一次
                     setInterval(processMessageList, 500);
                     break;
                 }

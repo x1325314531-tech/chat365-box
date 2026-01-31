@@ -216,6 +216,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Notification from "@/utils/notification";
 import { get } from "@/utils/request";
+import { ipc } from '@/utils/ipcRenderer';
 // 导入图标
 import translateIcon from '@/assets/svgs/translate.svg'
 import aiReplyIcon from '@/assets/svgs/ai-reply.svg'
@@ -280,6 +281,18 @@ const fetchLanguageList = () => {
  
 onMounted(() => {
   fetchLanguageList()
+  // 从主进程加载保存的配置
+  ipc.invoke('get-translate-config').then(res => {
+    if (res) {
+      Object.assign(config, res)
+    } else {
+      // 兼容旧的 localStorage 方案
+      const localConfig = localStorage.getItem('translateConfig')
+      if (localConfig) {
+        Object.assign(config, JSON.parse(localConfig))
+      }
+    }
+  })
 })
 
 // 切换section展开
@@ -300,7 +313,9 @@ const applyConfig = () => {
   // 保存配置到localStorage
   localStorage.setItem('translateConfig', JSON.stringify(config)) 
   // 保存配置到electron
-  
+  ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(config))).then(res => {
+    console.log('配置已同步到主进程:', res);
+  });
  //更新成功提示
   Notification.message({ message: '更新成功', type: 'success' });
   // 返回首页W

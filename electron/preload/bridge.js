@@ -79,6 +79,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 模拟键盘输入 - 用于绕过 Lexical 编辑器限制
   simulateTyping: (args) => {
     return ipcRenderer.invoke('simulate-typing', args);
+  },
+  getTranslateConfig: () => {
+    return ipcRenderer.invoke('get-translate-config');
   }
 
 });

@@ -159,6 +159,9 @@ class Index extends Application {
    * main window have been loaded
    */
   async windowReady () {
+    // 初始化翻译配置到内存
+    app.translateConfig = Storage.connection('config.json').getItem('translateConfig');
+    
     // do some things
     // 延迟加载，无白屏
     const winOpt = this.config.windowsOption;
@@ -278,6 +281,34 @@ class Index extends Application {
         const args = {card_id: card.card_id, platform: card.platform,phone_number:phone_number};
         const result = await Services.get('user').getUserPortrait(args)
         mainWin.webContents.send('open-user-portrait', result)
+      }
+    });
+
+    // 翻译配置持久化
+    ipcMain.handle('save-translate-config', async (event, args) => {
+      try {
+        Log.info('保存翻译配置到 config.json:', args);
+        const configStorage = Storage.connection('config.json');
+        configStorage.setItem('translateConfig', args);
+        // 同时挂载到 app 对象上，方便后台脚本直接访问
+        app.translateConfig = args;
+        return { success: true };
+      } catch (err) {
+        Log.error('保存翻译配置失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
+
+    ipcMain.handle('get-translate-config', async (event) => {
+      try {
+        const configStorage = Storage.connection('config.json');
+        const config = configStorage.getItem('translateConfig');
+        // 同步到内存中
+        if (config) app.translateConfig = config;
+        return config;
+      } catch (err) {
+        Log.error('读取翻译配置失败:', err);
+        return null;
       }
     });
 
