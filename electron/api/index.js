@@ -17,7 +17,7 @@ async function translateText(text,localLanguage, targetLanguage) {
         fromLang: localLanguage, // 假设源语言为本地语言
         targetLang: targetLanguage,
         text: text,
-        authCode:'18e6f894-2dca-4fbb-a66a-efedcc7a28e2',  // 假设 authCode 已定义在 window 中app.authCode
+        // authCode:'18e6f894-2dca-4fbb-a66a-efedcc7a28e2',  // 假设 authCode 已定义在 window 中app.authCode
     };
     
      Log.info('requestBody',requestBody)

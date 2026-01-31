@@ -133,7 +133,7 @@ const handleAccountLogin = () => {
       get("/app/account/getInfo").then(infoRes => {
           if(infoRes.code === 200){
               Notification.message({ message: '登录成功', type: 'success' });
-              localStorage.setItem('userInfo', res.data)
+              localStorage.setItem('userInfo', JSON.stringify(infoRes.data))
               // 登录成功后跳转到主页
               router.push('/home');
           }
