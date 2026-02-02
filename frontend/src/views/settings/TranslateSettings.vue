@@ -84,7 +84,8 @@
                   <div class="form-item">
                     <div class="form-item-left">
                     <div class="form-label">翻译预览</div>
-                    <div class="form-desc">发送时是否输入区显示文案预览</div>
+                    <div class="form-desc">发送前在输入框上方显示译文</div>
+                    <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
                     </div>
                     <el-switch v-model="config.translatePreview"  @change="handleTranslatePreview" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"/>
                   </div>
@@ -147,13 +148,13 @@
                     </div>
                   </div>
 
-                  <div class="form-item">
+                  <!-- <div class="form-item">
                      <div  class="form-item-left">
                     <div class="form-label">手动翻译</div>
                     <div class="form-desc">允许点文字、复制可手动翻译按钮不显示</div>
                     </div>
                     <el-switch v-model="config.manualTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
-                  </div>
+                  </div> -->
                 </div>
               </div>
 
@@ -167,7 +168,7 @@
                   <div class="form-item">
                       <div  class="form-item-left">
                     <div class="form-label">会话列表显示翻译配置</div>
-                    <div class="form-desc">显示大图片上的显示翻译配置语言</div>
+                    <div class="form-desc">在聊天窗口上显示和切换翻译语言</div>
                     </div>
                     <el-switch v-model="config.showTranslateConfig" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
                   </div>
@@ -257,7 +258,7 @@ const config = reactive({
   receiveAutoTranslate: true,
   receiveChannel: 'Baidu',
   receiveTargetLang: 'zh',
-  manualTranslate: true,
+  // manualTranslate: true,
   // 聊天列表
   showTranslateConfig: true,
   // showSourcePlatform: false,

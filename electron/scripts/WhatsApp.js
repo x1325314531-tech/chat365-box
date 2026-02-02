@@ -23,6 +23,46 @@ function printElementEvery5Seconds() {
 
 let languages = []
 let globalConfig = null;
+let lastPreviewedTranslation = '';
+let lastPreviewedSource = '';
+let previewNode = null;
+
+// 更新预览UI
+function updatePreviewUI(text) {
+    if (!previewNode) {
+        previewNode = document.createElement('div');
+        previewNode.id = 'translationPreviewNode';
+        previewNode.style.cssText = `
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: #f0fff3;
+            color: #2ed36a;
+            padding: 8px 16px;
+            font-size: 13px;
+            border-top: 1px solid #dcf8c6;
+            z-index: 999;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            display: none;
+            word-break: break-all;
+            font-style: italic;
+            border-left: 4px solid #2ed36a;
+        `;
+        const footer = document.querySelector('footer');
+        if (footer) {
+            footer.style.position = 'relative';
+            footer.appendChild(previewNode);
+        }
+    }
+
+    if (text) {
+        previewNode.textContent = '译文预览: ' + text;
+        previewNode.style.display = 'block';
+    } else {
+        previewNode.style.display = 'none';
+    }
+}
 
 // 同步全局配置
 async function syncGlobalConfig() {
@@ -79,11 +119,24 @@ function startMonitor() {
 
         // 添加新的事件监听器
         editableDiv.addEventListener('keydown', handleKeyDown, true);
+        editableDiv.addEventListener('input', handleInput, true);
 
         console.log('✅ 事件监听器已添加');
     } else {
         console.error('❌ 未找到输入框元素，2秒后重试');
         setTimeout(startMonitor, 2000);
+    }
+}
+
+// 处理输入变化，清除预览状态
+function handleInput(event) {
+    if (lastPreviewedTranslation) {
+        const inputText = getInputContent();
+        if (inputText !== lastPreviewedTranslation) {
+            console.log('📝 内容已更改，清除预览');
+            updatePreviewUI(null);
+            lastPreviewedTranslation = '';
+        }
     }
 }
 
@@ -118,6 +171,30 @@ function handleKeyDown(event) {
             console.log('❌ 输入内容为空');
             return;
         }
+
+        // --- 翻译预览逻辑 ---
+        if (globalConfig?.translatePreview && lastPreviewedTranslation) {
+            if (inputText.trim() === lastPreviewedTranslation.trim()) {
+                console.log('✅ 预览已确认，发送消息');
+                event.preventDefault();
+                event.stopPropagation();
+                
+                sendMsg();
+                
+                // 确保发送后也能持久化原文显示
+                const original = lastPreviewedSource;
+                const translated = lastPreviewedTranslation;
+                setTimeout(() => {
+                    addOriginalTextToSentMessage(original, translated);
+                }, 500);
+
+                updatePreviewUI(null);
+                lastPreviewedTranslation = '';
+                lastPreviewedSource = '';
+                return;
+            }
+        }
+        // ------------------
 
         // 判断是否纯表情
         const hasSpan = document.querySelector('footer div[contenteditable="true"]')?.querySelector('span');
@@ -183,6 +260,17 @@ async function executeTranslationFlow(inputText) {
         await new Promise(resolve => setTimeout(resolve, 100));
         const currentContent = editableDiv?.textContent;
         console.log('📌 输入后内容:', currentContent);
+
+        // 处理预览逻辑
+        if (globalConfig?.translatePreview) {
+            console.log('👀 开启了翻译预览，显示译文并不发送');
+            updatePreviewUI(translatedText);
+            lastPreviewedTranslation = translatedText;
+            lastPreviewedSource = inputText;
+            
+            // 消息已替换，但不调用 sendMsg
+            return;
+        }
 
         // 发送消息
         setTimeout(() => {
@@ -373,6 +461,8 @@ function monitorMainNode() {
                     const targetNode = mutation.target;
                     if (targetNode.getAttribute('aria-selected') === 'true') {
                         removeLoadingNode();
+                        updatePreviewUI(null);
+                        lastPreviewedTranslation = '';
                         startMonitor();
                         addTranslateButtonWithSelect();
                     }
