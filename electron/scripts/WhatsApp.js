@@ -32,22 +32,40 @@ function updatePreviewUI(text) {
     if (!previewNode) {
         previewNode = document.createElement('div');
         previewNode.id = 'translationPreviewNode';
+        
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideUpPreview {
+                from { transform: translateY(100%); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .preview-show {
+                animation: slideUpPreview 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            }
+        `;
+        document.head.appendChild(style);
+
         previewNode.style.cssText = `
             position: absolute;
             bottom: 100%;
-            left: 0;
-            right: 0;
-            background: #f0fff3;
-            color: #2ed36a;
-            padding: 8px 16px;
-            font-size: 13px;
-            border-top: 1px solid #dcf8c6;
+            left: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: #1c1e21;
+            padding: 12px 16px;
+            font-size: 14px;
+            border: 1px solid rgba(46, 211, 106, 0.3);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
             z-index: 999;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
             display: none;
             word-break: break-all;
-            font-style: italic;
-            border-left: 4px solid #2ed36a;
+            flex-direction: column;
+            gap: 4px;
         `;
         const footer = document.querySelector('footer');
         if (footer) {
@@ -57,10 +75,28 @@ function updatePreviewUI(text) {
     }
 
     if (text) {
-        previewNode.textContent = '译文预览: ' + text;
-        previewNode.style.display = 'block';
+        previewNode.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2ed36a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 8l6 6"></path>
+                    <path d="M4 14l6-6 2-3"></path>
+                    <path d="M2 5h12"></path>
+                    <path d="M7 2h1"></path>
+                    <path d="M22 22l-5-10-5 10"></path>
+                    <path d="M14 18h6"></path>
+                </svg>
+                <span style="font-size: 11px; font-weight: 600; color: #2ed36a; text-transform: uppercase; letter-spacing: 0.5px;">译文预览</span>
+            </div>
+            <div style="color: #3b3c3e; line-height: 1.4; font-weight: 450;">${text}</div>
+            <div style="font-size: 10px; color: #8696a0; margin-top: 4px;">按 Enter 确认发送，修改内容取消预览</div>
+        `;
+        previewNode.style.display = 'flex';
+        previewNode.classList.remove('preview-show');
+        void previewNode.offsetWidth; // 触发回流以重启动画
+        previewNode.classList.add('preview-show');
     } else {
         previewNode.style.display = 'none';
+        previewNode.classList.remove('preview-show');
     }
 }
 
