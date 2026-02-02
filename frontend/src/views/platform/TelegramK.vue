@@ -1,23 +1,63 @@
 <template>
   <div class="container">
     <div class="left-div">
-      <AsideCard title="TelegramK"></AsideCard>
+      <AsideCard 
+        ref="asideCardRef"
+        title="TelegramK"
+        @open-settings="handleOpenSettings"
+      ></AsideCard>
     </div>
     <div class="right-div">
-      <el-empty description="没有打开任何会话" />
+      <SessionSettings 
+        v-if="showSettings"
+        :is-edit="isEditSettings"
+        :card="currentSettingCard"
+        platform="TelegramK"
+        @confirm="handleSettingsConfirm"
+        @cancel="handleSettingsCancel"
+      />
+      <el-empty v-else description="没有打开任何会话" />
     </div>
   </div>
 </template>
 <script setup>
+import { ref } from 'vue';
 import AsideCard from "@/views/platform/AsideCard.vue";
+import SessionSettings from "@/views/components/SessionSettings.vue";
 import { ipc } from '@/utils/ipcRenderer';
+
+const asideCardRef = ref(null);
+const showSettings = ref(false);
+const isEditSettings = ref(false);
+const currentSettingCard = ref(null);
+
+const handleOpenSettings = (data) => {
+  if (data) {
+    isEditSettings.value = data.isEdit;
+    currentSettingCard.value = data.card || null;
+    showSettings.value = true;
+  } else {
+    showSettings.value = false;
+  }
+};
+
+const handleSettingsConfirm = () => {
+  showSettings.value = false;
+  if (asideCardRef.value) {
+    asideCardRef.value.getAllSessions();
+  }
+};
+
+const handleSettingsCancel = () => {
+  showSettings.value = false;
+};
+
 // # 定义通信频道，即路由
 const ipcApiRoute = {
   addSession: 'controller.window.addSession',
 }
 const receiveCardId = (card)=> {
   const args = {cardId:card.cardId,title:card.title,online:card.online,platform:'Telegram',activeStatus:true}
-  // console.log('receiveCardId', cardId);
   //初始化机器码
   ipc.invoke(ipcApiRoute.addSession, args).then(res => {
     // console.log('收到数据：',res)
@@ -32,16 +72,17 @@ const receiveCardId = (card)=> {
 }
 
 .left-div {
-
+  border-right: 1px solid #e0e0e0;
 }
 
 .right-div {
   height: 100vh;
   flex-grow: 1; /* 占据剩余空间 */
-  border-left: 1px solid #e0e0e0;
+  background-color: #f5f7fa;
   display: flex; /* 使用 flex 布局 */
   align-items: center; /* 垂直方向居中 */
   justify-content: center; /* 水平方向居中 */
+  overflow-y: auto;
 }
 /* 自定义滚动条样式 */
 .right-div::-webkit-scrollbar {

@@ -7,20 +7,10 @@ import { nanoid } from 'nanoid'; // 用于生成唯一 ID
 import { ipc } from '@/utils/ipcRenderer';
 import ContactImporter from '../components/ContactImporter.vue';
 import UserPortrait from '../components/UserPortrait.vue';
+import {post,get, del} from "@/utils/request";
+import Notification from "@/utils/notification";
 const addLoading = ref(false)
 const activeButtonLoading = ref(false)
-const configForm = reactive({
-  cardId: '',         // 对应数据库的 `card_id`
-  name: '',           // 对应数据库的 `name`
-  userAgent: '',      // 对应数据库的 `user_agent`
-  cookie: '',         // 对应数据库的 `cookie`
-  proxyStatus: '',   // 对应数据库的 `proxy_status`
-  proxy: '',          // 对应数据库的 `proxy_type`
-  host: '',           // 对应数据库的 `proxy_host`
-  port: '',           // 对应数据库的 `proxy_port`
-  username: '',       // 对应数据库的 `proxy_username`
-  password: ''        // 对应数据库的 `proxy_password`
-});
 const jsCode = ref('')
 const executeCode = (card)=>{
   const args = {cardId:card.cardId,code:jsCode.value};
@@ -28,7 +18,7 @@ const executeCode = (card)=>{
     console.log(res)
   })
 }
-const settingPanel = ref(false)
+const emits = defineEmits(['open-settings', 'refresh']);
 const importPanel = ref(false)
 const userPortraitPanel = ref(false)
 const userPortraitPanelData = ref({})
@@ -83,10 +73,11 @@ onUnmounted(() => {
 });
 // 监听 conversations 数组的变化
 watch(conversations, () => {
-  const selectedCard = conversations.find(card => card.active_status==='true');
-  if (selectedCard) {
-
-  } else {
+  // 只有当有数据时才进行判断，避免在加载过程中误隐藏
+  if (conversations.length === 0) return;
+  
+  const selectedCard = conversations.find(card => card.active_status === 'true');
+  if (!selectedCard) {
     // 如果没有选中的卡片，执行隐藏窗体的逻辑
     console.log('没有选中卡片，设置窗体全部隐藏');
     ipc.invoke(ipcApiRoute.hideWindow);
@@ -94,12 +85,53 @@ watch(conversations, () => {
 }, { deep: true });
 // 获取所有会话数据
 async function getAllSessions() {
-  await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title }).then((res) => {
-    if (res) {
-      Object.assign(conversations,res.data)
-      // console.log(conversations)
+  try {
+    const res = await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title });
+    if (res && res.data) {
+      console.log('获取所有会话成功', res.data);
+      const sessionList = res.data.map(item => {
+        // 统一字段名为 active_status，且值为字符串 'true' 或 'false'
+        let activeStatus = 'false';
+        if (item.activeStatus === 1 || item.active_status === 'true' || item.active_status === true) {
+          activeStatus = 'true';
+        }
+        
+        return {
+          ...item,
+          cardId: item.card_id || item.cardId, // 确保 cardId 和 card_id 都存在
+          card_id: item.card_id || item.cardId,
+          active_status: activeStatus,
+          online_status: String(item.online_status || item.onlineStatus || 'false'),
+          show_badge: String(item.show_badge || 'false')
+        };
+      });
+      
+      // 使用 splice 清空并更新数组，确保 Vue 响应性
+      conversations.splice(0, conversations.length, ...sessionList);
+      
       setActiveStatus(); // 检查并设置激活状态
     }
+  } catch (error) {
+    console.error('获取所有会话出错:', error);
+  }
+  
+  // 异步获取后端数据，仅用于同步 sessionId 等后端特定字段
+  get('/app/session/list', {
+    pageSize: 1000,
+    page: 1,
+  }).then(res => {
+    if (res && res.data) {
+      console.log('从后端获取会话列表成功');
+      // 将后端返回的 sessionId 等同步到现有的 conversations 中
+      res.data.forEach(backendCard => {
+        const localCard = conversations.find(c => c.card_id === backendCard.cardId);
+        if (localCard) {
+          localCard.sessionId = backendCard.id || backendCard.sessionId;
+        }
+      });
+    }
+  }).catch(err => {
+    console.error('从后端获取会话列表失败:', err);
   });
 }
 // 设置选中的卡片索引
@@ -107,6 +139,8 @@ function setActiveStatus() {
   const activeCardIndex = conversations.findIndex((card) => card.active_status==='true');
   selectedCardIndex.value = activeCardIndex !== -1 ? activeCardIndex : null;
   const activeCard = conversations.find((card) => card.active_status==='true');
+  console.log('activeCard', activeCard);
+  
   if (activeCard) {
     ipc.invoke(ipcApiRoute.selectSession, {cardId:activeCard.card_id,platform:props.title}).then(res => {
       // getAllSessions()
@@ -114,31 +148,11 @@ function setActiveStatus() {
   }
 }
 const cancelClick = ()=>{
-  settingPanel.value = false;
+  emits('open-settings', null);
 }
 // 添加新会话
 function addConversation() {
-  addLoading.value = true;
-  const id = nanoid();
-  const card = {
-    card_id: id,
-    online: false,
-    activeStatus: false, // 初始为未选中
-  };
-  const args = {
-    activeStatus: false,
-    cardId: id,
-    title: card.title,
-    online: card.online,
-    platform: props.title,
-  };
-  ipc.invoke(ipcApiRoute.addSession, args).then((res) => {
-    if (res.status) {
-      conversations.push(card);
-      setActiveStatus(); // 更新选中状态
-    }
-    addLoading.value = false;
-  })
+  emits('open-settings', { isEdit: false });
 }
 // 控制并发数的辅助函数
 const asyncPool = async (poolLimit, array, iteratorFn) => {
@@ -235,60 +249,14 @@ function selectCard(index, card) {
         });
   });
 }
-const confirmClick = () => {
-  const activeCard = conversations.find((card) => card.active_status==='true');
-  if (activeCard) {
-    // 将 `configForm` 对象的字段映射为数据库字段名的对象
-    const args = {
-      card_id: configForm.card_id,                    // 对应数据库的 `card_id`
-      name: configForm.name,                         // 对应数据库的 `name`
-      user_agent: configForm.userAgent,              // 对应数据库的 `user_agent`
-      cookie: configForm.cookie,                     // 对应数据库的 `cookie`
-      proxy_status: configForm.proxyStatus || '',            // 对应数据库的 `proxy_status`
-      proxy_type: configForm.proxy || '',            // 对应数据库的 `proxy_type`
-      proxy_host: configForm.host || '',             // 对应数据库的 `proxy_host`
-      proxy_port: configForm.port || '',             // 对应数据库的 `proxy_port`
-      proxy_username: configForm.username || '',     // 对应数据库的 `proxy_username`
-      proxy_password: configForm.password || ''      // 对应数据库的 `proxy_password`
-    };
-    // 调用 ipc.invoke 并传入转换后的参数
-    ipc.invoke(ipcApiRoute.addConfigInfo, args).then(res => {
-      console.log(res)
-      // 其他逻辑，例如关闭面板、刷新数据等
-      settingPanel.value = false;
-      getAllSessions();
-    });
-  }
-};
+defineExpose({
+  getAllSessions
+});
 // 处理设置按钮点击
 function handleSetting(card) {
-  settingPanel.value = true
-  const args = { cardId: card.card_id};
-  const fieldMapping = {
-    card_id: card.card_id,
-    name: 'name',
-    user_agent: 'userAgent',
-    cookie: 'cookie',
-    proxy_status: 'proxyStatus',
-    proxy_type: 'proxy',
-    proxy_host: 'host',
-    proxy_port: 'port',
-    proxy_username: 'username',
-    proxy_password: 'password'
-  };
-  ipc.invoke(ipcApiRoute.getConfigInfo, args).then((res) => {
-    if (res.status) {
-      // 根据字段映射进行赋值
-      for (const key in fieldMapping) {
-        if (res.data.hasOwnProperty(key)) {
-          const formField = fieldMapping[key];
-          configForm[formField] = res.data[key];
-        }
-      }
-      configForm['card_id'] = card.card_id;
-    }
-  });
+  emits('open-settings', { isEdit: true, card: card });
 }
+
 // 导入联系人被点击
 function importContacts(card) {
   importPanel.value = true
@@ -306,7 +274,7 @@ function userPortrait(card) {
 // 处理刷新按钮点击
 async function handleRefresh(card) {
   card.loading = true;
-  const args = { cardId: card.card_id, platform: props.title };
+  const args = { cardId: card.cardId, platform: props.title };
   ipc.invoke(ipcApiRoute.refreshSession, args).then(res =>{
     if (res.status) {
       card.loading = false;
@@ -321,13 +289,22 @@ async function handleRefresh(card) {
 // 处理关闭按钮点击
 function handleClose(card) {
   card.loading = true;
-  ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.card_id }).then((res) => {
+  ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.cardId }).then((res) => {
     if (res.status) {
       card.loading = false;
     }
+    del(`/app/session/${card.sessionId}`).then(res=> { 
+      if(res.code==200) { 
+           Notification.message({ message: '删除回话成功', type: 'success' });
+            setActiveStatus(); 
+            getAllSessions()
+          
+      }
+
+    })
     // 使用 reactive 数组时，直接操作即可，不需要 .value
-    conversations.splice(0, conversations.length, ...conversations.filter((c) => c.card_id !== card.card_id));
-    setActiveStatus(); // 更新选中状态
+    // conversations.splice(0, conversations.length, ...conversations.filter((c) => c.card_id !== card.card_id));
+    // setActiveStatus(); // 更新选中状态
     // ipc.send('receive-notify', { type: 'success', message: '删除成功!' });
   });
 }
@@ -377,7 +354,7 @@ function handleClose(card) {
           <!-- 根据 card.showBadge 控制徽标的显示 -->
           <el-badge
               style="margin-right: 10px"
-              v-if="card.avatar_url && card.show_badge==='true'"l
+              v-if="card.avatar_url && card.show_badge==='true'"
               is-dot
               type="danger"
           >
@@ -422,91 +399,7 @@ function handleClose(card) {
         </div>
       </el-card>
     </div>
-    <!-- 设置面板 -->
-    <el-drawer :modal="true" size="290" :show-close="true" v-model="settingPanel" direction="ltr">
-      <template #header>
-        <h3>会话配置</h3>
-      </template>
-      <template #default>
-        <el-row :gutter="20">
-          <el-col :span="24">
-            <h4>指纹配置</h4>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="会话昵称" label-width="90px">
-              <el-input v-model="configForm.name" placeholder="请输入名称"></el-input>
-            </el-form-item>
-          </el-col>
 
-          <el-col :span="24">
-            <el-form-item label="UserAgent" label-width="90px">
-              <el-input v-model="configForm.userAgent" placeholder="请输入 User Agent"></el-input>
-            </el-form-item>
-          </el-col>
-
-          <el-col :span="24">
-            <el-form-item label="Cookie" label-width="90px">
-              <el-input type="textarea" v-model="configForm.cookie" placeholder="请输入 Cookie"></el-input>
-            </el-form-item>
-          </el-col>
-
-          <el-col :span="24">
-            <h4>代理配置</h4>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="代理开关" label-width="90px">
-              <el-switch
-                  v-model="configForm.proxyStatus"
-                  active-value="true"
-                  inactive-value="false"
-                  active-text="开启"
-                  inactive-text="关闭">
-              </el-switch>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="选择代理" label-width="90px">
-              <el-select v-model="configForm.proxy" placeholder="请选择代理">
-                <el-option label="No Proxy" value="noProxy"></el-option>
-                <el-option label="HTTP" value="http"></el-option>
-                <el-option label="HTTPS" value="https"></el-option>
-                <el-option label="SOCKS5" value="socks5"></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-
-          <el-col :span="24">
-            <el-form-item label="主机" label-width="90px">
-              <el-input v-model="configForm.host" placeholder="请输入主机"></el-input>
-            </el-form-item>
-          </el-col>
-
-          <el-col :span="24">
-            <el-form-item label="端口" label-width="90px">
-              <el-input v-model="configForm.port" placeholder="请输入端口"></el-input>
-            </el-form-item>
-          </el-col>
-
-          <el-col :span="24">
-            <el-form-item label="用户名" label-width="90px">
-              <el-input v-model="configForm.username" placeholder="请输入用户名"></el-input>
-            </el-form-item>
-          </el-col>
-
-          <el-col :span="24">
-            <el-form-item label="密码" label-width="90px">
-              <el-input type="password" v-model="configForm.password" placeholder="请输入密码"></el-input>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </template>
-      <template #footer>
-        <div class="drawer-footer">
-          <el-button @click="cancelClick">取消</el-button>
-          <el-button type="primary" @click="confirmClick">保存修改</el-button>
-        </div>
-      </template>
-    </el-drawer>
 
     <!-- 导入联系人面板 -->
     <ContactImporter
