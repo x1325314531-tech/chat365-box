@@ -83,6 +83,16 @@ watch(conversations, () => {
     ipc.invoke(ipcApiRoute.hideWindow);
   }
 }, { deep: true });
+
+// 监听内部面板状态变化，管理窗口显示/隐藏
+watch([importPanel, userPortraitPanel], ([newImport, newUserPortrait]) => {
+  if (newImport || newUserPortrait) {
+    ipc.invoke(ipcApiRoute.hideWindow);
+  } else {
+    // 关闭面板时，恢复当前选中会话的显示
+    setActiveStatus();
+  }
+});
 // 获取所有会话数据
 async function getAllSessions() {
   try {
@@ -250,7 +260,9 @@ function selectCard(index, card) {
   });
 }
 defineExpose({
-  getAllSessions
+  getAllSessions,
+  setActiveStatus,
+  hideWindow: () => ipc.invoke(ipcApiRoute.hideWindow)
 });
 // 处理设置按钮点击
 function handleSetting(card) {

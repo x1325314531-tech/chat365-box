@@ -163,7 +163,7 @@ const cancelClick = () => {
       <el-form :model="configForm" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="24">
-            <h4 class="section-title">指纹配置 {{ configForm }}</h4>
+            <h4 class="section-title">指纹配置 </h4>
           </el-col>
           <el-col :span="24">
             <el-form-item label="会话昵称">
@@ -243,6 +243,8 @@ const cancelClick = () => {
   border-radius: 8px;
   box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
   margin: 20px auto;
+  position: relative;
+  z-index: 1000;
 }
 .settings-header {
   margin-bottom: 20px;

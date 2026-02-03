@@ -37,8 +37,14 @@ const handleOpenSettings = (data) => {
     isEditSettings.value = data.isEdit;
     currentSettingCard.value = data.card || null;
     showSettings.value = true;
+    if (asideCardRef.value) {
+      asideCardRef.value.hideWindow();
+    }
   } else {
     showSettings.value = false;
+    if (asideCardRef.value) {
+      asideCardRef.value.setActiveStatus();
+    }
   }
 };
 
@@ -57,6 +63,9 @@ const handleSetActiveStatus = ()=> {
 }
 const handleSettingsCancel = () => {
   showSettings.value = false;
+  if (asideCardRef.value) {
+    asideCardRef.value.setActiveStatus();
+  }
 };
 
 // # 定义通信频道，即路由
