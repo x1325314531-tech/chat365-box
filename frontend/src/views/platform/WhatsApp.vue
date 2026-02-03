@@ -15,7 +15,6 @@
         platform="WhatsApp"
         @confirm="handleSettingsConfirm"
         @cancel="handleSettingsCancel"
-        @handleSetActiveStatus="handleSetActiveStatus"
       />
       <el-empty v-else description="没有打开任何会话" />
     </div>
@@ -54,13 +53,6 @@ const handleSettingsConfirm = () => {
     asideCardRef.value.getAllSessions();
   }
 };
-
-const handleSetActiveStatus = ()=> { 
-    showSettings.value = false;
-  if (asideCardRef.value) {
-    asideCardRef.value.setActiveStatus();
-  }
-}
 const handleSettingsCancel = () => {
   showSettings.value = false;
   if (asideCardRef.value) {

@@ -194,7 +194,8 @@ const openAll = async () => {
   const initSessionForCard = async (card) => {
     // 设置 card 状态为加载中
     card.loading = true;
-
+   console.log('wwww', card);
+   
     try {
       // 调用 initSession 初始化会话
       const res = await ipc.invoke(ipcApiRoute.initSession, { platform: props.title, cardId: card.card_id });

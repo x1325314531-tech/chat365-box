@@ -258,31 +258,34 @@ function monitorMainNode() {
         try {
             // 查询缓存中是否存在翻译结果
             let message = await getMessage(msg, getLocalLanguage());
+            let result = null;
             if (message) {
-                translatedText = message.translatedText;
+                result = { success: true, data: message.translatedText };
             } else {
                 // 异步翻译消息
-                translatedText = await translateText(msg, getLocalLanguage());
+                result = await translateText(msg, getLocalLanguage());
             }
 
-            // 如果翻译结果为空，抛出错误
-            if (!translatedText) {
-                throw new Error("翻译结果为空");
+            // 判断翻译结果
+            if (result && result.success) {
+                // 移除加载中的节点
+                operationNode('remove', loadingNode)
+
+                // 标记该消息已翻译，并添加相关属性
+                span.setAttribute('data-translate-status', 'Translated');
+                span.setAttribute('data-language-type', getLocalLanguage());
+
+                // 缓存翻译结果到数据库
+                if (!message) {
+                    saveMessage(msg, result.data, getLocalLanguage());
+                }
+
+                // 插入翻译结果到页面
+                let translationNode = generateTranslateNode(result.data);
+                operationNode('add', translationNode, span)
+            } else {
+                throw new Error(result?.msg || "翻译结果为空");
             }
-
-            // 移除加载中的节点
-            operationNode('remove',loadingNode)
-
-            // 标记该消息已翻译，并添加相关属性
-            span.setAttribute('data-translate-status', 'Translated');
-            span.setAttribute('data-language-type', getLocalLanguage());
-
-            // 缓存翻译结果到数据库
-            saveMessage(msg, translatedText, getLocalLanguage());
-
-            // 插入翻译结果到页面
-            let translationNode = generateTranslateNode(translatedText);
-            operationNode('add',translationNode,span)
 
         } catch (error) {
             // 错误处理：移除加载中的节点
@@ -290,13 +293,7 @@ function monitorMainNode() {
 
             // 错误处理：标记翻译失败，并提供反馈
             span.setAttribute('data-translate-status', 'failed');
-
-            // 可以选择插入“翻译失败”提示节点（可选）
-            // let errorNode = document.createElement('div');
-            // errorNode.textContent = '翻译失败';
-            // errorNode.style.color = 'red';  // 错误提示样式
-            // span.appendChild(errorNode);
-            // operationNode('add',errorNode,span)
+            console.error('❌ 消息翻译失败:', error);
         }
     }
 }
@@ -340,19 +337,30 @@ function handleKeydown(event) {
         loadingNode.id = 'editDivLoadingNode';
         operationNode('add', loadingNode, editableDiv.parentNode);
         getContentWithLineBreaks(contents).then(msgArr => {
-            // 如果msgArr为空或者所有翻译内容都为空则不调用sendMsg
-            if (msgArr.length > 0 && msgArr.some(item => item.translated)) {
-                // 用换行符拼接翻译后的内容
+            const hasTranslation = msgArr.length > 0 && msgArr.some(item => item.translated && item.translated.success);
+            if (hasTranslation || msgArr.length > 0) {
                 editableDiv.textContent = msgArr
-                    .map(item => item.translated)  // 提取 `translated` 字段
-                    .filter(text => text !== null && text.trim() !== "")  // 过滤掉 null 值和空翻译
+                    .map(item => {
+                        if (item.translated && item.translated.success) {
+                            return item.translated.data;
+                        } else {
+                            if (item.translated && !item.translated.success && !window._uaNotifyShown) {
+                                window.electronAPI.showNotification({
+                                    message: `翻译部分失败: ${item.translated.msg}，将发送原文`,
+                                    type: 'is-warning'
+                                });
+                                window._uaNotifyShown = true;
+                                setTimeout(() => window._uaNotifyShown = false, 5000);
+                            }
+                            return item.original;
+                        }
+                    })
+                    .filter(text => text !== null && text.trim() !== "")
                     .join('\n');
-
                 sendMsg();
             } else {
-                console.warn('翻译结果为空，不发送消息。');
+                console.warn('结果为空，不发送');
             }
-            // 无论翻译是否成功，都移除loadingNode
             operationNode('remove', loadingNode);
         });
 

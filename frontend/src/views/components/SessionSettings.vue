@@ -1,5 +1,6 @@
 <script setup>
 import { reactive, onMounted, watch } from 'vue';
+import { Refresh } from '@element-plus/icons-vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post, put } from "@/utils/request";
 import { nanoid } from 'nanoid';
@@ -23,6 +24,7 @@ const props = defineProps({
 const emit = defineEmits(['confirm', 'cancel']);
 
 const configForm = reactive({
+  sessionId:'',
  cardId: '',
   name: '',
   userAgent: '',
@@ -41,11 +43,33 @@ const ipcApiRoute = {
   addConfigInfo: 'controller.window.addConfigInfo',
 };
 
+const generateRandomUA = () => {
+  const browsers = [
+    {
+      name: 'Chrome',
+      versions: Array.from({ length: 31 }, (_, i) => 100 + i), // 100 to 130
+      template: 'Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.0.0 Safari/537.36'
+    }
+  ];
+  const oss = [
+    'Windows NT 10.0; Win64; x64',
+    'Windows NT 11.0; Win64; x64',
+    'Macintosh; Intel Mac OS X 10_15_7',
+  ];
+  
+  const browser = browsers[Math.floor(Math.random() * browsers.length)];
+  const version = browser.versions[Math.floor(Math.random() * browser.versions.length)];
+  const os = oss[Math.floor(Math.random() * oss.length)];
+  
+  configForm.userAgent = browser.template.replace('{version}', version).replace('{os}', os);
+};
+
 const fetchConfig = () => {
   if (props.isEdit && props.card) {
      console.log('prps',props.card);
     const args = { cardId: props.card.card_id };
     const fieldMapping = {
+      sessionId:'sessionId',
       cardId: 'cardId',
       name: 'name',
       user_agent: 'userAgent',
@@ -65,9 +89,8 @@ const fetchConfig = () => {
             configForm[formField] = res.data[key];
           }
         }
-        configForm.card_id = props.card.card_id;
-       
-        
+        configForm.cardId = props.card.card_id;
+        configForm.sessionId = props.card.sessionId;
 
       }
     });
@@ -90,9 +113,10 @@ watch(() => props.card, () => {
   fetchConfig();
 });
 
-const confirmClick = () => {
+const confirmClick = async () => {
   const moreOptions = JSON.stringify(configForm);
   const data = {
+    sessionId: configForm.sessionId,
     sessionName: configForm.name,
     avatarUrl: '',
     groupName: '',
@@ -102,13 +126,13 @@ const confirmClick = () => {
     cardId: configForm.cardId,
     activeStatus: 0,
   };
-  console.log('cans',configForm );
   
-  const requestMethod = props.isEdit ? put : post;
-  
-  requestMethod('/app/session', data).then(res => {
+  try {
+    const requestMethod = props.isEdit ? put : post;
+    const res = await requestMethod('/app/session', data);
+    
     if (res.code === 200) {
-      // Sync with IPC
+      // 准备 IPC 配置数据
       const argsConfig = {
         card_id: data.cardId,
         name: configForm.name,
@@ -121,32 +145,31 @@ const confirmClick = () => {
         proxy_username: configForm.username || '',
         proxy_password: configForm.password || ''
       };
-     const args = {
-       activeStatus: false,
-       cardId: configForm.cardId,
-      title: '',
-      online:  false,
-    platform: props.platform,
-  };
-  console.log('args', args);
-  
-  ipc.invoke(ipcApiRoute.addSession, args).then((res) => {
-    console.log('huh',res );
-    
-    if (res.status) {
-    //   conversations.push(card);
-      // 更新选中状态
-      emit('handleSetActiveStatus')
-    }
-    // addLoading.value = false;
-  })
 
-      ipc.invoke(ipcApiRoute.addConfigInfo, args).then(ipcRes => {
-        ElMessage.success(props.isEdit ? '修改成功' : '添加成功');
-        emit('confirm');
-      });
+      // 如果是新建会话，先通过 IPC 添加
+      if (!props.isEdit) {
+        const addArgs = {
+          activeStatus: false,
+          cardId: configForm.cardId,
+          title: configForm.name,
+          online: false,
+          platform: props.platform,
+        };
+        await ipc.invoke(ipcApiRoute.addSession, addArgs);
+      }
+
+      // 无论新建还是编辑，都同步配置信息
+      await ipc.invoke(ipcApiRoute.addConfigInfo, argsConfig);
+      
+      ElMessage.success(props.isEdit ? '修改成功' : '添加成功');
+      
+      // 触发 confirm 事件，父组件（如 WhatsApp.vue）会监听到并调用 getAllSessions() 刷新列表
+      emit('confirm');
     }
-  });
+  } catch (error) {
+    console.error('保存会话失败:', error);
+    ElMessage.error('保存失败，请检查网络或配置');
+  }
 };
 
 const cancelClick = () => {
@@ -172,7 +195,11 @@ const cancelClick = () => {
           </el-col>
           <el-col :span="24">
             <el-form-item label="UserAgent">
-              <el-input v-model="configForm.userAgent" placeholder="请输入 User Agent"></el-input>
+              <el-input v-model="configForm.userAgent"  readonly  placeholder="请输入 User Agent">
+                <template #append>
+                  <el-button :icon="Refresh" @click="generateRandomUA">自动生成</el-button>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -269,6 +296,7 @@ const cancelClick = () => {
   padding-left: 10px;
   border-left: 4px solid #409EFF;
   color: #333;
+  text-align: left;
 }
 .settings-footer {
   margin-top: 20px;

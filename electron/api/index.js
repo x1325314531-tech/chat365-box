@@ -28,13 +28,14 @@ async function translateText(text,localLanguage, targetLanguage) {
        
         // 判断响应状态码
         if (response.code === 200) {
-            return response.data; // 返回翻译结果
+            return { success: true, data: response.data }; // 返回翻译结果
         } else {
-            return null;
+            // 业务错误，返回错误信息
+            return { success: false, msg: response.msg || '翻译服务异常' };
         }
     } catch (error) {
         Log.error('translateText 接口请求失败:', error);
-        return null;
+        return { success: false, msg: '网络请求失败，请检查网络连接' };
     }
 }
 // 导出业务请求函数

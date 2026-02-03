@@ -263,11 +263,21 @@ async function executeTranslationFlow(inputText) {
 
         // 调用翻译API
         console.log('📝 调用翻译API...');
-        const translatedText = await translateTextAPI(inputText, getLocalLanguage(), getTargetLanguage());
-        console.log('✅ 翻译结果:', translatedText);
+        const result = await translateTextAPI(inputText, getLocalLanguage(), getTargetLanguage());
+        console.log('✅ 翻译结果:', result);
 
-        if (!translatedText) {
-            throw new Error('翻译结果为空');
+        let finalInput = inputText;
+
+        if (result && result.success) {
+            finalInput = result.data;
+        } else {
+            console.warn('⚠️ 翻译失败:', result?.msg);
+            // 显示通知告诉用户为什么翻译失败
+            window.electronAPI.showNotification({
+                message: `翻译失败: ${result?.msg || '服务异常'}，将发送原文`,
+                type: 'is-warning'
+            });
+            // 翻译失败，保留原文继续流程
         }
 
         // 确保输入框有焦点
@@ -278,15 +288,15 @@ async function executeTranslationFlow(inputText) {
 
         // 使用 Electron 原生键盘模拟 - 这会绕过 Lexical 的 DOM 保护
         console.log('⌨️ 使用原生键盘模拟输入...');
-        const result = await window.electronAPI.simulateTyping({
-            text: translatedText,
+        const typResult = await window.electronAPI.simulateTyping({
+            text: finalInput,
             clearFirst: true  // 先清空（Ctrl+A + Backspace）
         });
 
-        if (result && result.success) {
+        if (typResult && typResult.success) {
             console.log('✅ 原生键盘输入成功');
         } else {
-            console.error('❌ 原生键盘输入失败:', result?.error);
+            console.error('❌ 原生键盘输入失败:', typResult?.error);
         }
 
         // 移除加载状态
@@ -294,14 +304,12 @@ async function executeTranslationFlow(inputText) {
 
         // 检查输入框内容
         await new Promise(resolve => setTimeout(resolve, 100));
-        const currentContent = editableDiv?.textContent;
-        console.log('📌 输入后内容:', currentContent);
-
+        
         // 处理预览逻辑
-        if (globalConfig?.translatePreview) {
+        if (globalConfig?.translatePreview && result && result.success) {
             console.log('👀 开启了翻译预览，显示译文并不发送');
-            updatePreviewUI(translatedText);
-            lastPreviewedTranslation = translatedText;
+            updatePreviewUI(finalInput);
+            lastPreviewedTranslation = finalInput;
             lastPreviewedSource = inputText;
             
             // 消息已替换，但不调用 sendMsg
@@ -313,10 +321,12 @@ async function executeTranslationFlow(inputText) {
             sendMsg();
             console.log('📤 消息已发送');
             
-            // 消息发送后，添加原文显示到发送的消息上
-            setTimeout(() => {
-                addOriginalTextToSentMessage(inputText, translatedText);
-            }, 500);
+            // 消息发送后，如果是翻译成功的，则添加原文显示
+            if (result && result.success) {
+                setTimeout(() => {
+                    addOriginalTextToSentMessage(inputText, finalInput);
+                }, 500);
+            }
         }, 200);
 
     } catch (error) {
@@ -583,10 +593,10 @@ function monitorMainNode() {
             const toLang = getLocalLanguage(); // 中文
             console.log('🌐 调用翻译API:', fromLang, '->', toLang);
             
-            const translatedText = await translateTextAPI(msg, fromLang, toLang);
-            console.log('✅ 翻译结果:', translatedText);
+            const result = await translateTextAPI(msg, fromLang, toLang);
+            console.log('✅ 翻译结果:', result);
 
-            if (translatedText && translatedText !== msg) {
+            if (result && result.success && result.data !== msg) {
                 span.setAttribute('data-translate-status', 'translated');
 
                 // 创建翻译结果显示节点
@@ -600,10 +610,13 @@ function monitorMainNode() {
                     margin-top: 5px;
                     font-style: italic;
                 `;
-                translationNode.textContent = '' + translatedText;
+                translationNode.textContent = '' + result.data;
 
                 span.appendChild(translationNode);
                 console.log('✅ 翻译结果已显示');
+            } else if (result && !result.success) {
+                span.setAttribute('data-translate-status', 'failed');
+                console.warn('❌ 消息翻译失败 (业务):', result.msg);
             } else {
                 span.setAttribute('data-translate-status', 'same');
             }
@@ -661,6 +674,7 @@ function addTranslateButtonWithSelect() {
         cursor: pointer;
         z-index: 1000;
         border-radius: 5px 0 0 5px;
+        display:none
     `;
 
     button.addEventListener('click', function() {
