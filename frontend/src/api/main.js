@@ -5,6 +5,7 @@
  */
 const ipcApiRoute = {
   test: 'controller.example.test',
+  getIPInfo: 'controller.window.getIPInfo'
 }
 
 export {

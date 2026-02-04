@@ -128,6 +128,15 @@ class WindowController extends Controller {
         }
     }
 
+    async getIPInfo(args, event) {
+        try {
+            return await Services.get('window').getIPInfo(args);
+        } catch (error) {
+            Log.error('获取IP信息出错:', error);
+            return { status: false, message: '获取IP信息失败' };
+        }
+    }
+
     async hideWindow(args, event) {
         try {
             await Services.get('window').hideAllWindow();

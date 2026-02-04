@@ -6,6 +6,7 @@ import { post, put, get } from "@/utils/request";
 import { nanoid } from 'nanoid';
 import { ElMessage } from 'element-plus';
 import moment from 'moment-timezone';
+import { conforms } from 'lodash';
 
 const props = defineProps({
   card: {
@@ -28,41 +29,49 @@ const emit = defineEmits(['confirm', 'cancel']);
 const activeTab = ref('fingerprint');
 const configForm = reactive({
   sessionId:'',
- cardId: '',
+  cardId: '',
   name: '',
   fingerprintSwitch: false,
   browser: 'Chrome随机版本',
   os: 'Windows',
   userAgent: '',
-  webglMetadata: '真实',
+  webglMetadata: '自定义',
   webglVendor: '',
   webglRenderer: '',
   webgpu: '基于WebGL',
+  webgpuCustom: '',
   webglImage: '噪音',
+  webglImageCustom: '',
   webrtc: '替换',
+  webrtcCustom: '',
   timezone: '基于IP',
-  geolocation: '关闭',
-  geolocationCustom: false,
-  language: '基于IP',
-  resolution: '真实',
+  timezoneCustom: '',
+  geolocation: '询问',
+  geolocationCustom: true,
+  geolocationLatitude: '',
+  geolocationLongitude: '',
+  geolocationAccuracy: '1000',
+  language: '自定义',
+  resolution: '自定义',
   resolutionWidth: '',
   resolutionHeight: '',
   cookie: '',
   // 新增指纹配置
-  font: '真实',
+  font: '自定义',
   fontCustom: '',
   canvas: '噪音',
   audioContext: '噪音',
   mediaDevices: '噪音',
-  clientRects: '噪音',
-  speechVoices: '噪音',
-  cpuCores: '真实',
-  cpuCoresCustom: '',
-  memory: '真实',
-  memoryCustom: '',
-  doNotTrack: true,
-  screen: '噪音',
-  battery: '噪音',
+  clientRects: '真实',
+  speechVoices: '隐私',
+  cpuCores: '自定义',
+  cpuCoresCustom: '2',
+  memory: '自定义',
+  memoryCustom: '2',
+  doNotTrack: false,
+  screen: '真实',
+  Bluetooth :'真实',
+  battery: '隐私',
   portScanProtection: true,
   languages: ['英语', '英语 (美国)'],
   // 代理配置
@@ -73,6 +82,7 @@ const configForm = reactive({
   username: '',
   password: ''
 });
+
 const timezoneList = ref([]);
 const addLanguageVisible = ref(false);
 const languageSearchQuery = ref('');
@@ -112,6 +122,18 @@ const cpuCoresOptions= ref([
 },
 
 ])
+
+const resolutionOptions = ref(['1920*1080', '1440*900', '1366*768', '1280*1024', '1280*720', '1024*768']);
+const currentResolution = computed({
+  get: () => (configForm.resolutionWidth && configForm.resolutionHeight) ? `${configForm.resolutionWidth}*${configForm.resolutionHeight}` : '',
+  set: (val) => {
+    if (val && val.includes('*')) {
+      const [w, h] = val.split('*');
+      configForm.resolutionWidth = w;
+      configForm.resolutionHeight = h;
+    }
+  }
+});
 const memoryOptions =ref([
   { 
     label:'2GB',
@@ -188,6 +210,7 @@ const ipcApiRoute = {
   addSession: 'controller.window.addSession',
   getConfigInfo: 'controller.window.getConfigInfo',
   addConfigInfo: 'controller.window.addConfigInfo',
+  getIPInfo: 'get-ip-info-backend'
 };
 
 const currentOS = ref('');
@@ -209,6 +232,81 @@ const getWebGLInfo = () => {
     };
   }
   return { vendor: 'Unavailable', renderer: 'Unavailable' };
+};
+
+const getWebGPUInfo = async () => {
+  if (!navigator.gpu) return 'Unavailable';
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) return 'Unknown WebGPU Adapter';
+    const info = adapter.info;
+    const parts = [];
+    if (info.vendor) parts.push(info.vendor);
+    if (info.architecture) parts.push(info.architecture);
+    if (info.description || info.device) parts.push(info.description || info.device);
+    if (info.driver) parts.push(info.driver);
+    return parts.length > 0 ? parts.join(' ') : 'Unknown WebGPU Adapter';
+  } catch (e) {
+    return 'Error detecting WebGPU';
+  }
+};
+
+const getWebRTCIP = () => {
+  return new Promise((resolve) => {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel('');
+    pc.createOffer().then(offer => pc.setLocalDescription(offer));
+    pc.onicecandidate = (ice) => {
+      if (!ice || !ice.candidate || !ice.candidate.candidate) {
+        resolve('Unknown IP');
+        pc.close();
+        return;
+      }
+      const ip = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/.exec(ice.candidate.candidate)?.[1];
+      resolve(ip || 'Unknown IP');
+      pc.close();
+    };
+    // Timeout fallback
+    setTimeout(() => {
+        resolve('Detection Timeout');
+        pc.close();
+    }, 2000);
+  });
+};
+
+const getIPTimezone = async () => {
+  try {
+    const res = await ipc.invoke(ipcApiRoute.getIPInfo, {});
+    console.log('RES', res);
+    
+    if (res.status && res.data && res.data.timezone) {
+      const tzName = res.data.timezone;
+      const hourOffset = moment.tz(tzName).utcOffset() / 60;
+      const sign = hourOffset >= 0 ? '+' : '';
+      return `UTC(${sign}${hourOffset}) ${tzName}`;
+    }
+    return 'Unknown IP Timezone';
+  } catch (e) {
+    console.error('Fetch IP timezone (IPC) failed:', e);
+    return 'Detection Failed';
+  }
+};
+
+const getIPGeolocation = async () => {
+  try {
+    const res = await ipc.invoke(ipcApiRoute.getIPInfo, {});
+    if (res.status && res.data && res.data.latitude && res.data.longitude) {
+      return {
+        latitude: res.data.latitude.toString(),
+        longitude: res.data.longitude.toString(),
+        accuracy: '1000' // Default accuracy
+      };
+    }
+    return null;
+  } catch (e) {
+    console.error('Fetch IP geolocation (IPC) failed:', e);
+    return null;
+  }
 };
 
 const generateRandomUA = () => {
@@ -303,6 +401,34 @@ const fetchConfig = () => {
     configForm.cardId = nanoid();
     // Use detected OS as default
     configForm.os = currentOS.value;
+    configForm.webglMetadata ='自定义';
+    configForm.webgpu = '基于WebGL';
+    configForm.webglImage ='噪音';
+    configForm.webrtc = '替换';
+    configForm.timezone= '基于IP';
+    configForm.geolocation= '询问',
+    configForm.geolocationCustom= true;
+    configForm.language = '自定义';
+    configForm.languages=['英语'];
+    configForm.resolution = '自定义';
+    currentResolution.value ='1920*1080';
+    configForm.font = '自定义';
+    configForm.canvas = '噪音';
+    configForm.audioContext ='噪音';
+    configForm.mediaDevices ='噪音';
+    configForm.clientRects = '真实'; 
+    configForm.speechVoices = '隐私';
+    configForm.cpuCores = '自定义';
+    configForm.cpuCoresCustom = '2';
+    configForm.memory = '自定义';
+    configForm.memoryCustom ='2';
+    configForm.doNotTrack = false;
+    configForm.screen = '真实';
+    configForm.Bluetooth ='真实';
+    configForm.battery = '隐私';
+    configForm.portScanProtection = true;
+
+
   }
 };
 
@@ -310,6 +436,8 @@ onMounted(() => {
   detectOS();
   fetchConfig();
   initTimezoneList();
+  generateRandomUA()
+  handleRefreshWebGlInfo()
   console.log('timezoneList', timezoneList.value);
   
 });
@@ -325,7 +453,14 @@ watch(() => props.card, () => {
 });
 
 watch(() => configForm.webglMetadata, (val) => {
-  if (val === '自定义') {
+  if (val === '真实') {
+    const info = getWebGLInfo();
+    configForm.webglVendor = info.vendor;
+    configForm.webglRenderer = info.renderer;
+  } else if (val === '关闭硬件加速') {
+    configForm.webglVendor = 'Google Inc. (Google)';
+    configForm.webglRenderer = 'Google SwiftShader';
+  } else if (val === '自定义') {
     if (!configForm.webglVendor || !configForm.webglRenderer) {
       const info = getWebGLInfo();
       configForm.webglVendor = info.vendor;
@@ -333,6 +468,62 @@ watch(() => configForm.webglMetadata, (val) => {
     }
   }
 });
+
+watch(() => configForm.webgpu, async (val) => {
+  if (val === '基于WebGL') {
+    configForm.webgpuCustom = '通过 WebGL 来模拟 WebGPU';
+  } else if (val === '真实') {
+    configForm.webgpuCustom = await getWebGPUInfo();
+  } else if (val === '禁用') {
+    configForm.webgpuCustom = '不适用 WebGPU,网站将检测不到';
+  }
+}, { immediate: true });
+
+watch(() => configForm.webglImage, (val) => {
+  if (val === '噪音') {
+    configForm.webglImageCustom = '在同一网页上为每个浏览器实例生成不同的 WebGL 图像';
+  } else if (val === '真实') {
+    const info = getWebGLInfo();
+    configForm.webglImageCustom = `${info.vendor} ${info.renderer}`;
+  }
+}, { immediate: true });
+
+watch(() => configForm.webrtc, async (val) => {
+  if (val === '替换') {
+    configForm.webrtcCustom = '启用与代理IP匹配的 WebRTC IP';
+  } else if (val === '真实') {
+    configForm.webrtcCustom = await getWebRTCIP();
+  } else if (val === '禁用') {
+    configForm.webrtcCustom = '网站将无法获取您的 WebRTC 指纹信息';
+  }
+}, { immediate: true });
+
+watch(() => [configForm.geolocation, configForm.geolocationCustom], async ([geo, custom]) => {
+  console.log( 'getlocation' , geo, custom );
+  
+  if (geo === '询问' && custom) {
+    const data = await getIPGeolocation();
+    if (data) {
+      configForm.geolocationLatitude = data.latitude;
+      configForm.geolocationLongitude = data.longitude;
+      configForm.geolocationAccuracy = data.accuracy;
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.timezone, async (val) => {
+  if (val === '基于IP') {
+    configForm.timezoneCustom = '正在检测 IP 时区...';
+    configForm.timezoneCustom = await getIPTimezone();
+  } else if (val === '真实') {
+    const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const hourOffset = moment.tz(tzName).utcOffset() / 60;
+    const sign = hourOffset >= 0 ? '+' : '';
+    configForm.timezoneCustom = `UTC(${sign}${hourOffset}) ${tzName}`;
+  }
+}, { immediate: true });
+
+
 const handleRefreshWebGlInfo = () => {
    const info = getWebGLInfo();
    configForm.webglVendor = info.vendor;
@@ -364,6 +555,11 @@ const confirmEditFont = () => {
   configForm.fontCustom = selectedFontsInDialog.value.join(', ');
   fontDialogVisible.value = false;
 };
+const handleRefreshResolution = () => {
+  const randomRes = resolutionOptions.value[Math.floor(Math.random() * resolutionOptions.value.length)];
+  currentResolution.value = randomRes;
+  ElMessage.success('已随机切换分辨率');
+};
 const addLanguage = async () => {
   addLanguageVisible.value = true;
   if (allLanguages.value.length === 0) {
@@ -373,6 +569,7 @@ const addLanguage = async () => {
         console.log('lb', res.data);
         
         allLanguages.value = res.data || [];
+        
       }
     } catch (error) {
       console.error('获取语言列表失败:', error);
@@ -607,14 +804,15 @@ const cancelClick = () => {
                 </el-form-item>
 
                 <el-form-item label="WebGL图像">
-                 
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.webglImage">
                     <el-radio-button label="噪音">噪音</el-radio-button>
                     <el-radio-button label="真实">真实</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.webglImage==='噪声'">在同一网页上为每个浏览器实例生成不同的 WebGL 图像</div>
-                    <div class="form-sub-tip" v-if="configForm.webglImage==='真实'">将使用当前电脑真实的 WebGL 图像</div>
+                   <div class="form-sub-tip" v-if="configForm.webglImage==='噪音'">
+                    在同一网页上为每个浏览器实例生成不同的 WebGL 图像。
+                   </div>
+                    <div class="form-sub-tip" v-if="configForm.webglImage==='真实'">将使用当前电脑真实的 WebGL 图像信息</div>
                   </div>
                 </el-form-item>
 
@@ -633,13 +831,14 @@ const cancelClick = () => {
 
                 <el-form-item label="时区">
                   <div class="flex-column">
+                    {{ configForm.timezoneCustom }}
                   <el-radio-group v-model="configForm.timezone">
                     <el-radio-button label="基于IP">基于IP</el-radio-button>
                     <el-radio-button label="真实">真实</el-radio-button>
                     <el-radio-button label="自定义">自定义</el-radio-button>
                   </el-radio-group>
                   <div class="form-sub-tip" v-if="configForm.timezone==='基于IP'">基于 IP 匹配对应的时区</div>
-                   <div class="form-sub-tip" v-if="configForm.timezone==='真实'">使用当前电脑的时区</div>
+                   <div class="form-sub-tip" v-if="configForm.timezone==='真实'">使用当前电脑的时区：{{ configForm.timezoneCustom }}</div>
                     <div class="form-sub-input" v-if="configForm.timezone==='自定义'">
                       <el-select  v-model="configForm.timezoneCustom" placeholder="请选择时区">
                         <el-option v-for="item  in timezoneList" :key="item.value" :label="item.label" :value="item.value">
@@ -662,6 +861,24 @@ const cancelClick = () => {
                     <el-switch v-model="configForm.geolocationCustom"></el-switch>
                     <span>基于IP生成对应的地理位置</span>
                   </div>
+
+                  <div class="form-sub-tip" v-if="configForm.geolocation === '询问' && configForm.geolocationCustom && configForm.geolocationLatitude">
+                    检测到位置：纬度 {{ configForm.geolocationLatitude }}, 经度 {{ configForm.geolocationLongitude }}
+                  </div>
+                  
+                  <div class="geolocation-custom-container" v-if="configForm.geolocation === '询问' && !configForm.geolocationCustom">
+                    <div class="geo-input-row">
+                      <span class="geo-label"><span class="required-star">*</span>经/纬度</span>
+                      <el-input v-model="configForm.geolocationLatitude" placeholder="纬度" style="width: 120px;"></el-input>
+                      <el-input v-model="configForm.geolocationLongitude" placeholder="精度" style="width: 120px; margin-left:12px"></el-input>
+                    </div>
+                    <div class="geo-input-row" style="margin-top: 12px">
+                      <span class="geo-label">精度(米)</span>
+                      <el-input v-model="configForm.geolocationAccuracy" placeholder="精度(米)" style="width: 120px;"></el-input>
+                    </div>
+                    <div class="geo-tip">范围10 ~ 5000</div>
+                  </div>
+
                   </div>
                 </el-form-item>
 
@@ -698,19 +915,31 @@ const cancelClick = () => {
 
                 <el-form-item label="分辨率">
                    <div class="flex-column">
-                  <el-radio-group v-model="configForm.resolution">
+                  <el-radio-group v-model="configForm.resolution" class="resolution-radio-group">
                     <el-radio-button label="真实">真实</el-radio-button>
                     <el-radio-button label="自定义">自定义</el-radio-button>
                   </el-radio-group>
+                  <div v-if="configForm.resolution === '自定义'" class="resolution-custom-row">
+                    <el-select
+                      v-model="currentResolution"
+                      filterable
+                      allow-create
+                      default-first-option
+                      placeholder="请选择或输入分辨率"
+                      class="resolution-select"
+                    >
+                      <el-option
+                        v-for="item in resolutionOptions"
+                        :key="item"
+                        :label="item"
+                        :value="item"
+                      />
+                    </el-select>
+                    <span class="refresh-icon-resolution" @click="handleRefreshResolution">
+                      <i class="iconfont icon-refresh"></i>
+                    </span>
                   </div>
-                </el-form-item>
-
-                <el-form-item label="宽度" v-if="configForm.resolution === '自定义'">
-                  <el-input v-model="configForm.resolutionWidth" placeholder="宽度"></el-input>
-                </el-form-item>
-                
-                <el-form-item label="高度" v-if="configForm.resolution === '自定义'">
-                  <el-input v-model="configForm.resolutionHeight" placeholder="高度"></el-input>
+                  </div>
                 </el-form-item>
 
                 <el-form-item label="字体">
@@ -1387,6 +1616,42 @@ const cancelClick = () => {
   border-bottom: 1px solid #f0f0f0;
 }
 
+.resolution-custom-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resolution-select {
+  flex: 1;
+}
+
+.refresh-icon-resolution {
+  cursor: pointer;
+  color: #409EFF;
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+}
+
+/* 1:1 Green Theme Recreation */
+:deep(.resolution-radio-group .el-radio-button__orig-radio:checked + .el-radio-button__inner) {
+  background-color: #2ed36a !important;
+  border-color: #2ed36a !important;
+  box-shadow: -1px 0 0 0 #2ed36a !important;
+  color: #fff !important;
+}
+
+:deep(.resolution-select .el-input__wrapper) {
+  border: 1px solid #2ed36a !important;
+  box-shadow: none !important;
+}
+
+:deep(.resolution-select .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #2ed36a inset !important;
+}
+
 .custom-language-dialog :deep(.el-dialog__title) {
   font-size: 18px;
   font-weight: 500;
@@ -1550,5 +1815,42 @@ const cancelClick = () => {
     justify-content: center;
     align-items: center;
     height: 100%;
+}
+
+/* Geolocation Custom Styles */
+.geolocation-custom-container {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid #eef2f2;
+  border-radius: 8px;
+  background-color: #fff;
+}
+
+.geo-input-row {
+  display: flex;
+  align-items: center;
+}
+
+.geo-label {
+  width: 80px;
+  font-size: 14px;
+  color: #333;
+}
+
+.required-star {
+  color: #f56c6c;
+  margin-right: 4px;
+}
+
+.geo-tip {
+  margin-left: 80px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+}
+
+.geolocation-custom-container :deep(.el-input__wrapper) {
+  border-radius: 6px;
+  background-color: #fcfdfe;
 }
 </style>

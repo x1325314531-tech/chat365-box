@@ -85,6 +85,9 @@ class Index extends Application {
           screen: 'TEXT',
           battery: 'TEXT',
           port_scan_protection: 'TEXT',
+          geolocation_latitude: 'TEXT',
+          geolocation_longitude: 'TEXT',
+          geolocation_accuracy: 'TEXT',
         },
         constraints: []
       },
@@ -184,12 +187,18 @@ class Index extends Application {
         return { success: false, error: error.message };
       }
     });
+
+    ipcMain.handle('get-ip-info-backend', async (event, args) => {
+      Log.info('IPC handle get-ip-info-backend called');
+      return await Services.get('window').getIPInfo(args);
+    });
   }
 
   /**
    * main window have been loaded
    */
   async windowReady () {
+    console.log('--- windowReady START ---');
     // 初始化翻译配置到内存
     app.translateConfig = Storage.connection('config.json').getItem('translateConfig');
     

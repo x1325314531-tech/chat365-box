@@ -3,6 +3,7 @@
 const { Controller } = require('ee-core');
 const Log = require('ee-core/log');
 const Addon = require('ee-core/addon');
+const axios = require('axios');
 const { app, BrowserWindow, WebContentsView ,session} = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -172,6 +173,28 @@ class WindowService extends Service {
             return data;
         }else {
             return {}
+        }
+    }
+
+    async getIPInfo(args, event) {
+        try {
+            const response = await axios.get('https://ipapi.co/json/', { timeout: 10000 });
+            if (response.status === 200 && response.data.success) {
+                // 格式化输出，确保与前端代码兼容
+                const normalizedData = {
+                    timezone: response.data.timezone?.id,
+                    latitude: response.data.latitude,
+                    longitude: response.data.longitude,
+                    country: response.data.country,
+                    city: response.data.city,
+                    ip: response.data.ip
+                };
+                return { status: true, data: normalizedData };
+            }
+            return { status: false, message: response.data.message || '请求失败' };
+        } catch (error) {
+            Log.error('Main process fetch IP info error:', error);
+            return { status: false, message: error.message };
         }
     }
 
@@ -479,7 +502,10 @@ class WindowService extends Service {
             doNotTrack: dbConfig.do_not_track === 'true',
             screen: dbConfig.screen || null,
             battery: dbConfig.battery || null,
-            portScanProtection: dbConfig.port_scan_protection === 'true'
+            portScanProtection: dbConfig.port_scan_protection === 'true',
+            geolocationLatitude: dbConfig.geolocation_latitude || '',
+            geolocationLongitude: dbConfig.geolocation_longitude || '',
+            geolocationAccuracy: dbConfig.geolocation_accuracy || '1000'
         };
 
         // 设置 User-Agent
