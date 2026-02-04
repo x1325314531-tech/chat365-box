@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import './assets/global.less';
+import './assets/font/iconfont.css';
 import components from './components/global';
 import Router from './router/index';
 import ElementPlus from 'element-plus'

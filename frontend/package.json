@@ -13,6 +13,7 @@
     "echarts": "^5.5.1",
     "element-plus": "^2.8.6",
     "jsencrypt": "^3.3.2",
+    "moment-timezone": "^0.6.0",
     "vue": "^3.2.33",
     "vue-echarts": "^7.0.3",
     "vue-router": "^4.0.14"
