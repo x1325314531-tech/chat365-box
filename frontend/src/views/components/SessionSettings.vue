@@ -60,20 +60,31 @@ const configForm = reactive({
   font: '自定义',
   fontCustom: '',
   canvas: '噪音',
+  canvasCustom: '',
   audioContext: '噪音',
+  audioContextCustom: '',
   mediaDevices: '噪音',
+  mediaDevicesCustom: '',
   clientRects: '真实',
+  clientRectsCustom: '',
   speechVoices: '隐私',
+  speechVoicesCustom: '',
   cpuCores: '自定义',
   cpuCoresCustom: '2',
   memory: '自定义',
   memoryCustom: '2',
   doNotTrack: false,
+  doNotTrackCustom: '',
   screen: '真实',
+  screenCustom: '',
   Bluetooth :'真实',
+  BluetoothCustom: '',
   battery: '隐私',
+  batteryCustom: '',
   portScanProtection: true,
+  portScanProtectionCustom: '',
   languages: ['英语', '英语 (美国)'],
+  languageCustom: '',
   // 代理配置
   proxyStatus: 'false',
   proxy: 'noProxy',
@@ -309,6 +320,28 @@ const getIPGeolocation = async () => {
   }
 };
 
+const getIPLanguage = async () => {
+  try {
+    const res = await ipc.invoke(ipcApiRoute.getIPInfo, {});
+    if (res.status && res.data) {
+      // ipwho.is returns a string of languages like "English, Spanish"
+      // or we can use country_code to map
+      console.log('languages', res );
+      const country = res.data.country || 'Unknown';
+      const languages = res.data.languages || '';
+      console.log('Fetch IP language (IPC) failed:', country, languages );
+      return {
+        display: `基于 IP 匹配：${country} (${languages})`,
+        list: languages.split(',').map(l => l.trim()).filter(l => l)
+      };
+    }
+    return { display: '未知 IP 语言', list: [] };
+  } catch (e) {
+    console.error('Fetch IP language (IPC) failed:', e);
+    return { display: '检测失败', list: [] };
+  }
+};
+
 const generateRandomUA = () => {
   const browsers = [
     {
@@ -330,67 +363,151 @@ const generateRandomUA = () => {
   configForm.userAgent = browser.template.replace('{version}', version).replace('{os}', os);
 };
 
-const fetchConfig = () => {
+const fetchConfig = async () => {
   if (props.isEdit && props.card) {
-     console.log('prps',props.card);
-    const args = { cardId: props.card.card_id };
-    const fieldMapping = {
-      sessionId:'sessionId',
-      cardId: 'cardId',
-      name: 'name',
-      user_agent: 'userAgent',
-      cookie: 'cookie',
-      proxy_status: 'proxyStatus',
-      proxy_type: 'proxy',
-      proxy_host: 'host',
-      proxy_port: 'port',
-      proxy_username: 'username',
-      proxy_password: 'password',
-      fingerprint_switch: 'fingerprintSwitch',
-      browser: 'browser',
-      os: 'os',
-      webgl_metadata: 'webglMetadata',
-      webgl_vendor: 'webglVendor',
-      webgl_renderer: 'webglRenderer',
-      webgpu: 'webgpu',
-      webgl_image: 'webglImage',
-      webrtc: 'webrtc',
-      timezone: 'timezone',
-      geolocation: 'geolocation',
-      geolocation_custom: 'geolocationCustom',
-      language: 'language',
-      resolution: 'resolution',
-      resolution_width: 'resolutionWidth',
-      resolution_height: 'resolutionHeight',
-      font: 'font',
-      font_custom: 'fontCustom',
-      canvas: 'canvas',
-      audio_context: 'audioContext',
-      media_devices: 'mediaDevices',
-      client_rects: 'clientRects',
-      speech_voices: 'speechVoices',
-      cpu_cores: 'cpuCores',
-      cpu_cores_custom: 'cpuCoresCustom',
-      memory: 'memory',
-      memory_custom: 'memoryCustom',
-      do_not_track: 'doNotTrack',
-      screen: 'screen',
-      battery: 'battery',
-      port_scan_protection: 'portScanProtection'
-    };
-    ipc.invoke(ipcApiRoute.getConfigInfo, args).then((res) => {
-      if (res.status) {
-        for (const key in fieldMapping) {
-          if (res.data.hasOwnProperty(key)) {
-            const formField = fieldMapping[key];
-            configForm[formField] = res.data[key];
+    console.log('编辑模式，加载会话详情:', props.card);
+    
+    try {
+      // 调用会话详情接口
+      const sessionRes = await get(`/app/session/${props.card.sessionId}`);
+      
+      if (sessionRes.code === 200 && sessionRes.data) {
+        const sessionData = sessionRes.data;
+        
+        // 解析 moreOptions JSON 字符串
+        let moreOptions = {};
+        if (sessionData.moreOptions) {
+          try {
+            moreOptions = typeof sessionData.moreOptions === 'string' 
+              ? JSON.parse(sessionData.moreOptions) 
+              : sessionData.moreOptions;
+          } catch (e) {
+            console.error('解析 moreOptions 失败:', e);
           }
         }
-        configForm.cardId = props.card.card_id;
-        configForm.sessionId = props.card.sessionId;
-
+        
+        // 回显基本信息
+        configForm.sessionId = sessionData.sessionId || props.card.sessionId;
+        configForm.cardId = sessionData.cardId || props.card.card_id;
+        configForm.name = sessionData.sessionName || '';
+        
+        // 回显 moreOptions 中的所有配置
+        if (Object.keys(moreOptions).length > 0) {
+          // 代理配置
+          configForm.proxyStatus = moreOptions.proxyStatus || 'false';
+          configForm.proxy = moreOptions.proxy || 'noProxy';
+          configForm.host = moreOptions.host || '';
+          configForm.port = moreOptions.port || '';
+          configForm.username = moreOptions.username || '';
+          configForm.password = moreOptions.password || '';
+          
+          // 指纹配置
+          configForm.fingerprintSwitch = moreOptions.fingerprintSwitch || false;
+          configForm.browser = moreOptions.browser || 'Chrome随机版本';
+          configForm.os = moreOptions.os || 'Windows';
+          configForm.userAgent = moreOptions.userAgent || '';
+          
+          // WebGL 配置
+          configForm.webglMetadata = moreOptions.webglMetadata || '自定义';
+          configForm.webglVendor = moreOptions.webglVendor || '';
+          configForm.webglRenderer = moreOptions.webglRenderer || '';
+          configForm.webgpu = moreOptions.webgpu || '基于WebGL';
+          configForm.webgpuCustom = moreOptions.webgpuCustom || '';
+          configForm.webglImage = moreOptions.webglImage || '噪音';
+          configForm.webglImageCustom = moreOptions.webglImageCustom || '';
+          
+          // WebRTC 配置
+          configForm.webrtc = moreOptions.webrtc || '替换';
+          configForm.webrtcCustom = moreOptions.webrtcCustom || '';
+          
+          // 时区配置
+          configForm.timezone = moreOptions.timezone || '基于IP';
+          configForm.timezoneCustom = moreOptions.timezoneCustom || '';
+          
+          // 地理位置配置
+          configForm.geolocation = moreOptions.geolocation || '询问';
+          configForm.geolocationCustom = moreOptions.geolocationCustom !== undefined ? moreOptions.geolocationCustom : true;
+          configForm.geolocationLatitude = moreOptions.geolocationLatitude || '';
+          configForm.geolocationLongitude = moreOptions.geolocationLongitude || '';
+          configForm.geolocationAccuracy = moreOptions.geolocationAccuracy || '1000';
+          
+          // 语言配置
+          configForm.language = moreOptions.language || '自定义';
+          configForm.languages = moreOptions.languages || ['英语'];
+          configForm.languageCustom = moreOptions.languageCustom || '';
+          
+          // 分辨率配置
+          configForm.resolution = moreOptions.resolution || '自定义';
+          configForm.resolutionWidth = moreOptions.resolutionWidth || '';
+          configForm.resolutionHeight = moreOptions.resolutionHeight || '';
+          if (configForm.resolutionWidth && configForm.resolutionHeight) {
+            currentResolution.value = `${configForm.resolutionWidth}*${configForm.resolutionHeight}`;
+          }
+          
+          // 字体配置
+          configForm.font = moreOptions.font || '自定义';
+          configForm.fontCustom = moreOptions.fontCustom || '';
+          
+          // Canvas 配置
+          configForm.canvas = moreOptions.canvas || '噪音';
+          configForm.canvasCustom = moreOptions.canvasCustom || '';
+          
+          // AudioContext 配置
+          configForm.audioContext = moreOptions.audioContext || '噪音';
+          configForm.audioContextCustom = moreOptions.audioContextCustom || '';
+          
+          // 媒体设备配置
+          configForm.mediaDevices = moreOptions.mediaDevices || '噪音';
+          configForm.mediaDevicesCustom = moreOptions.mediaDevicesCustom || '';
+          
+          // ClientRects 配置
+          configForm.clientRects = moreOptions.clientRects || '真实';
+          configForm.clientRectsCustom = moreOptions.clientRectsCustom || '';
+          
+          // SpeechVoices 配置
+          configForm.speechVoices = moreOptions.speechVoices || '隐私';
+          configForm.speechVoicesCustom = moreOptions.speechVoicesCustom || '';
+          
+          // CPU 配置
+          configForm.cpuCores = moreOptions.cpuCores || '自定义';
+          configForm.cpuCoresCustom = moreOptions.cpuCoresCustom || '2';
+          
+          // 内存配置
+          configForm.memory = moreOptions.memory || '自定义';
+          configForm.memoryCustom = moreOptions.memoryCustom || '2';
+          
+          // Do Not Track
+          configForm.doNotTrack = moreOptions.doNotTrack !== undefined ? moreOptions.doNotTrack : false;
+          configForm.doNotTrackCustom = moreOptions.doNotTrackCustom || '';
+          
+          // 屏幕配置
+          configForm.screen = moreOptions.screen || '真实';
+          configForm.screenCustom = moreOptions.screenCustom || '';
+          
+          // 蓝牙配置
+          configForm.Bluetooth = moreOptions.Bluetooth || '真实';
+          configForm.BluetoothCustom = moreOptions.BluetoothCustom || '';
+          
+          // 电池配置
+          configForm.battery = moreOptions.battery || '隐私';
+          configForm.batteryCustom = moreOptions.batteryCustom || '';
+          
+          // 端口扫描保护
+          configForm.portScanProtection = moreOptions.portScanProtection !== undefined ? moreOptions.portScanProtection : true;
+          configForm.portScanProtectionCustom = moreOptions.portScanProtectionCustom || '';
+          
+          // Cookie
+          configForm.cookie = moreOptions.cookie || '';
+        }
+        
+        console.log('会话详情加载成功:', configForm);
+      } else {
+        ElMessage.error('获取会话详情失败');
       }
-    });
+    } catch (error) {
+      console.error('获取会话详情出错:', error);
+      ElMessage.error('获取会话详情出错，请稍后重试');
+    }
   } else {
     // Reset form for new session
     Object.keys(configForm).forEach(key => {
@@ -427,8 +544,6 @@ const fetchConfig = () => {
     configForm.Bluetooth ='真实';
     configForm.battery = '隐私';
     configForm.portScanProtection = true;
-
-
   }
 };
 
@@ -499,8 +614,6 @@ watch(() => configForm.webrtc, async (val) => {
 }, { immediate: true });
 
 watch(() => [configForm.geolocation, configForm.geolocationCustom], async ([geo, custom]) => {
-  console.log( 'getlocation' , geo, custom );
-  
   if (geo === '询问' && custom) {
     const data = await getIPGeolocation();
     if (data) {
@@ -508,6 +621,26 @@ watch(() => [configForm.geolocation, configForm.geolocationCustom], async ([geo,
       configForm.geolocationLongitude = data.longitude;
       configForm.geolocationAccuracy = data.accuracy;
     }
+  } else if (!custom) {
+    configForm.geolocationLatitude = '';
+    configForm.geolocationLongitude = '';
+    configForm.geolocationAccuracy = '';
+  }
+}, { immediate: false });
+
+watch(() => configForm.language, async (val) => {
+  if (val === '基于IP') {
+    configForm.languageCustom = '正在检测 IP 语言...';
+    const result = await getIPLanguage();
+    console.log('1000', result);
+    
+    configForm.languageCustom = result.display;
+    if (result.list.length > 0) {
+      configForm.languages = result.list;
+    }
+  } else {
+    configForm.languageCustom = '';
+    configForm.languages = ['英语']
   }
 }, { immediate: true });
 
@@ -524,13 +657,17 @@ watch(() => configForm.timezone, async (val) => {
 }, { immediate: true });
 
 
-const handleRefreshWebGlInfo = () => {
-   const info = getWebGLInfo();
-   configForm.webglVendor = info.vendor;
-   configForm.webglRenderer = info.renderer;
-   ElMessage.success('已刷新 WebGL 信息');
-}
-const handleRefreshFonts = () => {
+
+watch(() => configForm.resolution, (val) => {
+  if (val === '真实') {
+    const { width, height } = window.screen;
+    configForm.resolutionWidth = width;
+    configForm.resolutionHeight = height;
+  }
+}, { immediate: true });
+
+
+const handleRefreshFonts = (silent = false) => {
   const fontPool = [
     'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana', 'Georgia', 
     'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS', 'Trebuchet MS', 'Arial Black', 
@@ -544,8 +681,363 @@ const handleRefreshFonts = () => {
     if(!selected.includes(randomFont)) selected.push(randomFont);
   }
   configForm.fontCustom = selected.join(', ');
-  ElMessage.success('已生成新字体指纹');
+  if (!silent) {
+    ElMessage.success('已生成新字体指纹');
+  }
 };
+
+watch(() => configForm.font, async (val, oldVal) => {
+  if (val === '真实') {
+    if ('queryLocalFonts' in window) {
+      try {
+        const fonts = await window.queryLocalFonts();
+        const fontNames = fonts.map(f => f.fullName);
+        configForm.fontCustom = [...new Set(fontNames)].join(', ');
+      } catch (err) {
+        console.warn('获取真实字体失败:', err);
+      }
+    }
+  } else if (val === '自定义') {
+    if (oldVal === '真实' || !configForm.fontCustom) {
+      handleRefreshFonts(true);
+    }
+  }
+}, { immediate: true });
+
+
+const handleRefreshWebGlInfo = () => {
+   const info = getWebGLInfo();
+   configForm.webglVendor = info.vendor;
+   configForm.webglRenderer = info.renderer;
+   ElMessage.success('已刷新 WebGL 信息');
+}
+
+watch(() => configForm.canvas, (val) => {
+  if (val === '噪音') {
+    configForm.canvasCustom = '同一浏览上为每个浏览器生成不同的 Canvas指纹信息';
+  } else if (val === '真实') {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const txt = 'BrowserLeaks,com <canvas> 1.0';
+      ctx.textBaseline = 'top';
+      ctx.font = '14px "Arial"';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText(txt, 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText(txt, 4, 17);
+      const dataURL = canvas.toDataURL();
+      // 截取一部分作为展示，避免过长
+      // configForm.canvasCustom = '即将使用当前电脑真实的 Canvas指纹信息 (Hash: ' + dataURL.substring(dataURL.length - 20) + ')'; 
+       configForm.canvasCustom = dataURL; 
+    } catch (e) {
+       configForm.canvasCustom = '真实 Canvas指纹信息获取失败';
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.audioContext, (val) => {
+  if (val === '噪音') {
+    configForm.audioContextCustom = '同一浏览上为每个浏览器生成不同的 AudioContext指纹信息';
+  } else if (val === '真实') {
+    try {
+      const audioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+      const oscillator = audioContext.createOscillator();
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = 1e4;
+      const compressor = audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -50;
+      compressor.knee.value = 40;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0;
+      compressor.release.value = 0.25;
+      oscillator.connect(compressor);
+      compressor.connect(audioContext.destination);
+      oscillator.start(0);
+      audioContext.startRendering().then((buffer) => {
+        console.log('buffer', buffer ,buffer.getChannelData(0) );
+        
+          configForm.audioContextCustom = 'Hash: ' + buffer.getChannelData(0).slice(0, 10).reduce((acc, val) => acc + val, 0);
+      });
+    } catch (e) {
+      configForm.audioContextCustom = '真实 AudioContext指纹信息获取失败';
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.mediaDevices, async (val) => {
+  if (val === '噪音') {
+    configForm.mediaDevicesCustom = '采集指纹生成媒体设备在浏览器内代理多媒体设备指纹信息';
+  } else if (val === '真实') {
+     try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(d => d.kind === 'videoinput').length;
+      const audioInputs = devices.filter(d => d.kind === 'audioinput').length;
+      const audioOutputs = devices.filter(d => d.kind === 'audiooutput').length;
+      configForm.mediaDevicesCustom = `将使用当前电脑真实的媒体设备信息指纹信息 (视频: ${videoInputs}, 音频输入: ${audioInputs}, 音频输出: ${audioOutputs})`;
+    } catch (e) {
+      configForm.mediaDevicesCustom = '将使用当前电脑真实的媒体设备信息指纹信息 (获取失败)';
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.clientRects, (val) => {
+  if (val === '噪音') {
+    configForm.clientRectsCustom = '同一浏览上为每个浏览器生成不同的 ClientRects指纹信息';
+  } else if (val === '真实') {
+    try {
+      const element = document.createElement('div');
+      element.innerHTML = 'BrowserLeaks,com <br> ClientRects Fingerprinting';
+      element.style.position = 'absolute';
+      element.style.left = '-9999px';
+      element.style.fontSize = '14px';
+      element.style.fontFamily = 'Arial';
+      document.body.appendChild(element);
+      const rects = element.getClientRects();
+      let serialized = '';
+      for (const rect of rects) {
+        serialized += `${rect.x},${rect.y},${rect.width},${rect.height},${rect.top},${rect.right},${rect.bottom},${rect.left},`;
+      }
+      document.body.removeChild(element);
+      
+      // Calculate a simple hash from the serialized string
+      let hash = 0;
+      for (let i = 0; i < serialized.length; i++) {
+        const char = serialized.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+      }
+      configForm.clientRectsCustom = `将使用当前电脑真实的 ClientRects指纹信息 (Hash: ${Math.abs(hash).toString(16)})`;
+    } catch (e) {
+      configForm.clientRectsCustom = '将使用当前电脑真实的 ClientRects指纹信息 (获取失败)';
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.speechVoices, (val) => {
+  if (val === '隐私') {
+    configForm.speechVoicesCustom = '同一电脑上为每个浏览器生成不同的 SpeechVoices指纹信息';
+  } else if (val === '真实') {
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    configForm.speechVoicesCustom = `将使用当前电脑真实的 SpeechVoices指纹信息 (检测到 ${voices.length} 个语音包)`;
+    if (voices.length === 0 && window.speechSynthesis) {
+         window.speechSynthesis.onvoiceschanged = () => {
+             const updatedVoices = window.speechSynthesis.getVoices();
+             if (configForm.speechVoices === '真实') {
+                 configForm.speechVoicesCustom = `将使用当前电脑真实的 SpeechVoices指纹信息 (检测到 ${updatedVoices.length} 个语音包)`;
+             }
+         };
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.cpuCores, (val) => {
+  if (val === '真实') {
+    const cores = navigator.hardwareConcurrency || 'Unknown';
+    configForm.cpuCoresCustom = `使用当前电脑真实的 CPU 内核数指纹信息 (Core: ${cores})`;
+  } else if (val === '自定义') {
+    if (configForm.cpuCoresCustom && configForm.cpuCoresCustom.includes('使用当前电脑真实的')) {
+      configForm.cpuCoresCustom = '2';
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.memory, (val) => {
+  if (val === '真实') {
+    const memory = navigator.deviceMemory || 'Unknown';
+    configForm.memoryCustom = `使用当前电脑真实内存大小指纹信息 (Memory: ${memory}GB)`;
+  } else if (val === '自定义') {
+    if (configForm.memoryCustom && configForm.memoryCustom.includes('使用当前电脑真实')) {
+      configForm.memoryCustom = '2';
+    }
+  }
+}, { immediate: true });
+
+watch(() => configForm.doNotTrack, (val) => {
+  if (val === false) {
+    configForm.doNotTrackCustom = '获取当前设备设置愿意被站点追踪个人信息指纹';
+  } else {
+    configForm.doNotTrackCustom = '获取当前设备设置不愿意被站点追踪个人信息指纹';
+  }
+}, { immediate: true });
+
+watch(() => configForm.screen, (val) => {
+  if (val === '噪音') {
+    configForm.screenCustom = '同一浏览上为每个浏览器生成不同的 Screen指纹信息';
+  } else if (val === '真实') {
+    const { width, height, colorDepth, pixelDepth } = window.screen;
+    configForm.screenCustom = `将使用当前电脑真实窗口的属性和属性指纹信息 (Width: ${width}, Height: ${height}, ColorDepth: ${colorDepth})`;
+  }
+}, { immediate: true });
+
+const getBluetoothFingerprint = async () => {
+  if (!navigator.bluetooth) {
+    return '浏览器不支持蓝牙 API';
+  }
+
+  try {
+    // 检查蓝牙可用性
+    const available = await navigator.bluetooth.getAvailability();
+    if (!available) {
+      return '蓝牙不可用 (硬件未启用或不存在)';
+    }
+
+    // 构建蓝牙指纹信息
+    const fingerprintData = {
+      available: true,
+      apiVersion: 'Web Bluetooth API',
+      devices: [],
+      features: {}
+    };
+
+    // 检测蓝牙 API 特性
+    fingerprintData.features = {
+      getAvailability: typeof navigator.bluetooth.getAvailability === 'function',
+      requestDevice: typeof navigator.bluetooth.requestDevice === 'function',
+      getDevices: typeof navigator.bluetooth.getDevices === 'function',
+      requestLEScan: typeof navigator.bluetooth.requestLEScan === 'function'
+    };
+
+    // 尝试获取已配对的设备（需要用户之前授权过）
+    if (fingerprintData.features.getDevices) {
+      try {
+        const devices = await navigator.bluetooth.getDevices();
+        fingerprintData.devices = devices.map(device => ({
+          id: device.id || 'unknown',
+          name: device.name || 'unnamed',
+          connected: device.gatt?.connected || false
+        }));
+      } catch (e) {
+        console.log('无法获取已配对设备:', e.message);
+      }
+    }
+
+    // 生成指纹哈希（基于特性和设备信息）
+    const fingerprintString = JSON.stringify({
+      features: fingerprintData.features,
+      deviceCount: fingerprintData.devices.length,
+      userAgent: navigator.userAgent
+    });
+    
+    let hash = 0;
+    for (let i = 0; i < fingerprintString.length; i++) {
+      const char = fingerprintString.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    const fingerprintHash = Math.abs(hash).toString(16).substring(0, 8);
+
+    // 构建详细的指纹信息文本
+    let fingerprintText = `将使用当前电脑真实的蓝牙指纹信息 (可用: 是`;
+    
+    if (fingerprintData.devices.length > 0) {
+      fingerprintText += `, 已配对: ${fingerprintData.devices.length}个设备`;
+    }
+    
+    // 统计支持的特性
+    const supportedFeatures = Object.entries(fingerprintData.features)
+      .filter(([_, supported]) => supported).length;
+    
+    fingerprintText += `, API特性: ${supportedFeatures}/4`;
+    fingerprintText += `, 指纹: ${fingerprintHash})`;
+    
+    return fingerprintText;
+
+  } catch (e) {
+    console.error('蓝牙指纹检测失败:', e);
+    return `蓝牙检测失败: ${e.message || '未知错误'}`;
+  }
+};
+
+const getBatteryFingerprint = async () => {
+  if (!navigator.getBattery) {
+    return '浏览器不支持电池 API';
+  }
+
+  try {
+    const battery = await navigator.getBattery();
+    
+    // 构建电池指纹信息
+    const fingerprintData = {
+      charging: battery.charging,
+      chargingTime: battery.chargingTime,
+      dischargingTime: battery.dischargingTime,
+      level: battery.level
+    };
+
+    // 判断设备类型
+    let deviceType = '未知设备';
+    if (fingerprintData.chargingTime === Infinity && fingerprintData.dischargingTime === Infinity) {
+      deviceType = '台式机/无电池设备';
+    } else {
+      deviceType = '笔记本/移动设备';
+    }
+
+    // 生成指纹哈希
+    const fingerprintString = JSON.stringify({
+      charging: fingerprintData.charging,
+      hasChargingTime: fingerprintData.chargingTime !== Infinity,
+      hasDischargingTime: fingerprintData.dischargingTime !== Infinity,
+      levelRange: Math.floor(fingerprintData.level * 10) / 10 // 精确到0.1
+    });
+    
+    let hash = 0;
+    for (let i = 0; i < fingerprintString.length; i++) {
+      const char = fingerprintString.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    const fingerprintHash = Math.abs(hash).toString(16).substring(0, 8);
+
+    // 构建详细的指纹信息文本
+    let fingerprintText = `将使用当前电脑真实的电池指纹信息 (设备: ${deviceType}`;
+    
+    if (deviceType !== '台式机/无电池设备') {
+      const levelPercent = Math.round(fingerprintData.level * 100);
+      const chargingStatus = fingerprintData.charging ? '充电中' : '未充电';
+      fingerprintText += `, 电量: ${levelPercent}%, 状态: ${chargingStatus}`;
+    }
+    
+    fingerprintText += `, 指纹: ${fingerprintHash})`;
+    
+    return fingerprintText;
+
+  } catch (e) {
+    console.error('电池指纹检测失败:', e);
+    return `电池检测失败: ${e.message || '未知错误'}`;
+  }
+};
+
+watch(() => configForm.Bluetooth, async (val) => {
+  if (val === '隐私') {
+    configForm.BluetoothCustom = '同一浏览上为每个浏览器生成不同的 Bluetooth指纹信息';
+  } else if (val === '真实') {
+    configForm.BluetoothCustom = '正在检测蓝牙指纹信息...';
+    configForm.BluetoothCustom = await getBluetoothFingerprint();
+  }
+}, { immediate: true });
+
+watch(() => configForm.battery, async (val) => {
+  if (val === '隐私') {
+    configForm.batteryCustom = '同一浏览上为每个浏览器生成不同的电池指纹信息';
+  } else if (val === '真实') {
+    configForm.batteryCustom = '正在检测电池指纹信息...';
+    configForm.batteryCustom = await getBatteryFingerprint();
+  }
+}, { immediate: true });
+
+watch(() => configForm.portScanProtection, (val) => {
+  if (val === true) {
+    configForm.portScanProtectionCustom = '已启用端口扫描保护，阻止脚本使用网站检测对本地网络内的端口和服务器，保护您的网络隐私安全';
+  } else {
+    configForm.portScanProtectionCustom = '已关闭端口扫描保护，网站可以检测您使用了本地网络的哪些端口，可能存在隐私泄露风险';
+  }
+}, { immediate: true });
+
+
 const handleEditFonts = () => {
   fontDialogVisible.value = true;
   selectedFontsInDialog.value = configForm.fontCustom ? configForm.fontCustom.split(',').map(f => f.trim()) : [];
@@ -623,6 +1115,7 @@ const confirmClick = async () => {
       const argsConfig = {
         card_id: data.cardId,
         name: configForm.name,
+        
         user_agent: configForm.userAgent,
         cookie: configForm.cookie,
         proxy_status: configForm.proxyStatus || 'false',
@@ -660,8 +1153,11 @@ const confirmClick = async () => {
         memory_custom: configForm.memoryCustom,
         do_not_track: configForm.doNotTrack,
         screen: configForm.screen,
+        Bluetooth: configForm.Bluetooth,
         battery: configForm.battery,
-        port_scan_protection: configForm.portScanProtection
+        battery_custom: configForm.batteryCustom,
+        port_scan_protection: configForm.portScanProtection,
+        port_scan_protection_custom: configForm.portScanProtectionCustom
       };
 
       // 如果是新建会话，先通过 IPC 添加
@@ -888,7 +1384,8 @@ const cancelClick = () => {
                     <el-radio-button label="基于IP">基于IP</el-radio-button>
                     <el-radio-button label="自定义">自定义</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip">基于 IP 匹配对应的国家语言</div>
+                  <div class="form-sub-tip" v-if="configForm.language === '基于IP' && configForm.languageCustom">{{ configForm.languageCustom }}</div>
+                  <div class="form-sub-tip" v-else></div>
                   <div v-if="configForm.language === '自定义'" class="language-custom-wrapper">
                     <div class="language-box">
                       <div v-for="(lang, index) in configForm.languages" :key="index" class="language-item">
@@ -919,6 +1416,7 @@ const cancelClick = () => {
                     <el-radio-button label="真实">真实</el-radio-button>
                     <el-radio-button label="自定义">自定义</el-radio-button>
                   </el-radio-group>
+                   <div class="form-sub-tip"  v-if="configForm.resolution==='真实'">将使用当前电脑的真实分辨率</div>
                   <div v-if="configForm.resolution === '自定义'" class="resolution-custom-row">
                     <el-select
                       v-model="currentResolution"
@@ -1039,6 +1537,7 @@ const cancelClick = () => {
 
                 <el-form-item label="内存">
                   <div class="flex-column">
+                   
                   <el-radio-group v-model="configForm.memory">
                     <el-radio-button label="真实">真实</el-radio-button>
                     <el-radio-button label="自定义">自定义</el-radio-button>
@@ -1086,6 +1585,7 @@ const cancelClick = () => {
                 </el-form-item>
                 <el-form-item label="电池">
                    <div class="flex-column">
+                     {{ configForm.batteryCustom }}
                   <el-radio-group v-model="configForm.battery">
                     <el-radio-button label="隐私">隐私</el-radio-button>
                     <el-radio-button label="真实">真实</el-radio-button>
@@ -1103,7 +1603,7 @@ const cancelClick = () => {
                   </el-radio-group>
                   <div class="form-sub-tip" v-if="configForm.portScanProtection">阻止脚本使用网站检测对本地网络内的端口和服务器</div>
                    <div class="form-sub-tip" v-if="!configForm.portScanProtection">关闭后，将不会阻止网站检测您使用了本地网络的哪些端口</div>
-                    <el-input type="textarea" v-if="configForm.portScanProtectionPort" :rows="3" v-model="configForm.cookie" placeholder="选填， 允许被连接的本地网络端口范围之间， 分隔多个逗号隔开 例：2000-3000， 3000-5000"></el-input>
+                    <el-input type="textarea" v-if="configForm.portScanProtection" :rows="3" v-model="configForm.cookie" placeholder="选填， 允许被连接的本地网络端口范围之间， 分隔多个逗号隔开 例：2000-3000， 3000-5000"></el-input>
                   </div>
                 </el-form-item>
 

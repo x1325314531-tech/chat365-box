@@ -178,20 +178,29 @@ class WindowService extends Service {
 
     async getIPInfo(args, event) {
         try {
-            const response = await axios.get('https://ipapi.co/json/', { timeout: 10000 });
-            if (response.status === 200 && response.data.success) {
+            const response = await axios.get('https://ipapi.co/json/', { 
+                timeout: 10000
+            });
+            console.log('返回', response.data);
+            if (response.status === 200 && response.data) {
+                if (response.data.error) {
+                    return { status: false, message: response.data.reason || 'IP信息查询失败' };
+                }
+                
                 // 格式化输出，确保与前端代码兼容
                 const normalizedData = {
-                    timezone: response.data.timezone?.id,
+                    timezone: response.data.timezone,
                     latitude: response.data.latitude,
                     longitude: response.data.longitude,
-                    country: response.data.country,
+                    country: response.data.country_name,
+                    country_code: response.data.country_code,
                     city: response.data.city,
+                    languages: response.data.languages,
                     ip: response.data.ip
                 };
                 return { status: true, data: normalizedData };
             }
-            return { status: false, message: response.data.message || '请求失败' };
+            return { status: false, message: '请求失败' };
         } catch (error) {
             Log.error('Main process fetch IP info error:', error);
             return { status: false, message: error.message };
@@ -528,6 +537,27 @@ class WindowService extends Service {
         if (config.cookie) {
             this._setCookies(view.webContents, config.cookie);
             Log.info('Cookies 已设置');
+        }
+
+        // 注入端口扫描保护脚本
+        if (config.portScanProtection) {
+            const PortScanProtection = require('../utils/PortScanProtection');
+            const allowedPorts = []; // 可以从配置中读取允许的端口范围
+            const protectionScript = PortScanProtection.generatePortScanProtectionScript(true, allowedPorts);
+            
+            view.webContents.on('did-finish-load', () => {
+                view.webContents.executeJavaScript(protectionScript)
+                    .then(() => {
+                        Log.info('端口扫描保护脚本已注入');
+                    })
+                    .catch(err => {
+                        Log.error('注入端口扫描保护脚本失败:', err);
+                    });
+            });
+            
+            Log.info('端口扫描保护已启用');
+        } else {
+            Log.info('端口扫描保护已禁用');
         }
     }
 
