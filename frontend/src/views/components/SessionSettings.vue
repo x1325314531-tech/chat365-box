@@ -1291,6 +1291,7 @@ const cancelClick = () => {
                 </div>
                 <el-form-item label="WebGPU">
                     <div class="flex-column">
+                      {{configForm.webgpuCustom}}
                   <el-radio-group v-model="configForm.webgpu">
                     <el-radio-button label="基于WebGL">基于WebGL</el-radio-button>
                     <el-radio-button label="真实">真实</el-radio-button>
@@ -1703,6 +1704,10 @@ const cancelClick = () => {
           <div class="overview-item">
             <span class="label">WebGPU</span>
             <span class="value text-success">{{configForm.webgpu}}</span>
+          </div>
+          <div class="overview-item" v-if="configForm.webgpu === '真实' && configForm.webgpuCustom">
+            <span class="label">WebGPU 详情</span>
+            <span class="value text-primary">{{ configForm.webgpuCustom }}</span>
           </div>
           <div class="overview-item">
             <span class="label">WebRTC</span>
