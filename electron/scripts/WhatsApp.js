@@ -251,10 +251,86 @@ function getInputContent() {
     return editableDiv ? editableDiv.textContent || editableDiv.innerText : '';
 }
 
+// 敏感词检测函数
+async function checkSensitiveContent(text) {
+    try {
+        console.log('🔍 开始敏感词检测:', text);
+        
+        // 使用 electronAPI 调用后端接口（包含 validator 和 bitcoin-address-validation 验证）
+        const result = await window.electronAPI.checkSensitiveContent({ content: text });
+        console.log('后端验证结果:', result);
+        
+        if (result && result.success) {
+            // 检查本地验证结果
+            if (result.localValidation) {
+                console.log('本地验证详情:', result.localValidation);
+                if (result.localValidation.hasSensitiveContent) {
+                    console.log('检测到:', {
+                        URLs: result.localValidation.urls,
+                        BTC地址: result.localValidation.btcAddresses,
+                        ETH地址: result.localValidation.ethAddresses
+                    });
+                }
+            }
+            
+            // 检查后端是否返回敏感词
+            if (result.data && result.data.sensitiveWord) {
+                return {
+                    isSensitive: true,
+                    reason: `内容包含敏感词: ${result.data.sensitiveWord}`,
+                    details: {
+                        type: 'keyword',
+                        sensitiveWord: result.data.sensitiveWord,
+                        localValidation: result.localValidation
+                    }
+                };
+            }
+        }
+        
+        return {
+            isSensitive: false,
+            reason: '',
+            details: {}
+        };
+        
+    } catch (error) {
+        console.error('❌ 敏感词检测失败:', error);
+        // 检测失败时，为了安全起见，允许发送
+        return {
+            isSensitive: false,
+            reason: '',
+            details: {},
+            error: error.message
+        };
+    }
+}
+
 // 执行翻译流程
 async function executeTranslationFlow(inputText) {
     try {
         console.log('🔄 开始翻译流程，原文:', inputText);
+
+        // ===== 敏感词检测 =====
+        const sensitiveCheck = await checkSensitiveContent(inputText);
+        
+        if (sensitiveCheck.isSensitive) {
+            console.warn('🚫 检测到敏感内容，阻止发送');
+            
+            // 显示警告通知
+            window.electronAPI.showNotification({
+                message: `⚠️ ${sensitiveCheck.reason}`,
+                type: 'is-danger'
+            });
+            
+            // 可选：在输入框下方显示警告提示
+            showSensitiveWarning(sensitiveCheck.reason);
+            
+            return; // 阻止发送
+        }
+
+
+        
+        // =====================
 
         // 显示加载状态
         const loadingNode = generateLoadingNode();
@@ -418,6 +494,78 @@ async function translateTextAPI(text, fromLang, toLang) {
         throw error;
     }
 }
+
+// 显示敏感词警告提示
+function showSensitiveWarning(message) {
+    // 移除旧的警告（如果存在）
+    const oldWarning = document.getElementById('sensitive-warning-node');
+    if (oldWarning) {
+        oldWarning.remove();
+    }
+    
+    // 创建警告节点
+    const warningNode = document.createElement('div');
+    warningNode.id = 'sensitive-warning-node';
+    warningNode.style.cssText = `
+        position: absolute;
+        bottom: 100%;
+        left: 10px;
+        right: 10px;
+        background: rgba(255, 59, 48, 0.95);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        color: white;
+        padding: 12px 16px;
+        font-size: 14px;
+        border: 1px solid rgba(255, 59, 48, 0.5);
+        border-bottom: none;
+        border-radius: 12px 12px 0 0;
+        z-index: 999;
+        box-shadow: 0 -4px 12px rgba(255, 59, 48, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: slideUpWarning 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    `;
+    
+    // 添加动画样式
+    if (!document.getElementById('sensitive-warning-style')) {
+        const style = document.createElement('style');
+        style.id = 'sensitive-warning-style';
+        style.textContent = `
+            @keyframes slideUpWarning {
+                from { transform: translateY(100%); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    warningNode.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <div style="flex: 1;">
+            <div style="font-weight: 600; margin-bottom: 2px;">无法发送消息</div>
+            <div style="font-size: 12px; opacity: 0.9;">${message}</div>
+        </div>
+    `;
+    
+    const footer = document.querySelector('footer');
+    if (footer) {
+        footer.style.position = 'relative';
+        footer.appendChild(warningNode);
+        
+        // 3秒后自动移除警告
+        setTimeout(() => {
+            warningNode.style.animation = 'slideUpWarning 0.3s cubic-bezier(0.4, 0, 0.2, 1) reverse forwards';
+            setTimeout(() => warningNode.remove(), 300);
+        }, 3000);
+    }
+}
+
 
 // 移除加载节点
 function removeLoadingNode() {

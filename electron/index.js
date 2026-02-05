@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -219,6 +219,10 @@ class Index extends Application {
     ipcMain.handle('translate-text', async (event, args) => {
       const {text,local,target} = args
       return translateText(text,local,target)
+    });
+    ipcMain.handle('check-sensitive-content', async (event, args) => {
+      const { content } = args;
+      return checkSensitiveContent(content);
     });
     ipcMain.handle('online-notify', async (event, args) => {
       const {online,platform,avatarUrl} = args;

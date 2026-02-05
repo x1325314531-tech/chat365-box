@@ -133,6 +133,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getTranslateConfig: () => {
     return ipcRenderer.invoke('get-translate-config');
+  },
+  // 敏感词检测
+  checkSensitiveContent: (args) => {
+    return ipcRenderer.invoke('check-sensitive-content', args);
   }
 
 });
