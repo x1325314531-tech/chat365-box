@@ -552,7 +552,7 @@ onMounted(() => {
   fetchConfig();
   initTimezoneList();
   generateRandomUA()
-  handleRefreshWebGlInfo()
+  webglRenderer()
   console.log('timezoneList', timezoneList.value);
   
 });
@@ -704,7 +704,11 @@ watch(() => configForm.font, async (val, oldVal) => {
   }
 }, { immediate: true });
 
-
+ const webglRenderer =() => {
+   const info = getWebGLInfo();
+   configForm.webglVendor = info.vendor;
+   configForm.webglRenderer = info.renderer;
+ }
 const handleRefreshWebGlInfo = () => {
    const info = getWebGLInfo();
    configForm.webglVendor = info.vendor;
@@ -1694,79 +1698,79 @@ const cancelClick = () => {
           </div>
           <div class="overview-item">
             <span class="label">WebGL图像</span>
-            <span class="value text-success">噪音</span>
+            <span class="value text-success">{{configForm.webglImage}}</span>
           </div>
           <div class="overview-item">
             <span class="label">WebGPU</span>
-            <span class="value text-success">基于 WebGL</span>
+            <span class="value text-success">{{configForm.webgpu}}</span>
           </div>
           <div class="overview-item">
             <span class="label">WebRTC</span>
-            <span class="value text-success">替换</span>
+            <span class="value text-success">{{configForm.webrtc }}</span>
           </div>
           <div class="overview-item">
             <span class="label">时区</span>
-            <span class="value text-success">基于 IP</span>
+            <span class="value text-success">{{configForm.timezone==='自定义' ? '替换': configForm.timezone }}</span>
           </div>
           <div class="overview-item">
             <span class="label">地理位置</span>
-            <span class="value text-success">基于 IP (允许)</span>
+            <span class="value text-success">基于 IP ({{configForm.geolocation}})</span>
           </div>
           <div class="overview-item">
             <span class="label">语言</span>
-            <span class="value text-success">基于 IP</span>
+            <span class="value text-success">{{configForm.language==='自定义' ? '替换': configForm.language }}</span>
           </div>
           <div class="overview-item">
             <span class="label">分辨率</span>
-            <span class="value text-success">真实</span>
+            <span class="value text-success">{{configForm.resolution==='真实' ?configForm.resolution : currentResolution }}</span>
           </div>
           <div class="overview-item">
             <span class="label">字体</span>
-            <span class="value text-success">真实</span>
+            <span class="value text-success">{{configForm.font==='自定义' ? '替换': configForm.font }}</span>
           </div>
           <div class="overview-item">
             <span class="label">Canvas</span>
-            <span class="value text-success">噪音</span>
+            <span class="value text-success">{{configForm.canvas}}</span>
           </div>
           <div class="overview-item">
             <span class="label">AudioContext</span>
-            <span class="value text-success">噪音</span>
+            <span class="value text-success">{{configForm.audioContext}}</span>
           </div>
           <div class="overview-item">
             <span class="label">媒体设备</span>
-            <span class="value text-success">查看</span>
+            <span class="value text-success">{{configForm.mediaDevices}}</span>
           </div>
           <div class="overview-item">
             <span class="label">ClientRects</span>
-            <span class="value text-success">噪音</span>
+            <span class="value text-success">{{configForm.clientRects}}</span>
           </div>
           <div class="overview-item">
             <span class="label">SpeechVoices</span>
-            <span class="value text-success">隐私</span>
+            <span class="value text-success">{{configForm.speechVoices}}</span>
           </div>
           <div class="overview-item">
             <span class="label">CPU内核数</span>
-            <span class="value text-primary">真实</span>
+            <span class="value text-primary">{{configForm.cpuCores==='真实' ?configForm.cpuCores : configForm.cpuCoresCustom }} {{configForm.cpuCores==='真实' ?'' : '核'}}</span>
           </div>
           <div class="overview-item">
             <span class="label">内存</span>
-            <span class="value text-primary">真实</span>
+            <span class="value text-primary">{{configForm.memory==='真实' ?configForm.memory : configForm.memoryCustom }} {{configForm.memory==='真实' ?' ' : 'GB'}}</span>
           </div>
           <div class="overview-item">
             <span class="label">Do Not Track</span>
-            <span class="value">启用</span>
+            <span class="value">{{configForm.doNotTrack ? '启用' : '关闭' }}</span>
           </div>
           <div class="overview-item">
             <span class="label">蓝牙</span>
-            <span class="value text-success">替换</span>
+            <span class="value text-success">{{configForm.Bluetooth==='真实' ? configForm.Bluetooth : '替换'}}</span>
           </div>
           <div class="overview-item">
             <span class="label">电池</span>
-            <span class="value text-success">替换</span>
+            <span class="value text-success">{{configForm.battery==='真实' ? configForm.battery : '替换'}}</span>
           </div>
           <div class="overview-item">
             <span class="label">跨门保护</span>
-            <span class="value">启用</span>
+            <span class="value">{{configForm.portScanProtection ? '启用' : '关闭' }}</span>
           </div>
         </div>
       </div>
