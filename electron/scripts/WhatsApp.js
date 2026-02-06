@@ -838,12 +838,13 @@ function processImageMessageList() {
             bottom: 8px;
             right: 8px;
             z-index: 100;
+            display:none;
         `;
         
         btn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            translateImageInWhatsApp(img);
+            // translateImageInWhatsApp(img);
         };
 
         const span = btn.querySelector('span');
@@ -856,18 +857,20 @@ function processImageMessageList() {
 
 function startMediaPreviewMonitor() {
     const observer = new MutationObserver(() => {
-        const dialog = document.querySelector('div[role="dialog"]');
+        const dialog = document.querySelector('div[data-animate-media-viewer="true"]');
+        console.log('dialog', dialog);
+        
         if (dialog) {
             const previewImg = dialog.querySelector('img[src^="blob:"]');
             if (previewImg && previewImg.naturalWidth > 100 && !document.querySelector('#image-translate-btn')) {
-                addTranslateButtonToPreview(previewImg);
+                addTranslateButtonToPreview(previewImg, dialog );
             }
         }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 }
 
-function addTranslateButtonToPreview(imgElement) {
+function addTranslateButtonToPreview(imgElement, dialog) {
     if (document.querySelector('#image-translate-btn')) return;
 
     const btn = document.createElement('div');
@@ -878,7 +881,12 @@ function addTranslateButtonToPreview(imgElement) {
             图片翻译
         </div>
     `;
-    btn.style.cssText = `position: fixed; top: 70px; right: 40px; z-index: 10000;`;
+     if(dialog) {
+        btn.style.cssText = `position: fixed; bottom: 35px; right: 60px; z-index: 10000;`;
+     }else { 
+         btn.style.cssText = `display:none`;
+     }
+   
     
     btn.onclick = (e) => {
         e.preventDefault();
@@ -945,7 +953,7 @@ async function translateImageInWhatsApp(imgElement) {
         let imageData;
         if (window.html2canvas) {
             // 确定截图目标元素 (对话框或图片容器)
-            const captureTarget = imgElement.closest('div[role="dialog"]') || 
+            const captureTarget = imgElement.closest('div[data-animate-media-viewer="true"]') || 
                                  imgElement.closest('div[role="button"]') || 
                                  imgElement.parentNode;
             
@@ -977,7 +985,7 @@ async function translateImageInWhatsApp(imgElement) {
             imageData = canvas.toDataURL('image/png');
         }
         
-        window.electronAPI.showNotification({ message: '🖼️ 正在发起图片翻译请求...', type: 'is-info' });
+        window.electronAPI.showNotification({ message: '正在发起图片翻译请求...', type: 'is-info' });
 
         const result = await window.electronAPI.translateImage({
             imageData: imageData,
@@ -993,19 +1001,41 @@ async function translateImageInWhatsApp(imgElement) {
                 const old = container.querySelector('.image-translation-result');
                 if (old) old.remove();
 
+                const isDialog = container.getAttribute('role') === 'dialog';
                 const resNode = document.createElement('div');
                 resNode.className = 'image-translation-result';
-                resNode.style.cssText = `
-                    font-size: 14px; 
-                    color: #25D366; 
-                    background: rgba(0, 0, 0, 0.05); 
-                    border-left: 3px solid #25D366; 
-                    padding: 8px 12px; 
-                    margin-top: 10px; 
-                    border-radius: 4px; 
-                    font-style: italic; 
-                    word-break: break-all;
-                `;
+                
+                if (isDialog) {
+                    resNode.style.cssText = `
+                        position: absolute;
+                        bottom: 100px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        z-index: 10001;
+                        background: rgba(255, 255, 255, 0.95);
+                        color: #333;
+                        padding: 15px 25px;
+                        border-radius: 12px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                        max-width: 80%;
+                        max-height: 60%;
+                        overflow-y: auto;
+                        border-top: 4px solid #25D366;
+                        backdrop-filter: blur(5px);
+                    `;
+                } else {
+                    resNode.style.cssText = `
+                        font-size: 14px; 
+                        color: #25D366; 
+                        background: rgba(0, 0, 0, 0.05); 
+                        border-left: 3px solid #25D366; 
+                        padding: 8px 12px; 
+                        margin-top: 10px; 
+                        border-radius: 4px; 
+                        font-style: italic; 
+                        word-break: break-all;
+                    `;
+                }
                 
                 const data = result.data;
                 if (data && typeof data === 'object') {
@@ -1019,6 +1049,11 @@ async function translateImageInWhatsApp(imgElement) {
                     if (textContent) {
                         const textDiv = document.createElement('div');
                         textDiv.textContent = textContent;
+                        if (isDialog) {
+                            textDiv.style.fontSize = '16px';
+                            textDiv.style.lineHeight = '1.5';
+                            textDiv.innerHTML = textContent.replace(/\n/g, '<br>');
+                        }
                         resNode.appendChild(textDiv);
                     } else if (resNode.childNodes.length === 0) {
                         resNode.textContent = JSON.stringify(data);
@@ -1027,9 +1062,18 @@ async function translateImageInWhatsApp(imgElement) {
                     resNode.textContent = String(data);
                 }
 
-                const anchor = container.querySelector('.image-chat-translate-btn') || imgElement.parentNode;
-                if (anchor.nextSibling) container.insertBefore(resNode, anchor.nextSibling);
-                else container.appendChild(resNode);
+                if (isDialog) {
+                    const closeBtn = document.createElement('div');
+                    closeBtn.innerHTML = '&times;';
+                    closeBtn.style.cssText = 'position: absolute; top: 5px; right: 10px; cursor: pointer; font-size: 20px; color: #999;';
+                    closeBtn.onclick = () => resNode.remove();
+                    resNode.appendChild(closeBtn);
+                    container.appendChild(resNode);
+                } else {
+                    const anchor = container.querySelector('.image-chat-translate-btn') || imgElement.parentNode;
+                    if (anchor.nextSibling) container.insertBefore(resNode, anchor.nextSibling);
+                    else container.appendChild(resNode);
+                }
             }
         } else {
             console.error('❌ 图片翻译失败:', result?.msg);
