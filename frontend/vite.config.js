@@ -26,10 +26,10 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 8080,
       proxy: {
-        '/api': {
-           target: 'http://192.168.3.18:39205/',
+        '/box': {
+           target: 'http://192.168.3.18:38080/box',
            changeOrigin: true,
-           rewrite: (path) => path.replace(/^\/api/, '')
+           rewrite: (path) => path.replace(/^\/box/, '')
         }
       }
     },

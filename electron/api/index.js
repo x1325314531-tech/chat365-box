@@ -52,16 +52,16 @@ async function checkSensitiveContent(content) {
     
     try {
         // 1. 调用敏感词检测接口
-        const sensitiveResponse = await request.post('/app/sensitive/check', sensitiveRequestBody);
-        Log.info('敏感词检测响应:', sensitiveResponse);
+        const sensitiveResponse = await request.post(`/app/sensitive/check`,  sensitiveRequestBody);
+        Log.info('敏感词检测响应结果:', sensitiveResponse);
         
         // 检查敏感词接口返回
         if (sensitiveResponse.code === 200 && sensitiveResponse.data && sensitiveResponse.data.sensitiveWord) {
-             // 触发验证请求 (Sensitive Word - Type 1)
+             // 触发验证请求 (Sensitive Word - Type 0)
              try {
                  const triggerRequestBody = {
-                     content: content,
-                     triggerType: 1,
+                      triggerContent: content,
+                     triggerType: 0,
                      sensitiveWord: sensitiveResponse.data.sensitiveWord
                  };
                  Log.info('触发验证请求 (Type 1):', triggerRequestBody);
@@ -92,15 +92,15 @@ async function checkSensitiveContent(content) {
 
             // 3. 如果包含 URL 或 Crypto 地址，调用 /app/trigger 接口验证
             // 优先级：加密货币 (3) > URL (2)
-            const triggerType = hasCrypto ? 3 : 2;
+            const triggerType = hasCrypto ? 2 : 1;
 
             const triggerRequestBody = {
-                content: content,
+                triggerContent: content,
                 // hasUrl: hasUrl,
                 // hasCrypto: hasCrypto,
                 // urls: urlResults,
                 // crypto: cryptoResults,
-                triggerType: triggerType
+                triggerType: triggerType.toString()
             };
             
             Log.info(`触发验证请求 (Type ${triggerType}):`, triggerRequestBody);

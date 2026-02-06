@@ -3,7 +3,8 @@ const axios = require('axios');
 const Log = require('ee-core/log');
 // 创建 axios 实例
 const axiosInstance = axios.create({
-    baseURL: 'http://192.168.3.18:39205', // 可以根据需要修改
+    // baseURL: 'http://192.168.3.18:39205',
+      baseURL: 'http://192.168.3.18:38080/box', // 可以根据需要修改
     timeout: 10000, // 请求超时时间（毫秒）
     headers: {
         'Content-Type': 'application/json'
@@ -46,6 +47,8 @@ axiosInstance.interceptors.response.use(
             
             return Promise.reject(new Error('登录已过期'));
         }
+       Log.info('返回数据响应体', response.data);
+       
         
         return response.data; // 返回响应数据
     },

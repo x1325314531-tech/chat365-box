@@ -18,16 +18,20 @@ Content-Type: application/json
 ### 响应
 ```json
 {
-  "code": 200,
-  "message": "success",
-  "data": {
-    "isSensitive": true,
-    "reason": "内容包含敏感 URL 地址",
-    "details": {
-      "type": "url",
-      "matches": ["http://example.com"]
+    "msg": "存在敏感词",
+    "code": 200,
+    "data": {
+        "createBy": null,
+        "createTime": null,
+        "updateBy": null,
+        "updateTime": null,
+        "remark": null,
+        "tenantId": null,
+        "delFlag": null,
+        "sensitiveId": null,
+        "sensitiveWord": "薄熙来",
+        "status": null
     }
-  }
 }
 ```
 
