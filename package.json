@@ -63,6 +63,8 @@
     "ee-core": "2.11.0",
     "ee-incremental-updater": "^2.1.0",
     "electron-updater": "6.3.9",
+    "form-data": "^4.0.5",
+    "html2canvas": "^1.4.1",
     "lodash": "^4.17.21",
     "lottie-web": "^5.12.2",
     "multicoin-address-validator": "^0.5.26",

@@ -1,8 +1,11 @@
 const request = require('../utils/request'); // 导入工具类
+const path = require('path');
 const { app} = require('electron');
 const Log = require('ee-core/log');
 const { validateContent } = require('../utils/ValidationUtils'); // 导入验证工具
 const { validateUrls, validateWalletAddress} = require('../utils/ValidationUrlUtils')
+const fs = require('fs');
+const FormData = require('form-data');
 
 //获取语言列表
 async function getLanguages() {
@@ -170,9 +173,78 @@ async function checkSensitiveContent(content) {
     }
 }
 
+
+// 实现图片翻译函数
+async function translateImage(filePath, fromLang, targetLang) {
+    try {
+        if (!fs.existsSync(filePath)) {
+             throw new Error('文件不存在');
+        }
+        
+        const formData = new FormData();
+        const fileName = path.basename(filePath);
+        
+        // 显式指定文件名和 Content-Type，确保后端正确识别
+        formData.append('file', fs.createReadStream(filePath), {
+            filename: fileName,
+            contentType: 'image/png'
+        });
+
+        Log.info('开始图片翻译:', { filePath, from: fromLang, target: targetLang });
+
+        // query params in URL
+        const url = `/app/mediaTranslate/image?from=${fromLang}&target=${targetLang}`;
+        
+        // 传递 headers, formData.getHeaders() 会包含 Content-Type 和 boundry
+        const config = {
+            headers: {
+                ...formData.getHeaders()
+            }
+        };
+        Log.info('图片请求参数', { url, fileName, headers: config.headers });
+        
+        const response = await request.post(url, formData, config);
+        Log.info('图片翻译响应:', response);
+
+        if (response.code === 200) {
+            let finalData = response.data;
+            try {
+                // 如果 data 是 JSON 字符串，尝试解析以检查内部错误
+                if (typeof response.data === 'string' && (response.data.startsWith('{') || response.data.startsWith('['))) {
+                    const parsedData = JSON.parse(response.data);
+                    
+                    // 检查服务内部错误码
+                    // 如果 error_code 是 "0"，说明成功，提取内部 data
+                    if (parsedData.error_code === "0") {
+                        finalData = parsedData.data || parsedData;
+                    } else if (parsedData.error_code || (parsedData.code && parsedData.code !== 200)) {
+                        // 处理非 0 的错误码
+                        Log.error('图片翻译服务内部错误:', parsedData);
+                        return { 
+                            success: false, 
+                            msg: parsedData.error_msg || parsedData.msg || `翻译接口内部错误(${parsedData.error_code || parsedData.code})` 
+                        };
+                    } else {
+                        finalData = parsedData;
+                    }
+                }
+            } catch (e) {
+                Log.warn('尝试解析响应数据失败，按原样返回:', e.message);
+            }
+            return { success: true, data: finalData };
+        } else {
+            return { success: false, msg: response.msg || '图片翻译请求失败' };
+        }
+    } catch (error) {
+        Log.error('图片翻译异常:', error);
+        return { success: false, msg: error.message || '图片翻译通信异常' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
     getLanguages,
-    checkSensitiveContent
+    checkSensitiveContent,
+    translateImage
 };

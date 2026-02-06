@@ -137,6 +137,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 敏感词检测
   checkSensitiveContent: (args) => {
     return ipcRenderer.invoke('check-sensitive-content', args);
+  },
+  // 图片翻译
+  translateImage: (args) => {
+    return ipcRenderer.invoke('translate-image', args);
+  },
+  getScriptContent: (scriptName) => {
+    return ipcRenderer.invoke('get-script-content', scriptName);
   }
 
 });

@@ -629,28 +629,36 @@ function getTargetLanguage() {
 
 // 监控主节点
 function monitorMainNode() {
-    const observer = new MutationObserver((mutationsList, observer) => {
-        for (let mutation of mutationsList) {
-            if (mutation.type === 'childList') {
-                const mainNode = document.getElementById('pane-side');
-                if (mainNode) {
-                    observer.disconnect();
-                    observePaneSide(mainNode);
-                    getLanguageList();
-                    syncGlobalConfig(); // 初始同步
-                    setInterval(syncGlobalConfig, 10000); // 每10秒同步一次
-                    setInterval(() => {
-                        processMessageList();
-                        processImageMessageList(); 
-                    }, 800);
-                    startMediaPreviewMonitor();
-                    break;
-                }
-            }
+    const init = () => {
+        const mainNode = document.getElementById('pane-side');
+        if (mainNode && !mainNode.hasAttribute('data-monitor-init')) {
+            mainNode.setAttribute('data-monitor-init', 'true');
+            observePaneSide(mainNode);
+            getLanguageList();
+            syncGlobalConfig(); // 初始同步
+            setInterval(syncGlobalConfig, 10000); // 每10秒同步一次
+            setInterval(() => {
+                processMessageList();
+                processImageMessageList(); // 处理消息列表中的图片翻译
+            }, 500);
+            
+            // 恢复监控
+            startMediaPreviewMonitor(); 
+            monitorAttachmentMenu();
+            return true;
         }
-    });
+        return false;
+    };
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    // 尝试立即初始化，如果不成功则启动观察器
+    if (!init()) {
+        const observer = new MutationObserver((mutationsList, observer) => {
+            if (init()) {
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
 
     function observePaneSide(paneSideNode) {
         const observer = new MutationObserver((mutationsList) => {
@@ -670,7 +678,327 @@ function monitorMainNode() {
 
         observer.observe(paneSideNode, { attributes: true, subtree: true, attributeFilter: ['aria-selected'] });
     }
+}
 
+// 处理消息列表中的图片，添加翻译按钮
+function processImageMessageList() {
+    // 查找包含图片的发送和接收消息
+    const imageMessages = document.querySelectorAll('.message-in img, .message-out img');
+    
+    imageMessages.forEach(img => {
+        // 排除头像和表情/图标
+        if (img.naturalWidth < 30 || img.closest('[data-testid="attached-gif"]') || img.closest('.selectable-text') || img.classList.contains('_amlt')) return;
+        
+        // 查找容器
+        const messageContainer = img.closest('.message-in') || img.closest('.message-out');
+        if (!messageContainer) return;
+
+        // 如果已经添加过按钮，跳过
+        if (messageContainer.querySelector('.image-chat-translate-btn')) return;
+
+        // 创建翻译按钮
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'image-chat-translate-btn';
+        btnContainer.style.cssText = `
+            margin-top: 8px;
+            display: flex;
+            justify-content: flex-end;
+            padding: 2px 10px;
+            width: 100%;
+            box-sizing: border-box;
+        `;
+        
+        const btn = document.createElement('div');
+        btn.innerHTML = `
+            <span style="cursor: pointer; background: rgba(37, 211, 102, 0.9); color: white; padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease; user-select: none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+                图片翻译
+            </span>
+        `;
+        
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            translateImageInWhatsApp(img);
+        };
+
+        const innerSpan = btn.querySelector('span');
+        innerSpan.onmouseover = () => {
+            innerSpan.style.background = '#1da851';
+            innerSpan.style.transform = 'scale(1.02)';
+        };
+        innerSpan.onmouseout = () => {
+            innerSpan.style.background = 'rgba(37, 211, 102, 0.9)';
+            innerSpan.style.transform = 'scale(1)';
+        };
+
+        btnContainer.appendChild(btn);
+        
+        // 注入到图片父容器中
+        const imgParent = img.closest('div[role="button"]') || img.parentNode;
+        imgParent.appendChild(btnContainer);
+    });
+}
+
+// 监听附件菜单点击
+function monitorAttachmentMenu() {
+    document.body.addEventListener('click', (e) => {
+        console.log('事件监听', e);
+        
+        const target = e.target;
+        const menuItem = target.closest('li') || target.closest('div[role="menuitem"]');
+        console.log('menuItem', menuItem);
+        if (menuItem) {
+            const text = menuItem.textContent.trim();
+            const icon = menuItem.querySelector('span[data-icon]');
+            const iconName = icon ? icon.getAttribute('data-icon') : '';
+               console.log('text', text);
+            // 匹配 "照片和视频"
+            if (text === '照片和视频' || iconName.includes('image') || iconName.includes('media')) {
+                console.log('📎 用户点击了 "照片和视频" 附件菜单');
+            } else if (text === '文档' || iconName.includes('document')) {
+                console.log('📎 用户点击了 "文档" 附件菜单');
+            }
+        }
+    }, true); 
+}
+
+// 监听媒体预览界面 (截图二对应逻辑)
+function startMediaPreviewMonitor() {
+    console.log('📡 启动图片预览监控');
+    const observer = new MutationObserver((mutations) => {
+        // 查找预览容器或工具栏
+        const dialog = document.querySelector('div[role="dialog"]');
+        const mediaToolbar = document.querySelector('span[data-icon="wds-ic-image-rotate-right"]') || 
+                           document.querySelector('span[data-icon="wds-ic-image-stickers"]') ||
+                           document.querySelector('span[data-icon="x"]');
+        
+        if (mediaToolbar || dialog) {
+            const previewImg = document.querySelector('img[src^="blob:"]');
+            if (previewImg) {
+                // 确保尺寸合适且未注入按钮
+                if (previewImg.naturalWidth > 100 && !document.querySelector('#image-translate-btn')) {
+                    console.log('🖼️ 检测到图片预览界面，准备注入翻译按钮');
+                    addTranslateButtonToPreview(previewImg);
+                }
+            }
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function addTranslateButtonToPreview(imgElement) {
+    if (document.querySelector('#image-translate-btn')) return;
+
+    console.log('➕ 正在注入图片翻译按钮...');
+    const btn = document.createElement('div');
+    btn.id = 'image-translate-btn';
+    btn.innerHTML = `
+        <div style="cursor: pointer; background: #25D366; color: white; padding: 10px 20px; border-radius: 25px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; user-select: none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+            图片翻译
+        </div>
+    `;
+    
+    // 悬浮在右上角
+    btn.style.cssText = `
+        position: fixed;
+        top: 70px;
+        right: 40px;
+        z-index: 10000;
+    `;
+    
+    btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        translateImageInWhatsApp(imgElement);
+    };
+
+    const innerBtn = btn.querySelector('div');
+    innerBtn.onmouseover = () => innerBtn.style.transform = 'scale(1.05)';
+    innerBtn.onmouseout = () => innerBtn.style.transform = 'scale(1)';
+    
+    document.body.appendChild(btn);
+    console.log('✅ 翻译按钮注入成功');
+
+    // 定时检查预览界面是否关闭
+    const closeMonitor = setInterval(() => {
+        if (!imgElement.isConnected || !document.querySelector('img[src^="blob:"]')) {
+            console.log('🗑️ 图片预览已关闭，移除翻译按钮');
+            btn.remove();
+            clearInterval(closeMonitor);
+        }
+    }, 1000);
+}
+
+// 注入 html2canvas 库 (现在由主进程同步注入，此处仅作为检查)
+function ensureHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve();
+    // 如果没注入，尝试动态从主进程获取并执行
+    return new Promise(async (resolve, reject) => {
+        try {
+            console.log('📡 尝试从主进程动态获取 html2canvas...');
+            const scriptContent = await window.electronAPI.getScriptContent('html2canvas.min.js');
+            if (scriptContent) {
+                const script = document.createElement('script');
+                script.textContent = scriptContent;
+                document.head.appendChild(script);
+                console.log('✅ html2canvas 动态注入成功');
+                resolve();
+            } else {
+                reject(new Error('script content empty'));
+            }
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+async function translateImageInWhatsApp(imgElement) {
+    try {
+        console.log('🖼️ 准备提取图象数据进行翻译...');
+        
+        window.electronAPI.showNotification({
+            message: '🖼️ 正在准备截取图片...',
+            type: 'is-info'
+        });
+
+        // 确保图片加载完成
+        if (!imgElement.complete || imgElement.naturalWidth === 0) {
+            // 给一点时间加载
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // 尝试确保 html2canvas 可用
+        try {
+            await ensureHtml2Canvas();
+        } catch (e) {
+            console.warn('⚠️ html2canvas 准备失败:', e.message);
+        }
+
+        let imageData;
+        if (window.html2canvas) {
+            // 确定截图目标元素
+            const captureTarget = imgElement.closest('div[role="dialog"]') || 
+                                 imgElement.closest('div[role="button"]') || 
+                                 imgElement.parentNode;
+            
+            console.log('📸 使用 html2canvas 截取:', captureTarget);
+            
+            try {
+                const canvas = await html2canvas(captureTarget, {
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#000',
+                    scale: 2, // 提高质量以解决 recog empty 问题
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        // 可以在克隆的文档中隐藏按钮等不需要的内容
+                        const btn = clonedDoc.querySelector('#image-translate-btn') || 
+                                    clonedDoc.querySelector('.image-chat-translate-btn');
+                        if (btn) btn.style.display = 'none';
+                    }
+                });
+                imageData = canvas.toDataURL('image/png', 0.9);
+                console.log('✅ html2canvas 截图完成, 长度:', imageData.length);
+                
+                // 检查是否截图到了有效内容 (如果全是黑色或太小)
+                if (imageData.length < 5000) {
+                    throw new Error('Captured image seems to be empty');
+                }
+            } catch (h2cError) {
+                console.error('❌ html2canvas 截图失败:', h2cError);
+                throw h2cError; // 让 fallback 处理
+            }
+        } else {
+            // 回退到基础 Canvas 模式
+            const canvas = document.createElement('canvas');
+            canvas.width = imgElement.naturalWidth;
+            canvas.height = imgElement.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(imgElement, 0, 0);
+            imageData = canvas.toDataURL('image/png');
+        }
+        
+        window.electronAPI.showNotification({
+            message: '🖼️ 正在发起图片翻译请求...',
+            type: 'is-info'
+        });
+
+        const fromLang = getLocalLanguage();
+        const toLang = getTargetLanguage();
+
+        // 调用 IPC Bridge
+        const result = await window.electronAPI.translateImage({
+            imageData: imageData,
+            from: fromLang,
+            target: toLang
+        });
+
+        if (result && result.success) {
+            console.log('✅ 图片翻译成功:', result.data);
+            window.electronAPI.showNotification({
+                message: '✅ 图片翻译完成！',
+                type: 'is-success'
+            });
+
+            // 在图片下方显示翻译结果
+            const messageContainer = imgElement.closest('.message-in') || imgElement.closest('.message-out') || imgElement.closest('div[role="dialog"]');
+            if (messageContainer) {
+                // 移除旧的翻译结果（如果存在）
+                const oldResult = messageContainer.querySelector('.image-translation-result');
+                if (oldResult) oldResult.remove();
+
+                const resultNode = document.createElement('div');
+                resultNode.className = 'image-translation-result';
+                resultNode.style.cssText = `
+                    font-size: 14px;
+                    color: #25D366;
+                    background: rgba(0, 0, 0, 0.05);
+                    border-left: 3px solid #25D366;
+                    padding: 8px 12px;
+                    margin-top: 10px;
+                    border-radius: 4px;
+                    font-style: italic;
+                    word-break: break-all;
+                    line-height: 1.4;
+                `;
+                
+                // 处理不同类型的返回数据
+                if (typeof result.data === 'string') {
+                    resultNode.textContent = result.data;
+                } else if (result.data && result.data.sumDst) {
+                    // 优先显示完整翻译文本 sumDst
+                    resultNode.textContent = result.data.sumDst;
+                } else if (result.data && result.data.translation) {
+                    resultNode.textContent = result.data.translation;
+                } else {
+                    resultNode.textContent = typeof result.data === 'object' ? JSON.stringify(result.data) : result.data;
+                }
+
+                // 寻找注入点
+                const btnContainer = messageContainer.querySelector('.image-chat-translate-btn') || imgElement.parentNode;
+                if (btnContainer.nextSibling) {
+                    messageContainer.insertBefore(resultNode, btnContainer.nextSibling);
+                } else {
+                    messageContainer.appendChild(resultNode);
+                }
+            }
+        } else {
+            console.error('❌ 图片翻译失败:', result?.msg);
+            window.electronAPI.showNotification({
+                message: `❌ 图片翻译失败: ${result?.msg || '服务异常'}`,
+                type: 'is-danger'
+            });
+        }
+    } catch (error) {
+        console.error('❌ 图片翻译过程中发生异常:', error);
+        window.electronAPI.showNotification({
+            message: `❌ 图片翻译异常: ${error.message}`,
+            type: 'is-danger'
+        });
+    }
+}
     // 用于跟踪正在处理中的消息，防止重复调用
     const processingMessages = new Set();
 
@@ -776,12 +1104,10 @@ function monitorMainNode() {
             span.setAttribute('data-translate-status', 'failed');
             console.error('❌ 消息翻译失败:', error);
         } finally {
-            // 处理完成后从Set中移除
             processingMessages.delete(msgKey);
         }
-    }
-}
 
+    }
 // 添加翻译按钮（简化版）
 function addTranslateButtonWithSelect() {
     let targetNode = document.querySelector('footer')?.firstChild?.firstChild?.firstChild?.firstChild?.firstChild;
@@ -807,238 +1133,6 @@ function addTranslateButtonWithSelect() {
     });
 
     targetNode.appendChild(button);
-}
-
-// --- 图片翻译功能 ---
-
-function processImageMessageList() {
-    const imageMessages = document.querySelectorAll('.message-in img, .message-out img');
-    imageMessages.forEach(img => {
-        // 排除头像、表情和已处理的小图
-        if (img.naturalWidth < 30 || img.closest('[data-testid="attached-gif"]') || img.closest('.selectable-text') || img.classList.contains('_amlt')) return;
-        
-        const imgParent = img.closest('div[role="button"]') || img.parentNode;
-        if (!imgParent || imgParent.querySelector('.image-chat-translate-btn')) return;
-
-        // 设置父容器相对定位，以便按钮悬浮在图片上
-        if (getComputedStyle(imgParent).position === 'static') {
-            imgParent.style.position = 'relative';
-        }
-
-        const btn = document.createElement('div');
-        btn.className = 'image-chat-translate-btn';
-        btn.innerHTML = `
-            <span style="cursor: pointer; background: rgba(37, 211, 102, 0.85); color: white; padding: 4px 10px; border-radius: 15px; font-size: 12px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; user-select: none; backdrop-filter: blur(2px);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
-                图片翻译
-            </span>
-        `;
-        btn.style.cssText = `
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            z-index: 100;
-        `;
-        
-        btn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            translateImageInWhatsApp(img);
-        };
-
-        const span = btn.querySelector('span');
-        span.onmouseover = () => { span.style.background = '#1da851'; span.style.transform = 'scale(1.05)'; };
-        span.onmouseout = () => { span.style.background = 'rgba(37, 211, 102, 0.85)'; span.style.transform = 'scale(1)'; };
-
-        imgParent.appendChild(btn);
-    });
-}
-
-function startMediaPreviewMonitor() {
-    const observer = new MutationObserver(() => {
-        const dialog = document.querySelector('div[role="dialog"]');
-        if (dialog) {
-            const previewImg = dialog.querySelector('img[src^="blob:"]');
-            if (previewImg && previewImg.naturalWidth > 100 && !document.querySelector('#image-translate-btn')) {
-                addTranslateButtonToPreview(previewImg);
-            }
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-}
-
-function addTranslateButtonToPreview(imgElement) {
-    if (document.querySelector('#image-translate-btn')) return;
-
-    const btn = document.createElement('div');
-    btn.id = 'image-translate-btn';
-    btn.innerHTML = `
-        <div style="cursor: pointer; background: #25D366; color: white; padding: 10px 20px; border-radius: 25px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 1555px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; user-select: none;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
-            图片翻译
-        </div>
-    `;
-    btn.style.cssText = `position: fixed; top: 70px; right: 40px; z-index: 10000;`;
-    
-    btn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        translateImageInWhatsApp(imgElement);
-    };
-
-    const inner = btn.querySelector('div');
-    inner.onmouseover = () => inner.style.transform = 'scale(1.05)';
-    inner.onmouseout = () => inner.style.transform = 'scale(1)';
-    
-    document.body.appendChild(btn);
-
-    const closeMonitor = setInterval(() => {
-        if (!imgElement.isConnected || !document.querySelector('img[src^="blob:"]')) {
-            btn.remove();
-            clearInterval(closeMonitor);
-        }
-    }, 1000);
-}
-
-function ensureHtml2Canvas() {
-    if (window.html2canvas) return Promise.resolve();
-    return new Promise(async (resolve, reject) => {
-        try {
-            const scriptContent = await window.electronAPI.getScriptContent('html2canvas.min.js');
-            if (scriptContent) {
-                // 使用 Blob URL 注入脚本，以绕过 WhatsApp 的 CSP (Content Security Policy) 限制
-                // 许多现代网站禁止直接向 <script> 注入 textContent (unsafe-inline)，但允许 blob: 源
-                const blob = new Blob([scriptContent], { type: 'text/javascript' });
-                const url = URL.createObjectURL(blob);
-                const script = document.createElement('script');
-                script.src = url;
-                script.onload = () => {
-                    URL.revokeObjectURL(url);
-                    console.log('✅ html2canvas 加载成功 (via Blob URL)');
-                    resolve();
-                };
-                script.onerror = (err) => {
-                    URL.revokeObjectURL(url);
-                    console.error('❌ html2canvas 加载失败:', err);
-                    reject(err);
-                };
-                document.head.appendChild(script);
-            } else { 
-                reject(new Error('script content empty')); 
-            }
-        } catch (e) { 
-            reject(e); 
-        }
-    });
-}
-
-async function translateImageInWhatsApp(imgElement) {
-    try {
-        window.electronAPI.showNotification({ message: '🖼️ 正在准备截取图片...', type: 'is-info' });
-
-        if (!imgElement.complete || imgElement.naturalWidth === 0) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        try { await ensureHtml2Canvas(); } catch (e) { console.warn('html2canvas fail:', e.message); }
-
-        let imageData;
-        if (window.html2canvas) {
-            // 确定截图目标元素 (对话框或图片容器)
-            const captureTarget = imgElement.closest('div[role="dialog"]') || 
-                                 imgElement.closest('div[role="button"]') || 
-                                 imgElement.parentNode;
-            
-            console.log('📸 使用 html2canvas 截取:', captureTarget);
-            
-            try {
-                const canvas = await html2canvas(captureTarget, {
-                    useCORS: true, 
-                    allowTaint: true, 
-                    backgroundColor: '#000', 
-                    scale: 2,
-                    onclone: (clonedDoc) => {
-                        const btns = clonedDoc.querySelectorAll('#image-translate-btn, .image-chat-translate-btn');
-                        btns.forEach(b => b.style.display = 'none');
-                    }
-                });
-                imageData = canvas.toDataURL('image/png', 0.9);
-                if (imageData.length < 5000) throw new Error('Captured image seems to be empty');
-            } catch (h2cError) {
-                console.error('❌ html2canvas 截图失败:', h2cError);
-                throw h2cError;
-            }
-        } else {
-            console.warn('⚠️ html2canvas 不可用，回退至基础 Canvas');
-            const canvas = document.createElement('canvas');
-            canvas.width = imgElement.naturalWidth;
-            canvas.height = imgElement.naturalHeight;
-            canvas.getContext('2d').drawImage(imgElement, 0, 0);
-            imageData = canvas.toDataURL('image/png');
-        }
-        
-        window.electronAPI.showNotification({ message: '🖼️ 正在发起图片翻译请求...', type: 'is-info' });
-
-        const result = await window.electronAPI.translateImage({
-            imageData: imageData,
-            from: getLocalLanguage(),
-            target: getTargetLanguage()
-        });
-
-        if (result && result.success) {
-            window.electronAPI.showNotification({ message: '✅ 图片翻译完成！', type: 'is-success' });
-            
-            const container = imgElement.closest('.message-in') || imgElement.closest('.message-out') || imgElement.closest('div[role="dialog"]');
-            if (container) {
-                const old = container.querySelector('.image-translation-result');
-                if (old) old.remove();
-
-                const resNode = document.createElement('div');
-                resNode.className = 'image-translation-result';
-                resNode.style.cssText = `
-                    font-size: 14px; 
-                    color: #25D366; 
-                    background: rgba(0, 0, 0, 0.05); 
-                    border-left: 3px solid #25D366; 
-                    padding: 8px 12px; 
-                    margin-top: 10px; 
-                    border-radius: 4px; 
-                    font-style: italic; 
-                    word-break: break-all;
-                `;
-                
-                const data = result.data;
-                if (data && typeof data === 'object') {
-                    if (data.img || data.image || data.translated_image) {
-                        const resImg = document.createElement('img');
-                        resImg.src = data.img || data.image || data.translated_image;
-                        resImg.style.cssText = 'max-width: 100%; border-radius: 4px; display: block; margin-bottom: 8px;';
-                        resNode.appendChild(resImg);
-                    }
-                    const textContent = data.sumDst || data.translation || (typeof data === 'string' ? data : null);
-                    if (textContent) {
-                        const textDiv = document.createElement('div');
-                        textDiv.textContent = textContent;
-                        resNode.appendChild(textDiv);
-                    } else if (resNode.childNodes.length === 0) {
-                        resNode.textContent = JSON.stringify(data);
-                    }
-                } else {
-                    resNode.textContent = String(data);
-                }
-
-                const anchor = container.querySelector('.image-chat-translate-btn') || imgElement.parentNode;
-                if (anchor.nextSibling) container.insertBefore(resNode, anchor.nextSibling);
-                else container.appendChild(resNode);
-            }
-        } else {
-            console.error('❌ 图片翻译失败:', result?.msg);
-            window.electronAPI.showNotification({ message: `❌ 图片翻译失败: ${result?.msg || '服务异常'}`, type: 'is-danger' });
-        }
-    } catch (error) {
-        console.error('❌ 图片翻译异常:', error);
-        window.electronAPI.showNotification({ message: `❌ 图片翻译异常: ${error.message}`, type: 'is-danger' });
-    }
 }
 
 // 设置按钮功能

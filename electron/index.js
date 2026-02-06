@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -224,6 +224,57 @@ class Index extends Application {
       const { content } = args;
       return checkSensitiveContent(content);
     });
+
+    ipcMain.handle('translate-image', async (event, args) => {
+      const { imagePath, imageData, from, target } = args;
+      let finalPath = imagePath;
+      let tempFile = null;
+
+      try {
+        if (imageData && imageData.startsWith('data:image')) {
+          // base64 数据，保存到临时文件
+          const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+          const buffer = Buffer.from(base64Data, 'base64');
+          const tempDir = path.join(app.getPath('temp'), 'chat365_temp');
+          if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+          tempFile = path.join(tempDir, `img_trans_${Date.now()}.png`);
+          fs.writeFileSync(tempFile, buffer);
+          finalPath = tempFile;
+        }
+
+        if (!finalPath) {
+          return { success: false, msg: '未提供图片路径或数据' };
+        }
+
+        const result = await translateImage(finalPath, from, target);
+        
+        // 如果是临时文件，删除它
+        if (tempFile && fs.existsSync(tempFile)) {
+          try { fs.unlinkSync(tempFile); } catch(e) {}
+        }
+
+        return result;
+      } catch (error) {
+        Log.error('IPC translate-image error:', error);
+        if (tempFile && fs.existsSync(tempFile)) {
+          try { fs.unlinkSync(tempFile); } catch(e) {}
+        }
+      }
+    });
+
+    ipcMain.handle('get-script-content', async (event, scriptName) => {
+      try {
+        const scriptPath = path.join(__dirname, 'scripts', scriptName);
+        if (fs.existsSync(scriptPath)) {
+          return fs.readFileSync(scriptPath, 'utf-8');
+        }
+        return null;
+      } catch (error) {
+        Log.error('get-script-content error:', error);
+        return null;
+      }
+    });
+
     ipcMain.handle('online-notify', async (event, args) => {
       const {online,platform,avatarUrl} = args;
       // 获取发送消息的渲染进程的 webContents 对象
@@ -261,6 +312,17 @@ class Index extends Application {
           // 获取要执行的 JavaScript 文件内容
           const scriptPath = path.join(__dirname, 'scripts', `${fileName}.js`);
           const scriptContent = fs.readFileSync(scriptPath, 'utf-8');
+          
+          // 如果是 WhatsApp，额外注入 html2canvas
+          if (fileName === 'WhatsApp') {
+            const h2cPath = path.join(__dirname, 'scripts', 'html2canvas.min.js');
+            if (fs.existsSync(h2cPath)) {
+              Log.info('同步注入 html2canvas.min.js');
+              const h2cContent = fs.readFileSync(h2cPath, 'utf-8');
+              await senderWebContents.executeJavaScript(h2cContent);
+            }
+          }
+
           // 在发送该消息的渲染进程中执行 JavaScript
           await senderWebContents.executeJavaScript(scriptContent);
           Log.info('脚本已成功在渲染进程中执行');
