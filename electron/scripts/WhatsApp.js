@@ -615,6 +615,57 @@ function operationNode(action, node, parentNode = undefined) {
     }
 }
 
+// 使元素可拖拽
+function makeDraggable(element, handle) {
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    const dragHandle = handle || element;
+
+    dragHandle.onmousedown = dragMouseDown;
+    dragHandle.style.cursor = 'move';
+
+    function dragMouseDown(e) {
+        e = e || window.event;
+        // 如果点击的是关闭按钮，不触发拖拽
+        if (e.target.innerHTML === '&times;') return;
+        
+        e.preventDefault();
+        // 获取鼠标初始位置
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        // 鼠标移动时调用
+        document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+        e = e || window.event;
+        e.preventDefault();
+        // 计算新位置
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        
+        // 设置元素的新位置
+        const newTop = (element.offsetTop - pos2);
+        const newLeft = (element.offsetLeft - pos1);
+        
+        element.style.top = newTop + "px";
+        element.style.left = newLeft + "px";
+        
+        // 清除可能干扰的样式
+        element.style.transform = 'none';
+        element.style.bottom = 'auto';
+        element.style.margin = '0';
+    }
+
+    function closeDragElement() {
+        // 停止移动时清除监听
+        document.onmouseup = null;
+        document.onmousemove = null;
+    }
+}
+
 // 获取本地语言 (用户母语，接收消息的目标语言)
 function getLocalLanguage() {
     console.log('接收目前', globalConfig?.receiveTargetLang);
@@ -1038,6 +1089,8 @@ async function translateImageInWhatsApp(imgElement) {
                         border-top: 4px solid #25D366;
                         backdrop-filter: blur(5px);
                     `;
+                    // 使弹出框可拖拽
+                    makeDraggable(resNode, resNode.firstElementChild);
                 } else {
                     resNode.style.cssText = `
                         font-size: 14px; 
