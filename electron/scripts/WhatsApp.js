@@ -2,6 +2,44 @@
 // 版本：2026-01-30 v2 - 添加 IndexedDB 存储发送消息原文
 console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)');
 
+// ==================== 全局音频监听 (Sniffer) ====================
+(function() {
+    console.log('🎧 启动全局音频嗅探器...');
+    
+    // 拦截 HTMLMediaElement.play (涵盖 audio 和 video)
+    const originalPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function() {
+        console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获:', this);
+        window._wp_playing_audio = this;
+        return originalPlay.apply(this, arguments);
+    };
+
+    // 拦截 window.Audio 构造函数
+    const originalAudio = window.Audio;
+    window.Audio = function() {
+        const audio = new originalAudio(...arguments);
+        console.log('🎵 [Sniffer] new Audio() 捕获:', audio);
+        audio.addEventListener('play', () => { 
+            window._wp_playing_audio = audio; 
+        });
+        return audio;
+    };
+
+    // 拦截 document.createElement('audio')
+    const originalCreateElement = document.createElement;
+    document.createElement = function(tagName) {
+        const element = originalCreateElement.apply(this, arguments);
+        if (tagName.toLowerCase() === 'audio') {
+            console.log('🎵 [Sniffer] createElement("audio") 捕获:', element);
+            element.addEventListener('play', () => {
+                window._wp_playing_audio = element;
+            });
+        }
+        return element;
+    };
+})();
+// ==========================================================
+
 function printElementEvery5Seconds() {
     console.info('✅ 进入 WhatsApp.js 脚本');
 
@@ -693,8 +731,10 @@ function monitorMainNode() {
                     setInterval(() => {
                         processMessageList();
                         processImageMessageList(); 
+                        processVoiceMessageList(); // 添加语音消息处理
                     }, 800);
                     startMediaPreviewMonitor();
+                    startVoiceMessageMonitor(); // 启动语音消息监控
                     break;
                 }
             }
@@ -909,7 +949,7 @@ function processImageMessageList() {
 function startMediaPreviewMonitor() {
     const observer = new MutationObserver(() => {
         const dialog = document.querySelector('div[data-animate-media-viewer="true"]');
-        console.log('dialog', dialog);
+        // console.log('dialog', dialog);
         
         if (dialog) {
             const previewImg = dialog.querySelector('img[src^="blob:"]');
@@ -1405,3 +1445,434 @@ async function getAllSentMessages() {
         return [];
     }
 }
+
+// ===================== 语音翻译模块 (使用原生 API) =====================
+
+// 全局变量
+let currentRecorder = null;
+let currentAudioElement = null;
+let recordedAudioBlob = null;
+let audioChunks = [];
+let audioSourceMap = new WeakMap(); // 缓存 audio 元素和对应的 source node
+
+// 处理语音消息列表，添加翻译按钮
+function processVoiceMessageList() {
+    // 查找所有语音消息 - 使用更通用的选择器
+    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"]');
+    
+    console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
+    
+    voiceMessages.forEach((playIcon, index) => {
+        // 尝试多种方式找到容器
+        let voiceContainer = playIcon.closest('div[role="button"]')?.parentElement;
+        
+        // 如果没找到，尝试往上找到消息气泡容器
+        if (!voiceContainer) {
+            voiceContainer = playIcon.closest('[data-id]'); // 消息容器通常有 data-id
+        }
+        
+        if (!voiceContainer) {
+            console.warn('⚠️ 未找到语音消息容器，索引:', index);
+            return;
+        }
+        
+        // 检查是否已添加翻译按钮
+        if (voiceContainer.querySelector('.voice-translate-btn')) {
+            return;
+        }
+        
+        console.log('✅ 为语音消息添加翻译按钮，索引:', index);
+        
+        // 创建翻译按钮
+        const translateBtn = document.createElement('div');
+        translateBtn.className = 'voice-translate-btn';
+        translateBtn.innerHTML = `
+            <span style="cursor: pointer; background: rgba(37, 211, 102, 0.9); color: white; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: 500; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; user-select: none;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+                语音翻译
+            </span>
+        `;
+        translateBtn.style.cssText = 'margin-top: 5px; margin-left: 5px; display: inline-block;';
+        
+        const span = translateBtn.querySelector('span');
+        span.onmouseover = () => {
+            span.style.background = '#1da851';
+            span.style.transform = 'scale(1.05)';
+        };
+        span.onmouseout = () => {
+            span.style.background = 'rgba(37, 211, 102, 0.9)';
+            span.style.transform = 'scale(1)';
+        };
+        
+        translateBtn.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await translateVoiceMessage(voiceContainer, playIcon);
+        };
+        
+        voiceContainer.appendChild(translateBtn);
+    });
+}
+
+// 启动语音消息监控
+function startVoiceMessageMonitor() {
+    console.log('🎤 启动语音消息监控');
+    
+    // 监听播放按钮点击事件
+    document.body.addEventListener('click', async (e) => {
+        const target = e.target;
+        const playIcon = target.closest('span[data-icon="audio-play"]') || target.closest('span[data-icon="audio-pause"]');
+        
+        if (playIcon) {
+            console.log('🎵 检测到语音播放按钮点击');
+            // 查找对应的 audio 元素
+            setTimeout(() => {
+                // 优先使用嗅探器捕获到的音频
+                let audioElement = window._wp_playing_audio;
+                
+                // 如果嗅探器没拿到或者已暂停，尝试通过 DOM 树查找
+                if (!audioElement || audioElement.paused) {
+                    const audios = Array.from(document.querySelectorAll('audio'));
+                    audioElement = audios.find(a => !a.paused && a.currentTime > 0) || audios[0];
+                }
+                
+                if (audioElement) {
+                    console.log('🎧 [Monitor] 确定音频播放元素:', audioElement);
+                    currentAudioElement = audioElement;
+                    startAudioRecording(audioElement);
+                } else {
+                    console.warn('⚠️ [Monitor] 未能找到任何音频播放元素');
+                }
+            }, 500); // 稍微增加延迟，确保 play() 被调用并被拦截
+        }
+    }, true);
+}
+
+// 开始录制音频 (使用浏览器原生 MediaRecorder 并转换为 WAV)
+async function startAudioRecording(audioElement) {
+    try {
+        console.log('🔴 开始录制音频 (原生 MediaRecorder)');
+        
+        // 检查是否已经为this audio element创建了source
+        let cached = audioSourceMap.get(audioElement);
+        let audioContext, source, destination;
+        
+        if (cached) {
+            // 重用已有的 audio context 和 source
+            audioContext = cached.audioContext;
+            source = cached.source;
+            destination = cached.destination;
+            console.log('♻️ 重用已有的 AudioContext 和 MediaElementSource');
+        } else {
+            // 首次创建
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            source = audioContext.createMediaElementSource(audioElement);
+            destination = audioContext.createMediaStreamDestination();
+            
+            // 连接音频节点
+            source.connect(destination);
+            source.connect(audioContext.destination); // 同时播放
+            
+            // 缓存起来
+            audioSourceMap.set(audioElement, { audioContext, source, destination });
+            console.log('✅ 创建新的 AudioContext 和 MediaElementSource');
+        }
+        
+        // 使用浏览器原生 MediaRecorder
+        const options = { mimeType: 'audio/webm' };
+        currentRecorder = new MediaRecorder(destination.stream, options);
+        
+        audioChunks = [];
+        
+        currentRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+                audioChunks.push(e.data);
+            }
+        };
+        
+        currentRecorder.onstop = async () => {
+            // 合并所有音频块
+            const webmBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            console.log('✅ WebM 录制完成，大小:', webmBlob.size, 'bytes', '开始转换为 WAV...');
+            
+            try {
+                // 将 WebM 转换为 WAV
+                recordedAudioBlob = await convertWebMToWAV(webmBlob);
+                console.log('✅ WAV 转换完成，大小:', recordedAudioBlob.size, 'bytes');
+            } catch (error) {
+                console.error('❌ WAV 转换失败:', error);
+                // 如果转换失败，使用原始 webm
+                recordedAudioBlob = webmBlob;
+            }
+        };
+        
+        currentRecorder.start();
+        console.log('✅ MediaRecorder 录制已启动');
+        
+        // 监听音频结束事件
+        audioElement.addEventListener('ended', () => {
+            stopAudioRecording();
+        }, { once: true });
+        
+        audioElement.addEventListener('pause', () => {
+            if (audioElement.currentTime >= audioElement.duration - 0.1) {
+                stopAudioRecording();
+            }
+        }, { once: true });
+        
+    } catch (error) {
+        console.error('❌ 录制音频失败:', error);
+        window.electronAPI.showNotification({
+            message: `录制失败: ${error.message}`,
+            type: 'is-danger'
+        });
+    }
+}
+
+// WebM 转 WAV 的转换函数
+async function convertWebMToWAV(webmBlob) {
+    return new Promise((resolve, reject) => {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const fileReader = new FileReader();
+        
+        fileReader.onload = async (e) => {
+            try {
+                // 解码 WebM 音频数据
+                const audioBuffer = await audioContext.decodeAudioData(e.target.result);
+                
+                // 转换为 WAV
+                const wavBlob = audioBufferToWav(audioBuffer);
+                resolve(wavBlob);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        
+        fileReader.onerror = reject;
+        fileReader.readAsArrayBuffer(webmBlob);
+    });
+}
+
+// AudioBuffer 转 WAV格式
+function audioBufferToWav(audioBuffer) {
+    const numOfChan = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length * numOfChan * 2 + 44;
+    const buffer = new ArrayBuffer(length);
+    const view = new DataView(buffer);
+    const channels = [];
+    let offset = 0;
+    let pos = 0;
+    
+    // 写入 WAV 文件头
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+    
+    setUint32(0x20746d66); // "fmt " chunk
+    setUint32(16); // length = 16
+    setUint16(1); // PCM (uncompressed)
+    setUint16(numOfChan);
+    setUint32(audioBuffer.sampleRate);
+    setUint32(audioBuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+    setUint16(numOfChan * 2); // block-align
+    setUint16(16); // 16-bit (hardcoded in this demo)
+    
+    setUint32(0x61746164); // "data" - chunk
+    setUint32(length - pos - 4); // chunk length
+    
+    // 写入交错的音频数据
+    for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+        channels.push(audioBuffer.getChannelData(i));
+    }
+    
+    while (pos < length - 44) {
+        for (let i = 0; i < numOfChan; i++) {
+            let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+            sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            view.setInt16(pos, sample, true);
+            pos += 2;
+        }
+        offset++;
+    }
+    
+    return new Blob([buffer], { type: 'audio/wav' });
+    
+    function setUint16(data) {
+        view.setUint16(pos, data, true);
+        pos += 2;
+    }
+    
+    function setUint32(data) {
+        view.setUint32(pos, data, true);
+        pos += 4;
+    }
+}
+
+// 停止录制音频
+function stopAudioRecording() {
+    if (!currentRecorder || currentRecorder.state === 'inactive') return;
+    
+    console.log('⏹️ 停止录制音频');
+    currentRecorder.stop();
+    currentRecorder = null;
+}
+
+// 翻译语音消息
+async function translateVoiceMessage(voiceContainer, playIcon) {
+    try {
+        console.log('🌐 开始翻译语音消息');
+        
+        // 检查是否有录制的音频
+        if (!recordedAudioBlob) {
+            window.electronAPI.showNotification({
+                message: '请先播放语音消息',
+                type: 'is-warning'
+            });
+            
+            // 自动点击播放按钮
+            playIcon.click();
+            
+            console.warn('⚠️ 音频尚未录制，开始播放并录制...');
+            
+            // 显示提示
+            window.electronAPI.showNotification({
+                message: '正在录制语音，请稍候...',
+                type: 'is-info'
+            });
+            
+            // 触发播放按钮
+            const audioPlayBtn = voiceContainer.querySelector('span[data-icon="audio-play"]');
+            if (audioPlayBtn) {
+                audioPlayBtn.click();
+                
+                // 等待录制完成（假设最多等待30秒）
+                let waitTime = 0;
+                const checkInterval = setInterval(() => {
+                    waitTime += 500;
+                    if (recordedAudioBlob) {
+                        clearInterval(checkInterval);
+                        // 递归调用自己，此时应该已经有录制数据了
+                        translateVoiceMessage(voiceContainer, playIcon);
+                    } else if (waitTime >= 30000) {
+                        clearInterval(checkInterval);
+                        window.electronAPI.showNotification({
+                            message: '录制超时，请重试',
+                            type: 'is-danger'
+                        });
+                    }
+                }, 500);
+                
+                return; // 退出当前调用，等待录制完成后的递归调用
+            } else {
+                throw new Error('未找到播放按钮');
+            }
+        }
+        
+        window.electronAPI.showNotification({
+            message: '正在翻译语音...',
+            type: 'is-info'
+        });
+        
+        // 将 Blob 转换为 Base64
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const audioDataBase64 = reader.result; // 包含 data:audio/wav;base64, 前缀
+            
+            console.log('📤 准备发送语音翻译请求');
+            console.log('  - audioData 类型:', typeof audioDataBase64);
+            console.log('  - audioData 前100字符:', audioDataBase64.substring(0, 100));
+            console.log('  - from:', getTargetLanguage());
+            console.log('  - target:', getLocalLanguage());
+            
+            // 调用翻译接口
+            const result = await window.electronAPI.translateVoice({
+                audioData: audioDataBase64,  // 包含完整的 data URL
+                from: getTargetLanguage(),
+                target: getLocalLanguage(),
+                format: 'wav'
+            });
+            
+            console.log('✅ 语音翻译结果:', result);
+            
+            if (result && (result.code === 200 || result.status)) {
+                displayVoiceTranslation(voiceContainer, result);
+                window.electronAPI.showNotification({
+                    message: '翻译成功',
+                    type: 'is-success'
+                });
+            } else {
+                throw new Error(result?.msg || result?.message || '翻译失败');
+            }
+        };
+        
+        reader.onerror = () => {
+            throw new Error('读取音频数据失败');
+        };
+        
+        reader.readAsDataURL(recordedAudioBlob);
+        
+    } catch (error) {
+        console.error('❌ 语音翻译失败:', error);
+        window.electronAPI.showNotification({
+            message: `翻译失败: ${error.message}`,
+            type: 'is-danger'
+        });
+    }
+}
+
+// 显示语音翻译结果
+function displayVoiceTranslation(voiceContainer, translationData) {
+    // 移除旧的翻译结果
+    const oldResult = voiceContainer.querySelector('.voice-translation-result');
+    if (oldResult) oldResult.remove();
+    
+    // 创建翻译结果显示节点
+    const resultNode = document.createElement('div');
+    resultNode.className = 'voice-translation-result';
+    resultNode.style.cssText = `
+        font-size: 13px;
+        color: #25D366;
+        background: rgba(37, 211, 102, 0.1);
+        border-left: 3px solid #25D366;
+        padding: 8px 12px;
+        margin-top: 8px;
+        border-radius: 4px;
+        font-style: italic;
+        word-break: break-word;
+    `;
+    
+    // 处理翻译数据
+    let translationText = '';
+    if (typeof translationData === 'string') {
+        translationText = translationData;
+    } else if (translationData.text || translationData.translation || translationData.result) {
+        translationText = translationData.text || translationData.translation || translationData.result;
+    } else {
+        translationText = JSON.stringify(translationData);
+    }
+    
+    resultNode.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#25D366" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 8l6 6"></path>
+                <path d="M4 14l6-6 2-3"></path>
+                <path d="M2 5h12"></path>
+                <path d="M7 2h1"></path>
+                <path d="M22 22l-5-10-5 10"></path>
+                <path d="M14 18h6"></path>
+            </svg>
+            <span style="font-size: 11px; font-weight: 600; color: #25D366; text-transform: uppercase; letter-spacing: 0.5px;">语音翻译</span>
+        </div>
+        <div style="color: #128C7E; line-height: 1.4; font-weight: 450;">${translationText}</div>
+    `;
+    
+    voiceContainer.appendChild(resultNode);
+    console.log('✅ 翻译结果已显示');
+}
+
+console.log('🎤 语音翻译功能已加载');

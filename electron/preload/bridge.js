@@ -144,6 +144,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getScriptContent: (scriptName) => {
     return ipcRenderer.invoke('get-script-content', scriptName);
+  },
+  translateVoice: (args) => {
+    return ipcRenderer.invoke('translate-voice', args);
   }
 
 });

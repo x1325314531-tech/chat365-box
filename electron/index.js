@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -259,6 +259,94 @@ class Index extends Application {
         if (tempFile && fs.existsSync(tempFile)) {
           try { fs.unlinkSync(tempFile); } catch(e) {}
         }
+      }
+    });
+
+    ipcMain.handle('translate-voice', async (event, args) => {
+      const { voicePath, audioData, from, target, format } = args;
+      let finalPath = voicePath;
+      let tempFile = null;
+      
+      Log.info('🎤 translate-voice IPC 调用');
+      Log.info('  参数:', { 
+        hasVoicePath: !!voicePath, 
+        hasAudioData: !!audioData,
+        audioDataType: typeof audioData,
+        audioDataLength: audioData ? audioData.length : 0,
+        audioDataPreview: audioData ? audioData.substring(0, 50) + '...' : 'null',
+        from, 
+        target, 
+        format 
+      });
+      
+      try {
+        if (audioData && (audioData.includes('base64,') || audioData.includes(';base64,'))) {
+          // 处理 base64 数据 - 支持两种格式
+          let base64Data;
+          if (audioData.includes('base64,')) {
+            base64Data = audioData.split('base64,')[1];
+          } else {
+            base64Data = audioData.split(';base64,')[1];
+          }
+          
+          if (!base64Data) {
+            Log.error('❌ Base64 数据提取失败');
+            return { success: false, msg: 'Base64 数据格式错误' };
+          }
+          
+          const buffer = Buffer.from(base64Data, 'base64');
+          const tempDir = path.join(app.getPath('temp'), 'chat365_temp');
+          if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+          tempFile = path.join(tempDir, `voice_trans_${Date.now()}.${format || 'wav'}`);
+          fs.writeFileSync(tempFile, buffer);
+          finalPath = tempFile;
+          
+          // 验证WAV文件
+          const stats = fs.statSync(tempFile);
+          Log.info('✅ 语音临时文件已创建:');
+          Log.info('  - 路径:', tempFile);
+          Log.info('  - 大小:', stats.size, 'bytes');
+          Log.info('  - Base64长度:', base64Data.length);
+          
+          // 读取WAV文件头验证格式
+          const fileBuffer = fs.readFileSync(tempFile);
+          const header = fileBuffer.slice(0, 12).toString('ascii', 0, 4);
+          Log.info('  - 文件头标识:', header, '(应为 RIFF)');
+          Log.info('  - WAV格式标识:', fileBuffer.slice(8, 12).toString('ascii'), '(应为 WAVE)');
+        }
+
+        if (!finalPath) {
+          Log.error('❌ 未提供语音路径或数据');
+          return { success: false, msg: '未提供语音路径或数据' };
+        }
+
+        Log.info('📡 调用语音翻译 API');
+        Log.info('  - 文件路径:', finalPath);
+        Log.info('  - from:', from);
+        Log.info('  - target:', target);
+        Log.info('  - format:', format || 'wav');
+        
+        const result = await translateVoice(finalPath, from, target, format || 'wav');
+        
+        Log.info('📥 后端 API 响应:', JSON.stringify(result, null, 2));
+        
+        // 如果是临时文件，删除它
+        if (tempFile && fs.existsSync(tempFile)) {
+          try { 
+            fs.unlinkSync(tempFile);
+            Log.info('🗑️  临时语音文件已删除:', tempFile);
+          } catch(e) {
+            Log.warn('⚠️  删除临时文件失败:', e.message);
+          }
+        }
+
+        return result;
+      } catch (error) {
+        Log.error('❌ IPC translate-voice error:', error);
+        if (tempFile && fs.existsSync(tempFile)) {
+          try { fs.unlinkSync(tempFile); } catch(e) {}
+        }
+        return { success: false, msg: error.message };
       }
     });
 

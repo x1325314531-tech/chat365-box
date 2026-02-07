@@ -254,10 +254,85 @@ async function translateImage(filePath, fromLang, targetLang) {
     }
 }
 
+// 实现语音翻译函数
+async function translateVoice(filePath, fromLang, targetLang, format) {
+    try {
+        if (!fs.existsSync(filePath)) {
+            throw new Error('语音文件不存在');
+        }
+
+        const formData = new FormData();
+        const fileName = path.basename(filePath);
+        
+        // 显式指定文件名和 Content-Type
+        formData.append('file', fs.createReadStream(filePath), {
+            filename: fileName,
+            contentType: `audio/${format}`
+        });
+
+        Log.info('开始语音翻译:', { filePath, from: fromLang, target: targetLang, format });
+
+        // query params in URL
+        const url = `/app/mediaTranslate/voice?from=${fromLang}&target=${targetLang}&format=${format}`;
+        
+        const config = {
+            headers: {
+                ...formData.getHeaders()
+            }
+        };
+        Log.info('语音请求参数', { url, fileName, headers: config.headers });
+        
+        const response = await request.post(url, formData, config);
+        Log.info('语音翻译原始响应:', JSON.stringify(response));
+
+        if (response && response.code === 200) {
+            let finalData = response.data;
+            
+            // 尝试解析可能的内部错误结构 (与图片翻译类似)
+            if (finalData && typeof finalData === 'object' && finalData.error_code === "0") {
+                finalData = finalData.data || finalData;
+            } else if (finalData && typeof finalData === 'object' && (finalData.error_code || (finalData.code && finalData.code !== 200))) {
+                Log.error('语音翻译服务内部错误:', finalData);
+                return { 
+                    success: false, 
+                    msg: finalData.error_msg || finalData.msg || `翻译接口内部错误(${finalData.error_code || finalData.code})` 
+                };
+            }
+
+            try {
+                if (typeof finalData === 'string' && (finalData.startsWith('{') || finalData.startsWith('['))) {
+                    const parsedData = JSON.parse(finalData);
+                    if (parsedData.error_code === "0") {
+                        finalData = parsedData.data || parsedData;
+                    } else if (parsedData.error_code || (parsedData.code && parsedData.code !== 200)) {
+                        Log.error('语音翻译服务内部错误 (parsed):', parsedData);
+                        return { 
+                            success: false, 
+                            msg: parsedData.error_msg || parsedData.msg || `翻译接口内部错误(${parsedData.error_code || parsedData.code})` 
+                        };
+                    } else {
+                        finalData = parsedData;
+                    }
+                }
+            } catch (e) {
+                Log.warn('语音响应解析失败:', e.message);
+            }
+
+            return { success: true, data: finalData };
+        } else {
+            return { success: false, msg: response.msg || '语音翻译请求失败' };
+        }
+    } catch (error) {
+        Log.error('语音翻译异常:', error);
+        return { success: false, msg: error.message || '语音翻译通信异常' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
     getLanguages,
     checkSensitiveContent,
-    translateImage
+    translateImage,
+    translateVoice
 };
