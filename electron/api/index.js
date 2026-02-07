@@ -208,10 +208,22 @@ async function translateImage(filePath, fromLang, targetLang) {
 
         if (response.code === 200) {
             let finalData = response.data;
+            
+            // 如果 data 是对象且包含 error_code，直接解包
+            if (finalData && typeof finalData === 'object' && finalData.error_code === "0") {
+                finalData = finalData.data || finalData;
+            } else if (finalData && typeof finalData === 'object' && (finalData.error_code || (finalData.code && finalData.code !== 200))) {
+                Log.error('图片翻译服务内部错误:', finalData);
+                return { 
+                    success: false, 
+                    msg: finalData.error_msg || finalData.msg || `翻译接口内部错误(${finalData.error_code || finalData.code})` 
+                };
+            }
+
             try {
                 // 如果 data 是 JSON 字符串，尝试解析以检查内部错误
-                if (typeof response.data === 'string' && (response.data.startsWith('{') || response.data.startsWith('['))) {
-                    const parsedData = JSON.parse(response.data);
+                if (typeof finalData === 'string' && (finalData.startsWith('{') || finalData.startsWith('['))) {
+                    const parsedData = JSON.parse(finalData);
                     
                     // 检查服务内部错误码
                     // 如果 error_code 是 "0"，说明成功，提取内部 data
@@ -231,6 +243,7 @@ async function translateImage(filePath, fromLang, targetLang) {
             } catch (e) {
                 Log.warn('尝试解析响应数据失败，按原样返回:', e.message);
             }
+             Log.info('图片翻译结果响应:', finalData);
             return { success: true, data: finalData };
         } else {
             return { success: false, msg: response.msg || '图片翻译请求失败' };
