@@ -1463,13 +1463,9 @@ function processVoiceMessageList() {
     console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
     
     voiceMessages.forEach((playIcon, index) => {
-        // 尝试多种方式找到容器
-        let voiceContainer = playIcon.closest('div[role="button"]')?.parentElement;
-        
-        // 如果没找到，尝试往上找到消息气泡容器
-        if (!voiceContainer) {
-            voiceContainer = playIcon.closest('[data-id]'); // 消息容器通常有 data-id
-        }
+        // 尝试多种方式找到消息容器
+        let messageNode = playIcon.closest('[data-id]'); // 常见消息容器
+        let voiceContainer = playIcon.closest('div[role="button"]')?.parentElement || messageNode;
         
         if (!voiceContainer) {
             console.warn('⚠️ 未找到语音消息容器，索引:', index);
@@ -1480,42 +1476,68 @@ function processVoiceMessageList() {
         if (voiceContainer.querySelector('.voice-translate-btn')) {
             return;
         }
+
+        // 检测消息方向 (发送 vs 接收)
+        // message-out 是发送的消息，message-in 是接收的消息
+        const isOut = !!playIcon.closest('.message-out') || (messageNode && messageNode.classList.contains('message-out'));
+        console.log(`✅ 为语音消息添加翻译按钮 [${isOut ? '发送' : '接收'}], 索引:`, index);
         
-        console.log('✅ 为语音消息添加翻译按钮，索引:', index);
-        
-        // 创建翻译按钮
-        const translateBtn = document.createElement('div');
-        translateBtn.className = 'voice-translate-btn';
-        translateBtn.innerHTML = `
-            <span style="cursor: pointer; background: rgba(37, 211, 102, 0.9); color: white; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: 500; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; user-select: none;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    <line x1="12" y1="19" x2="12" y2="23"></line>
-                    <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-                语音翻译
-            </span>
+        // 创建容器包裹按钮，便于对齐
+        const btnWrapper = document.createElement('div');
+        btnWrapper.className = 'voice-translate-btn';
+        btnWrapper.style.cssText = `
+            margin-top: 5px; 
+            display: flex; 
+            width: 100%;
+            justify-content: ${isOut ? 'flex-end' : 'flex-start'};
         `;
-        translateBtn.style.cssText = 'margin-top: 5px; margin-left: 5px; display: inline-block;';
+
+        // 创建按钮主体
+        const translateBtn = document.createElement('span');
+        translateBtn.style.cssText = `
+            cursor: pointer; 
+            background: rgba(37, 211, 102, 0.9); 
+            color: white; 
+            padding: 4px 12px; 
+            border-radius: 15px; 
+            font-size: 12px; 
+            font-weight: 500; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 4px; 
+            transition: all 0.2s ease; 
+            user-select: none;
+            margin-${isOut ? 'right' : 'left'}: 5px;
+        `;
         
-        const span = translateBtn.querySelector('span');
-        span.onmouseover = () => {
-            span.style.background = '#1da851';
-            span.style.transform = 'scale(1.05)';
+        translateBtn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            语音翻译
+        `;
+        
+        translateBtn.onmouseover = () => {
+            translateBtn.style.background = '#1da851';
+            translateBtn.style.transform = 'scale(1.05)';
         };
-        span.onmouseout = () => {
-            span.style.background = 'rgba(37, 211, 102, 0.9)';
-            span.style.transform = 'scale(1)';
+        translateBtn.onmouseout = () => {
+            translateBtn.style.background = 'rgba(37, 211, 102, 0.9)';
+            translateBtn.style.transform = 'scale(1)';
         };
         
-        translateBtn.onclick = async (e) => {
+        btnWrapper.onclick = async (e) => {
             e.preventDefault();
             e.stopPropagation();
             await translateVoiceMessage(voiceContainer, playIcon);
         };
         
-        voiceContainer.appendChild(translateBtn);
+        btnWrapper.appendChild(translateBtn);
+        voiceContainer.appendChild(btnWrapper);
     });
 }
 
@@ -1831,6 +1853,9 @@ function displayVoiceTranslation(voiceContainer, translationData) {
     const oldResult = voiceContainer.querySelector('.voice-translation-result');
     if (oldResult) oldResult.remove();
     
+    // 检测方向
+    const isOut = !!voiceContainer.closest('.message-out');
+    
     // 创建翻译结果显示节点
     const resultNode = document.createElement('div');
     resultNode.className = 'voice-translation-result';
@@ -1838,12 +1863,14 @@ function displayVoiceTranslation(voiceContainer, translationData) {
         font-size: 13px;
         color: #25D366;
         background: rgba(37, 211, 102, 0.1);
-        border-left: 3px solid #25D366;
+        border-${isOut ? 'right' : 'left'}: 3px solid #25D366;
         padding: 8px 12px;
         margin-top: 8px;
         border-radius: 4px;
         font-style: italic;
         word-break: break-word;
+        text-align: ${isOut ? 'right' : 'left'};
+        align-self: ${isOut ? 'flex-end' : 'flex-start'};
     `;
     
     // 处理翻译数据
