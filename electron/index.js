@@ -318,85 +318,90 @@ class Index extends Application {
       }
     });
 
+    ipcMain.handle('save-captured-audio', async (event, args) => {
+      const { audioData, format } = args;
+      try {
+        if (!audioData) return { success: false, msg: '没有音频数据' };
+
+        let base64Data = audioData;
+        if (audioData.includes('base64,')) {
+            base64Data = audioData.split('base64,')[1];
+        }
+
+        const buffer = Buffer.from(base64Data, 'base64');
+        const tempDir = path.join(app.getPath('temp'), 'chat365_temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        
+        const fileName = `voice_capture_${Date.now()}.${format || 'pcm'}`;
+        const filePath = path.join(tempDir, fileName);
+        fs.writeFileSync(filePath, buffer);
+        
+        Log.info('🎤 自动捕获音频已保存:', filePath);
+        return { success: true, path: filePath };
+      } catch (err) {
+        Log.error('❌ 保存捕获音频失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
+
     ipcMain.handle('translate-voice', async (event, args) => {
-      const { voicePath, audioData, from, target, format } = args;
-      let finalPath = voicePath;
+      const { voicePath, filePath, audioData, from, target, format } = args;
+      let finalPath = voicePath || filePath;
       let tempFile = null;
       
       Log.info('🎤 translate-voice IPC 调用');
-      Log.info('  参数:', { 
+      Log.info('  原始参数:', { 
         hasVoicePath: !!voicePath, 
+        hasFilePath: !!filePath,
         hasAudioData: !!audioData,
         audioDataType: typeof audioData,
         audioDataLength: audioData ? audioData.length : 0,
-        audioDataPreview: audioData ? audioData.substring(0, 50) + '...' : 'null',
         from, 
         target, 
         format 
       });
       
       try {
-        if (audioData && (audioData.includes('base64,') || audioData.includes(';base64,'))) {
-          // 处理 base64 数据 - 支持两种格式
-          let base64Data;
+        if (audioData) {
+          Log.info('  处理 audioData...');
+          // 处理 base64 数据
+          let base64Data = audioData;
           if (audioData.includes('base64,')) {
             base64Data = audioData.split('base64,')[1];
-          } else {
+            Log.info('  - 检查到 data-url 格式，已提取 base64 部分');
+          } else if (audioData.includes(';base64,')) {
             base64Data = audioData.split(';base64,')[1];
+            Log.info('  - 检查到 ;base64 格式，已提取 base64 部分');
           }
           
-          if (!base64Data) {
-            Log.error('❌ Base64 数据提取失败');
-            return { success: false, msg: 'Base64 数据格式错误' };
+          if (base64Data && base64Data.length > 32) {
+            const buffer = Buffer.from(base64Data, 'base64');
+            const tempDir = path.join(app.getPath('temp'), 'chat365_temp');
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+            
+            tempFile = path.join(tempDir, `voice_trans_${Date.now()}.${format || 'pcm'}`);
+            fs.writeFileSync(tempFile, buffer);
+            finalPath = tempFile;
+            
+            Log.info('  ✅ 语音临时文件已创建:', tempFile, '大小:', buffer.length);
+          } else {
+            Log.warn('  ⚠️ base64Data 为空或太短:', base64Data ? base64Data.length : 'null');
           }
-          
-          const buffer = Buffer.from(base64Data, 'base64');
-          const tempDir = path.join(app.getPath('temp'), 'chat365_temp');
-          if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-          tempFile = path.join(tempDir, `voice_trans_${Date.now()}.${format || 'wav'}`);
-          fs.writeFileSync(tempFile, buffer);
-          finalPath = tempFile;
-          
-          // 验证WAV文件
-          const stats = fs.statSync(tempFile);
-          Log.info('✅ 语音临时文件已创建:');
-          Log.info('  - 路径:', tempFile);
-          Log.info('  - 大小:', stats.size, 'bytes');
-          Log.info('  - Base64长度:', base64Data.length);
-          
-          // 读取WAV文件头验证格式
-          const fileBuffer = fs.readFileSync(tempFile);
-          const header = fileBuffer.slice(0, 12).toString('ascii', 0, 4);
-          Log.info('  - 文件头标识:', header, '(应为 RIFF)');
-          Log.info('  - WAV格式标识:', fileBuffer.slice(8, 12).toString('ascii'), '(应为 WAVE)');
         }
 
         if (!finalPath) {
-          Log.error('❌ 未提供语音路径或数据');
+          Log.error('❌ 未能确定语音路径（finalPath 为空）');
           return { success: false, msg: '未提供语音路径或数据' };
         }
 
-        Log.info('📡 调用语音翻译 API');
-        Log.info('  - 文件路径:', finalPath);
-        Log.info('  - from:', from);
-        Log.info('  - target:', target);
-        Log.info('  - format:', format || 'wav');
-        
+        Log.info('📡 调用翻译服务:', { finalPath, from, target, format: format || 'wav' });
         const result = await translateVoice(finalPath, from, target, format || 'wav', args.rate);
         
-        Log.info('📥 后端 API 响应:', JSON.stringify(result, null, 2));
+        Log.info('📥 服务响应:', result.success ? '成功' : '失败');
         
-        // 如果是临时文件，保留在本地供调试
-        if (tempFile && fs.existsSync(tempFile)) {
-          Log.info('📂 临时语音文件已保留在本地:', tempFile);
-        }
-
         return result;
       } catch (error) {
-        Log.error('❌ IPC translate-voice error:', error);
-        if (tempFile && fs.existsSync(tempFile)) {
-          try { fs.unlinkSync(tempFile); } catch(e) {}
-        }
+        Log.error('❌ IPC translate-voice 异常:', error);
         return { success: false, msg: error.message };
       }
     });

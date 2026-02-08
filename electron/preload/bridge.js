@@ -155,6 +155,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   translateVoice: (args) => {
     return ipcRenderer.invoke('translate-voice', args);
+  },
+  saveCapturedAudio: (args) => {
+    return ipcRenderer.invoke('save-captured-audio', args);
   }
 
 });

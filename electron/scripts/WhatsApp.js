@@ -27,8 +27,29 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
             return Promise.resolve();
         }
 
-        console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获:', this.src);
-        window._wp_playing_audio = this;
+        if (isVoiceMessage) {
+            console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获语音:', this.src);
+            window._wp_playing_audio = this;
+
+            // 提示正在录音
+            window.electronAPI.showNotification({
+                message: '🎤 正在自动录制语音...',
+                type: 'is-info'
+            });
+
+            // 绑定结束事件用于自动停止和捕获
+            if (!this._capture_inited) {
+                this._capture_inited = true;
+                this.addEventListener('ended', () => {
+                    console.log('🛑 [Sniffer] 语音播放结束，触发自动保存');
+                    autoCaptureVoice(this).catch(console.error);
+                });
+            }
+        } else {
+            console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获:', this.src);
+            window._wp_playing_audio = this;
+        }
+
         return originalPlay.apply(this, arguments);
     };
 
@@ -82,6 +103,73 @@ let globalConfig = null;
 let lastPreviewedTranslation = '';
 let lastPreviewedSource = '';
 let previewNode = null;
+
+// ==================== 自动化语音捕获系统 ====================
+// 缓存：voiceContainer -> filePath
+const audioCacheMap = new WeakMap();
+
+// ArrayBuffer 转 Base64 辅助函数
+function bufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
+// 自动捕获核心逻辑
+async function autoCaptureVoice(audioElement) {
+    try {
+        const src = audioElement.src;
+        console.log('🎙️ [Auto-Capture] 开始处理音频:', src);
+        
+        // 查找对应的气泡容器
+        const playIcon = audioElement.closest('div')?.querySelector('span[data-icon="audio-play"], span[data-icon="audio-pause"]') || 
+                       document.querySelector(`span[data-icon="audio-play"], span[data-icon="audio-pause"]`);
+        const messageNode = audioElement.closest('[data-id]');
+        const voiceContainer = playIcon?.closest('div[role="button"]')?.parentElement || messageNode || audioElement.closest('.x1n2onr6');
+        
+        if (!voiceContainer) {
+            console.warn('⚠️ [Capture] 无法找到关联的消息容器');
+            return;
+        }
+
+        // 1. 获取 Buffer
+        const response = await fetch(src);
+        const arrayBuffer = await response.arrayBuffer();
+        
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await new Promise((resolve, reject) => {
+            audioContext.decodeAudioData(arrayBuffer, resolve, reject);
+        });
+
+        // 2. 重采样 & 转换 PCM
+        const targetRate = 16000;
+        const resampledBuffer = await resampleAudioBuffer(audioBuffer, targetRate);
+        const pcmBuffer = audioBufferToRawBuffer(resampledBuffer);
+        
+        // 3. 保存到本地
+        const base64 = bufferToBase64(pcmBuffer);
+        const res = await window.electronAPI.saveCapturedAudio({ 
+            audioData: base64, 
+            format: 'pcm' 
+        });
+
+        if (res && res.success) {
+            // 存入缓存
+            audioCacheMap.set(voiceContainer, {
+                path: res.path,
+                time: Date.now()
+            });
+            console.log('✅ [Capture] 音频已自动保存至本地:', res.path);
+        }
+    } catch (e) {
+        console.error('❌ [Auto-Capture] 捕获失败:', e);
+    }
+}
+// ==========================================================
 
 // 更新预览UI
 function updatePreviewUI(text) {
@@ -1469,12 +1557,7 @@ async function getAllSentMessages() {
 
 // ===================== 语音翻译模块 (使用原生 API) =====================
 
-// 全局变量
-let currentRecorder = null;
-let currentAudioElement = null;
-let recordedAudioBlob = null;
-let audioChunks = [];
-let audioSourceMap = new WeakMap(); // 缓存 audio 元素和对应的 source node
+// ===================== 语音翻译模块 (使用自动化捕获) =====================
 
 // 处理语音消息列表，添加翻译按钮
 function processVoiceMessageList() {
@@ -1511,6 +1594,7 @@ function processVoiceMessageList() {
             display: flex; 
             width: 100%;
             justify-content: ${isOut ? 'flex-end' : 'flex-start'};
+            ${isOut ? 'padding-right: 0;' : 'padding-left: 63px;'}
         `;
 
         // 创建按钮主体
@@ -1531,15 +1615,14 @@ function processVoiceMessageList() {
             user-select: none;
             margin-${isOut ? 'right' : 'left'}: 5px;
         `;
-        
         translateBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="23"></line>
                 <line x1="8" y1="23" x2="16" y2="23"></line>
             </svg>
-            语音翻译 ${isOut}
+            语音翻译
         `;
         
         translateBtn.onmouseover = () => {
@@ -1566,34 +1649,8 @@ function processVoiceMessageList() {
 function startVoiceMessageMonitor() {
     console.log('🎤 启动语音消息监控');
     
-    // 监听播放按钮点击事件
-    document.body.addEventListener('click', async (e) => {
-        const target = e.target;
-        const playIcon = target.closest('span[data-icon="audio-play"]') || target.closest('span[data-icon="audio-pause"]');
-        
-        if (playIcon) {
-            console.log('🎵 检测到语音播放按钮点击');
-            // 查找对应的 audio 元素
-            setTimeout(() => {
-                // 优先使用嗅探器捕获到的音频
-                let audioElement = window._wp_playing_audio;
-                
-                // 如果嗅探器没拿到或者已暂停，尝试通过 DOM 树查找
-                if (!audioElement || audioElement.paused) {
-                    const audios = Array.from(document.querySelectorAll('audio'));
-                    audioElement = audios.find(a => !a.paused && a.currentTime > 0) || audios[0];
-                }
-                
-                if (audioElement) {
-                    console.log('🎧 [Monitor] 确定音频播放元素:', audioElement);
-                    currentAudioElement = audioElement;
-                    startAudioRecording(audioElement);
-                } else {
-                    console.warn('⚠️ [Monitor] 未能找到任何音频播放元素');
-                }
-            }, 500); // 稍微增加延迟，确保 play() 被调用并被拦截
-        }
-    }, true);
+    // 定时扫描列表添加按钮
+    setInterval(processVoiceMessageList, 3000);
 }
 
 // 开始录制音频 (使用浏览器原生 MediaRecorder 并转换为 WAV)
@@ -1863,72 +1920,74 @@ async function translateVoiceMessage(voiceContainer, playIcon) {
     try {
         console.log('🌐 发起语音翻译 (V9: Lang Normalization + Raw PCM)');
         
-        window.electronAPI.showNotification({
-            message: '深度分析音频中...',
-            type: 'is-info'
-        });
+        // 检查是否有自动捕获的本地缓存
+        const cached = audioCacheMap.get(voiceContainer);
+        let audioSourceInfo = null;
 
-        // 1. 获取解压后的音频 Buffer (直接抓取，不使用不可靠的 MediaRecorder)
-        const audioBuffer = await getVoiceAudioBuffer(voiceContainer, playIcon);
-        if (!audioBuffer) {
-            throw new Error('未检测到有效的语音数据，请确保语音已加载并播放');
+        if (cached && cached.path) {
+            console.log('📁 [Translate] 使用自动捕获的本地文件:', cached.path);
+            audioSourceInfo = { voicePath: cached.path };
+        } else {
+            console.log('🔍 [Translate] 未找到本地缓存，执行实时抓取...');
+            window.electronAPI.showNotification({
+                message: '深度分析音频中...',
+                type: 'is-info'
+            });
+
+            // 获取解压后的音频 Buffer
+            const audioBuffer = await getVoiceAudioBuffer(voiceContainer, playIcon);
+            if (!audioBuffer) {
+                throw new Error('未检测到有效的语音数据，请确保语音已加载并播放');
+            }
+
+            // 深度质量检查
+            const stats = getAudioStats(audioBuffer);
+            console.log('📊 [Audio Stats]:', stats);
+
+            if (parseFloat(stats.duration) < 0.8) {
+                throw new Error(`音频太短 (${stats.duration}s)，无法识别`);
+            }
+            
+            if (parseFloat(stats.peak) < 0.005) {
+                throw new Error(`音频音量过低或接近静音 (Peak: ${stats.peak})，请重新播放或增大音量`);
+            }
+
+            // 重采样到 16kHz Mono
+            const resampledBuffer = await resampleAudioBuffer(audioBuffer, 16000);
+            
+            // 转换为 Raw PCM (无文件头)
+            const pcmBuffer = audioBufferToRawBuffer(resampledBuffer);
+            const base64 = bufferToBase64(pcmBuffer);
+            // 确保包含 base64 标识符，以便 index.js 识别
+            audioSourceInfo = { audioData: 'data:audio/pcm;base64,' + base64 };
         }
 
-        // 2. 深度质量检查
-        const stats = getAudioStats(audioBuffer);
-        console.log('📊 [Audio Stats]:', stats);
-
-        if (parseFloat(stats.duration) < 0.8) {
-            throw new Error(`音频太短 (${stats.duration}s)，无法识别`);
-        }
-        
-        if (parseFloat(stats.peak) < 0.005) {
-            throw new Error(`音频音量过低或接近静音 (Peak: ${stats.peak})，请重新播放或增大音量`);
-        }
-
-        // 3. 重采样到 16kHz Mono
-        const targetRate = 16000;
-        const resampledBuffer = await resampleAudioBuffer(audioBuffer, targetRate);
-        
-        // 4. 转换为 Raw PCM (无文件头) - 最高兼容性
-        const pcmBuffer = audioBufferToRawBuffer(resampledBuffer);
-        
-        // 5. 语言代码归一化 (解决 zh-TW 导致的 20200)
+        // 语言代码归一化
         const fromLang = normalizeLangCode(getTargetLanguage());
         const targetLang = normalizeLangCode(getLocalLanguage());
         console.log(`🌍 语言参数: ${fromLang} -> ${targetLang}`);
 
-        // 6. 转换为 Base64
-        const blob = new Blob([pcmBuffer], { type: 'audio/pcm' });
-        const reader = new FileReader();
-        reader.onload = async () => {
-            const audioDataBase64 = reader.result;
-            
-            console.log(`📤 发送请求 (PCM 16kHz Mono)...`);
-            const result = await window.electronAPI.translateVoice({
-                audioData: audioDataBase64, 
-                from: fromLang,
-                target: targetLang,
-                format: 'pcm',
-                rate: 16000
-            });
-            
-            const isSuccess = result && (result.success === true || (result.data && (result.data.code === 200 || result.data.error_code === "0" || result.data.error_code === 0)));
-            
-            if (isSuccess) {
-                displayVoiceTranslation(voiceContainer, result.data || result);
-                window.electronAPI.showNotification({ message: '翻译成功', type: 'is-success' });
-            } else {
-                const errorMsg = result?.msg || result?.message || (result?.data ? JSON.stringify(result.data) : '翻译服务无响应');
-                throw new Error(errorMsg);
-            }
+        // 发送请求
+        const requestParams = {
+            voicePath: audioSourceInfo.voicePath,
+            audioData: audioSourceInfo.audioData, 
+            from: fromLang,
+            target: targetLang,
+            format: 'pcm',
+            rate: 16000
         };
+        console.log(`📤 发送请求 参数:`, requestParams);
+        const result = await window.electronAPI.translateVoice(requestParams);
         
-        reader.onerror = () => {
-            throw new Error('读取音频流失败');
-        };
+        const isSuccess = result && (result.success === true || (result.data && (result.data.code === 200 || result.data.error_code === "0" || result.data.error_code === 0)));
         
-        reader.readAsDataURL(blob);
+        if (isSuccess) {
+            displayVoiceTranslation(voiceContainer, result.data || result);
+            window.electronAPI.showNotification({ message: '翻译成功', type: 'is-success' });
+        } else {
+            const errorMsg = result?.msg || result?.message || (result?.data ? JSON.stringify(result.data) : '翻译服务无响应');
+            throw new Error(errorMsg);
+        }
 
     } catch (error) {
         console.error('❌ 翻译失败详情:', error);
@@ -1989,15 +2048,30 @@ function displayVoiceTranslation(voiceContainer, translationData) {
         word-break: break-word;
         text-align: ${isOut ? 'right' : 'left'};
         align-self: ${isOut ? 'flex-end' : 'flex-start'};
+        max-width:80%;
+        margin-left: ${isOut ? '10px' : '63px'};
+        margin-right: ${isOut ? '0' : '10px'};
+
     `;
     
     // 处理翻译数据
+    let sourceTextra = '';
     let translationText = '';
-    if (typeof translationData === 'string') {
-        translationText = translationData;
-    } else if (translationData.text || translationData.translation || translationData.result) {
-        translationText = translationData.text || translationData.translation || translationData.result;
-    } else {
+    
+    try {
+        if (typeof translationData === 'string') {
+            translationText = translationData;
+        } else if (translationData.text || translationData.translation || translationData.result) {
+            translationText = translationData.text || translationData.translation || translationData.result;
+            sourceTextra = translationData.source || translationData.src || '';
+        } else {
+            const voiceTranslationData = translationData.data || translationData;
+            translationText = voiceTranslationData.target || voiceTranslationData.translation || '';
+            sourceTextra = voiceTranslationData.source || voiceTranslationData.src || '';
+            console.log('📊 [Display] 语音数据详情:', voiceTranslationData);
+        }
+    } catch (e) {
+        console.error('❌ 解析翻译数据失败:', e);
         translationText = JSON.stringify(translationData);
     }
     
@@ -2013,6 +2087,7 @@ function displayVoiceTranslation(voiceContainer, translationData) {
             </svg>
             <span style="font-size: 11px; font-weight: 600; color: #25D366; text-transform: uppercase; letter-spacing: 0.5px;">语音翻译</span>
         </div>
+        ${sourceTextra ? `<div style="color: #666; font-size: 12px; margin-bottom: 6px; border-bottom: 1px dashed rgba(37, 211, 102, 0.3); padding-bottom: 4px; font-style: normal;">${sourceTextra}</div>` : ''}
         <div style="color: #128C7E; line-height: 1.4; font-weight: 450;">${translationText}</div>
     `;
     
