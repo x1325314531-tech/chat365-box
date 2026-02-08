@@ -1667,8 +1667,15 @@ async function convertWebMToWAV(webmBlob) {
                 // 解码 WebM 音频数据
                 const audioBuffer = await audioContext.decodeAudioData(e.target.result);
                 
+                console.log(`🔊 原始音频信息: ${audioBuffer.sampleRate}Hz, ${audioBuffer.numberOfChannels}声道`);
+                
+                // 强制进行重采样到 16000Hz 单声道 (百度语音翻译的核心要求)
+                const targetRate = 16000;
+                console.log(`🔊 正在进行音频重采样: ${audioBuffer.sampleRate}Hz -> ${targetRate}Hz (Mono)`);
+                const resampledBuffer = await resampleAudioBuffer(audioBuffer, targetRate);
+                
                 // 转换为 WAV
-                const wavBlob = audioBufferToWav(audioBuffer);
+                const wavBlob = audioBufferToWav(resampledBuffer);
                 resolve(wavBlob);
             } catch (error) {
                 reject(error);
@@ -1680,49 +1687,38 @@ async function convertWebMToWAV(webmBlob) {
     });
 }
 
+// 音频重采样函数
+async function resampleAudioBuffer(audioBuffer, targetSampleRate) {
+    const numberOfChannels = 1; // 强制单声道，百度语音识别/翻译对单声道支持最好
+    const offlineContext = new OfflineAudioContext(
+        numberOfChannels,
+        Math.ceil(audioBuffer.duration * targetSampleRate),
+        targetSampleRate
+    );
+
+    const bufferSource = offlineContext.createBufferSource();
+    bufferSource.buffer = audioBuffer;
+    bufferSource.connect(offlineContext.destination);
+    bufferSource.start();
+
+    return await offlineContext.startRendering();
+}
+
 // AudioBuffer 转 WAV格式
 function audioBufferToWav(audioBuffer) {
     const numOfChan = audioBuffer.numberOfChannels;
-    const length = audioBuffer.length * numOfChan * 2 + 44;
+    const sampleRate = audioBuffer.sampleRate;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numOfChan * (bitsPerSample / 8);
+    const blockAlign = numOfChan * (bitsPerSample / 8);
+    const dataSize = audioBuffer.length * numOfChan * (bitsPerSample / 8);
+    const length = dataSize + 44;
+    
     const buffer = new ArrayBuffer(length);
     const view = new DataView(buffer);
     const channels = [];
     let offset = 0;
     let pos = 0;
-    
-    // 写入 WAV 文件头
-    setUint32(0x46464952); // "RIFF"
-    setUint32(length - 8); // file length - 8
-    setUint32(0x45564157); // "WAVE"
-    
-    setUint32(0x20746d66); // "fmt " chunk
-    setUint32(16); // length = 16
-    setUint16(1); // PCM (uncompressed)
-    setUint16(numOfChan);
-    setUint32(audioBuffer.sampleRate);
-    setUint32(audioBuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
-    setUint16(numOfChan * 2); // block-align
-    setUint16(16); // 16-bit (hardcoded in this demo)
-    
-    setUint32(0x61746164); // "data" - chunk
-    setUint32(length - pos - 4); // chunk length
-    
-    // 写入交错的音频数据
-    for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-        channels.push(audioBuffer.getChannelData(i));
-    }
-    
-    while (pos < length - 44) {
-        for (let i = 0; i < numOfChan; i++) {
-            let sample = Math.max(-1, Math.min(1, channels[i][offset]));
-            sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-            view.setInt16(pos, sample, true);
-            pos += 2;
-        }
-        offset++;
-    }
-    
-    return new Blob([buffer], { type: 'audio/wav' });
     
     function setUint16(data) {
         view.setUint16(pos, data, true);
@@ -1733,6 +1729,40 @@ function audioBufferToWav(audioBuffer) {
         view.setUint32(pos, data, true);
         pos += 4;
     }
+
+    // 写入 WAV 文件头
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+    
+    setUint32(0x20746d66); // "fmt " chunk
+    setUint32(16); // format chunk size = 16
+    setUint16(1); // PCM (uncompressed)
+    setUint16(numOfChan);
+    setUint32(sampleRate);
+    setUint32(byteRate);
+    setUint16(blockAlign);
+    setUint16(bitsPerSample);
+    
+    setUint32(0x61746164); // "data" - chunk
+    setUint32(dataSize);   // data chunk length
+    
+    // 写入交错的音频数据
+    for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+        channels.push(audioBuffer.getChannelData(i));
+    }
+    
+    while (pos < length) {
+        for (let i = 0; i < numOfChan; i++) {
+            let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+            sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            view.setInt16(pos, sample, true);
+            pos += 2;
+        }
+        offset++;
+    }
+    
+    return new Blob([buffer], { type: 'audio/wav' });
 }
 
 // 停止录制音频
