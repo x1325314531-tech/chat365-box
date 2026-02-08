@@ -131,8 +131,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   simulateTyping: (args) => {
     return ipcRenderer.invoke('simulate-typing', args);
   },
+  //翻译配置
   getTranslateConfig: () => {
     return ipcRenderer.invoke('get-translate-config');
+  },
+  //租房配置
+  getTenantConfig:()=> { 
+    return ipcRenderer.invoke('get-tenant-config')
+  },
+  saveTenantConfig: (args) => {
+    return ipcRenderer.invoke('save-tenant-config', args);
   },
   // 敏感词检测
   checkSensitiveContent: (args) => {

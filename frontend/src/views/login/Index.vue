@@ -138,6 +138,24 @@ const handleAccountLogin = () => {
               router.push('/home');
           }
       });
+      get('/app/tenantSetting').then(tenantRes=> {
+         if(tenantRes.code===200) { 
+       console.log('配置tenantRes', tenantRes);
+       const  triggerSetting=  JSON.parse(tenantRes.data.triggerSetting)
+       const  interceptedSetting = JSON.parse(tenantRes.data.interceptedSetting)
+       const tenantConfig = { 
+             ...triggerSetting,
+             ...interceptedSetting
+       }
+       console.log('tenantConfig', tenantConfig);
+        localStorage.setItem('tenantConfig', JSON.stringify(tenantConfig))
+          // 保存配置到electron
+      ipc.invoke('save-tenant-config', JSON.parse(JSON.stringify(tenantConfig))).then(res => {
+        console.log('租房配置已同步到主进程:', res);
+  });
+         }
+      })
+      
     }
   }).catch(error => {
     console.error('登录失败:', error);

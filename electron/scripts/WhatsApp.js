@@ -160,12 +160,14 @@ function updatePreviewUI(text) {
 async function syncGlobalConfig() {
     try {
         const config = await window.electronAPI.getTranslateConfig();
+        const tenantConfig = await window.electronAPI.getTenantConfig()
         if (config) {
-            globalConfig = config;
+            globalConfig =  { ...config, ...tenantConfig}
             console.log('🔄 全局配置同步成功:', globalConfig);
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
+
     }
 }
 
@@ -365,8 +367,9 @@ async function checkSensitiveContent(text) {
 async function executeTranslationFlow(inputText) {
     try {
         console.log('🔄 开始翻译流程，原文:', inputText);
-
+        
         // ===== 敏感词检测 =====
+        
         const sensitiveCheck = await checkSensitiveContent(inputText);
         
         if (sensitiveCheck.isSensitive) {
@@ -1755,54 +1758,201 @@ async function resampleAudioBuffer(audioBuffer, targetSampleRate) {
     return await offlineContext.startRendering();
 }
 
-// AudioBuffer 转 WAV格式 (保留备用，但当前优先使用 PCM)
-function audioBufferToWav(audioBuffer) {
-    const numOfChan = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    const bitsPerSample = 16;
-    const byteRate = sampleRate * numOfChan * (bitsPerSample / 8);
-    const blockAlign = numOfChan * (bitsPerSample / 8);
-    const dataSize = audioBuffer.length * numOfChan * (bitsPerSample / 8);
-    const length = dataSize + 44;
+// ==================== 语音翻译核心逻辑 (V9: Lang Normalization + Raw PCM + Diagnostics) ====================
+
+// 诊断函数：检查 ArrayBuffer 是否全为 0 (静音)
+function isBufferAllZeros(buffer) {
+    const view = new Uint8Array(buffer);
+    for (let i = 0; i < view.length; i++) {
+        if (view[i] !== 0) return false;
+    }
+    return true;
+}
+
+// 诊断函数：计算音频统计信息 (峰值、均效值、时长)
+function getAudioStats(audioBuffer) {
+    const data = audioBuffer.getChannelData(0);
+    let peak = 0;
+    let sumSq = 0;
     
+    for (let i = 0; i < data.length; i++) {
+        const val = Math.abs(data[i]);
+        if (val > peak) peak = val;
+        sumSq += val * val;
+    }
+    
+    const rms = Math.sqrt(sumSq / data.length);
+    return {
+        peak: peak.toFixed(4),
+        rms: rms.toFixed(4),
+        duration: audioBuffer.duration.toFixed(2)
+    };
+}
+
+// 归一化语言代码 (针对百度等 API)
+function normalizeLangCode(code) {
+    if (!code) return 'zh';
+    const mapping = {
+        'zh-cn': 'zh',
+        'zh-tw': 'zh',
+        'zh-hk': 'zh',
+        'en-us': 'en',
+        'en-gb': 'en'
+    };
+    const lower = code.toLowerCase();
+    return mapping[lower] || (lower.split('-')[0]) || 'zh';
+}
+
+// 延迟函数
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+// 获取待翻译音频的原始 Buffer (Localized Search)
+async function getVoiceAudioBuffer(voiceContainer, playIcon) {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+    }
+
+    // 1. 在当前容器内深度搜索音频元素
+    let audioElement = voiceContainer.querySelector('audio');
+    
+    // 2. 如果没找到，尝试点击播放按钮以触发 WhatsApp 加载音频对象
+    if (!audioElement) {
+        console.log('🧐 未在气泡内找到音频元素，尝试触发播放以加载...');
+        playIcon.click();
+        await delay(800); // 等待 DOM 渲染和音频加载
+        audioElement = voiceContainer.querySelector('audio');
+    }
+
+    // 3. 最终尝试使用全局嗅探到的对象 (作为兜底)
+    if (!audioElement) {
+        audioElement = window._wp_playing_audio;
+    }
+
+    if (!audioElement || !audioElement.src) {
+        console.error('❌ 无法定位音频源');
+        return null;
+    }
+
+    try {
+        console.log('🔗 抓取音频源:', audioElement.src);
+        const response = await fetch(audioElement.src);
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+        
+        const arrayBuffer = await response.arrayBuffer();
+        
+        if (isBufferAllZeros(arrayBuffer)) {
+            console.error('❌ 警告：抓取到的原始音频数据全为静音(00)！');
+            throw new Error('捕获到的音频源文件为空，请尝试刷新页面后重新点击播放');
+        }
+
+        // 解码
+        return await new Promise((resolve, reject) => {
+            audioContext.decodeAudioData(arrayBuffer, resolve, (err) => {
+                console.error('❌ 解码失败:', err);
+                reject(new Error('无法解析音频格式'));
+            });
+        });
+    } catch (e) {
+        throw e;
+    }
+}
+
+// 翻译语音消息
+async function translateVoiceMessage(voiceContainer, playIcon) {
+    try {
+        console.log('🌐 发起语音翻译 (V9: Lang Normalization + Raw PCM)');
+        
+        window.electronAPI.showNotification({
+            message: '深度分析音频中...',
+            type: 'is-info'
+        });
+
+        // 1. 获取解压后的音频 Buffer (直接抓取，不使用不可靠的 MediaRecorder)
+        const audioBuffer = await getVoiceAudioBuffer(voiceContainer, playIcon);
+        if (!audioBuffer) {
+            throw new Error('未检测到有效的语音数据，请确保语音已加载并播放');
+        }
+
+        // 2. 深度质量检查
+        const stats = getAudioStats(audioBuffer);
+        console.log('📊 [Audio Stats]:', stats);
+
+        if (parseFloat(stats.duration) < 0.8) {
+            throw new Error(`音频太短 (${stats.duration}s)，无法识别`);
+        }
+        
+        if (parseFloat(stats.peak) < 0.005) {
+            throw new Error(`音频音量过低或接近静音 (Peak: ${stats.peak})，请重新播放或增大音量`);
+        }
+
+        // 3. 重采样到 16kHz Mono
+        const targetRate = 16000;
+        const resampledBuffer = await resampleAudioBuffer(audioBuffer, targetRate);
+        
+        // 4. 转换为 Raw PCM (无文件头) - 最高兼容性
+        const pcmBuffer = audioBufferToRawBuffer(resampledBuffer);
+        
+        // 5. 语言代码归一化 (解决 zh-TW 导致的 20200)
+        const fromLang = normalizeLangCode(getTargetLanguage());
+        const targetLang = normalizeLangCode(getLocalLanguage());
+        console.log(`🌍 语言参数: ${fromLang} -> ${targetLang}`);
+
+        // 6. 转换为 Base64
+        const blob = new Blob([pcmBuffer], { type: 'audio/pcm' });
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const audioDataBase64 = reader.result;
+            
+            console.log(`📤 发送请求 (PCM 16kHz Mono)...`);
+            const result = await window.electronAPI.translateVoice({
+                audioData: audioDataBase64, 
+                from: fromLang,
+                target: targetLang,
+                format: 'pcm',
+                rate: 16000
+            });
+            
+            const isSuccess = result && (result.success === true || (result.data && (result.data.code === 200 || result.data.error_code === "0" || result.data.error_code === 0)));
+            
+            if (isSuccess) {
+                displayVoiceTranslation(voiceContainer, result.data || result);
+                window.electronAPI.showNotification({ message: '翻译成功', type: 'is-success' });
+            } else {
+                const errorMsg = result?.msg || result?.message || (result?.data ? JSON.stringify(result.data) : '翻译服务无响应');
+                throw new Error(errorMsg);
+            }
+        };
+        
+        reader.onerror = () => {
+            throw new Error('读取音频流失败');
+        };
+        
+        reader.readAsDataURL(blob);
+
+    } catch (error) {
+        console.error('❌ 翻译失败详情:', error);
+        window.electronAPI.showNotification({
+            message: `翻译失败: ${error.message}`,
+            type: 'is-danger'
+        });
+    }
+}
+
+// 内部使用的 PCM 转换 (无文件头)
+function audioBufferToRawBuffer(audioBuffer) {
+    const numOfChan = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length * numOfChan * 2;
     const buffer = new ArrayBuffer(length);
     const view = new DataView(buffer);
     const channels = [];
-    let offset = 0;
-    let pos = 0;
     
-    function setUint16(data) {
-        view.setUint16(pos, data, true);
-        pos += 2;
-    }
-    
-    function setUint32(data) {
-        view.setUint32(pos, data, true);
-        pos += 4;
-    }
-
-    // 写入 WAV 文件头
-    setUint32(0x46464952); // "RIFF"
-    setUint32(length - 8); // file length - 8
-    setUint32(0x45564157); // "WAVE"
-    
-    setUint32(0x20746d66); // "fmt " chunk
-    setUint32(16); // format chunk size = 16
-    setUint16(1); // PCM (uncompressed)
-    setUint16(numOfChan);
-    setUint32(sampleRate);
-    setUint32(byteRate);
-    setUint16(blockAlign);
-    setUint16(bitsPerSample);
-    
-    setUint32(0x61746164); // "data" - chunk
-    setUint32(dataSize);   // data chunk length
-    
-    // 写入交错的音频数据
     for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
         channels.push(audioBuffer.getChannelData(i));
     }
     
+    let offset = 0;
+    let pos = 0;
     while (pos < length) {
         for (let i = 0; i < numOfChan; i++) {
             let sample = Math.max(-1, Math.min(1, channels[i][offset]));
@@ -1812,132 +1962,7 @@ function audioBufferToWav(audioBuffer) {
         }
         offset++;
     }
-    
-    return new Blob([buffer], { type: 'audio/wav' });
-}
-
-// 停止录制音频
-function stopAudioRecording() {
-    if (!currentRecorder || currentRecorder.state === 'inactive') return;
-    
-    console.log('⏹️ 停止录制音频');
-    currentRecorder.stop();
-    currentRecorder = null;
-}
-
-// 翻译语音消息
-async function translateVoiceMessage(voiceContainer, playIcon) {
-    try {
-        console.log('🌐 开始翻译语音消息');
-        
-        // 检查是否有录制的音频
-        if (!recordedAudioBlob) {
-            window.electronAPI.showNotification({
-                message: '请先播放语音消息',
-                type: 'is-warning'
-            });
-            
-            // 自动点击播放按钮
-            playIcon.click();
-            
-            console.warn('⚠️ 音频尚未录制，开始播放并录制...');
-            
-            // 显示提示
-            window.electronAPI.showNotification({
-                message: '正在录制语音，请稍候...',
-                type: 'is-info'
-            });
-            
-            // 触发播放按钮
-            const audioPlayBtn = voiceContainer.querySelector('span[data-icon="audio-play"]');
-            if (audioPlayBtn) {
-                audioPlayBtn.click();
-                
-                // 等待录制完成（假设最多等待30秒）
-                let waitTime = 0;
-                const checkInterval = setInterval(() => {
-                    waitTime += 500;
-                    if (recordedAudioBlob) {
-                        clearInterval(checkInterval);
-                        // 递归调用自己，此时应该已经有录制数据了
-                        translateVoiceMessage(voiceContainer, playIcon);
-                    } else if (waitTime >= 30000) {
-                        clearInterval(checkInterval);
-                        window.electronAPI.showNotification({
-                            message: '录制超时，请重试',
-                            type: 'is-danger'
-                        });
-                    }
-                }, 500);
-                
-                return; // 退出当前调用，等待录制完成后的递归调用
-            } else {
-                throw new Error('未找到播放按钮');
-            }
-        }
-        
-        window.electronAPI.showNotification({
-            message: '正在翻译语音...',
-            type: 'is-info'
-        });
-        
-        // 将 Blob 转换为 Base64
-        const reader = new FileReader();
-        reader.onload = async () => {
-            const audioDataBase64 = reader.result; // 包含 data:audio/wav;base64, 前缀
-            
-            console.log('📤 准备发送语音翻译请求');
-            console.log('  - audioData 类型:', typeof audioDataBase64);
-            console.log('  - audioData 长前缀:', audioDataBase64);
-            console.log('  - from:', getTargetLanguage());
-            console.log('  - target:', getLocalLanguage());
-            
-            // 强制限制音频时长（百度语音翻译建议 10s 以内，超过 60s 会报错）
-            const duration = recordedAudioBlob.duration || 0;
-            const maxDuration = 15; 
-            if (duration > maxDuration) {
-                console.warn(`⚠️ 音频时长 (${duration.toFixed(1)}s) 超过阈值，可能会导致 20200 错误`);
-            }
-
-            // 调用翻译接口
-            const result = await window.electronAPI.translateVoice({
-                audioData: audioDataBase64, 
-                from: getTargetLanguage(),
-                target: getLocalLanguage(),
-                format: 'pcm', // 切换到 pcm 提升兼容性
-                rate: 16000     // 明确告知采样率
-            });
-            
-            console.log('✅ 语音翻译结果:', result);
-            
-            // 兼容性检查成功状态
-            const isSuccess = result && (result.success === true || (result.data && (result.data.code === 200 || result.data.error_code === "0" || result.data.error_code === 0)));
-            
-            if (isSuccess) {
-                displayVoiceTranslation(voiceContainer, result.data || result);
-                window.electronAPI.showNotification({
-                    message: '翻译成功',
-                    type: 'is-success'
-                });
-            } else {
-                const errorInfo = result?.msg || result?.message || (result?.data ? JSON.stringify(result.data) : '未知错误');
-                throw new Error(errorInfo);
-            }
-        };
-        
-        reader.onerror = () => {
-            throw new Error('读取音频数据失败');
-        };
-        
-        reader.readAsDataURL(recordedAudioBlob);
-        
-    } catch (error) {
-        console.error('❌ 语音翻译失败:', error);
-        window.electronAPI.showNotification({
-            message: `翻译失败: ${error.message}`,
-            type: 'is-danger'
-        });
-    }
+    return buffer;
 }
 
 // 显示语音翻译结果

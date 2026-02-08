@@ -192,6 +192,62 @@ class Index extends Application {
       Log.info('IPC handle get-ip-info-backend called');
       return await Services.get('window').getIPInfo(args);
     });
+
+    // 翻译配置持久化
+    ipcMain.handle('save-translate-config', async (event, args) => {
+      try {
+        Log.info('保存翻译配置到 config.json:', args);
+        const configStorage = Storage.connection('config.json');
+        configStorage.setItem('translateConfig', args);
+        // 同时挂载到 app 对象上，方便后台脚本直接访问
+        app.translateConfig = args;
+        return { success: true };
+      } catch (err) {
+        Log.error('保存翻译配置失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
+    //租房配置持久化
+    ipcMain.handle('save-tenant-config', async (event, args) => {
+      try {
+        Log.info('保存租户配置到 config.json:', args);
+        const configStorage = Storage.connection('config.json');
+        configStorage.setItem('tenantConfig', args);
+        // 同时挂载到 app 对象上，方便后台脚本直接访问
+        app.tenantConfig = args;
+        return { success: true };
+      } catch (err) {
+        Log.error('保存租户配置失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
+    // 获取翻译配置
+    ipcMain.handle('get-translate-config', async (event) => {
+      try {
+        const configStorage = Storage.connection('config.json');
+        const config = configStorage.getItem('translateConfig');
+        // 同步到内存中
+        if (config) app.translateConfig = config;
+        return config;
+      } catch (err) {
+        Log.error('读取翻译配置失败:', err);
+        return null;
+      }
+    });
+
+    // 获取租户配置
+    ipcMain.handle('get-tenant-config', async (event) => {
+      try {
+        const configStorage = Storage.connection('config.json');
+        const config = configStorage.getItem('tenantConfig');
+        // 同步到内存中
+        if (config) app.tenantConfig = config;
+        return config;
+      } catch (err) {
+        Log.error('读取租户配置失败:', err);
+        return null;
+      }
+    });
   }
 
   /**
@@ -477,35 +533,6 @@ class Index extends Application {
         mainWin.webContents.send('open-user-portrait', result)
       }
     });
-
-    // 翻译配置持久化
-    ipcMain.handle('save-translate-config', async (event, args) => {
-      try {
-        Log.info('保存翻译配置到 config.json:', args);
-        const configStorage = Storage.connection('config.json');
-        configStorage.setItem('translateConfig', args);
-        // 同时挂载到 app 对象上，方便后台脚本直接访问
-        app.translateConfig = args;
-        return { success: true };
-      } catch (err) {
-        Log.error('保存翻译配置失败:', err);
-        return { success: false, error: err.message };
-      }
-    });
-
-    ipcMain.handle('get-translate-config', async (event) => {
-      try {
-        const configStorage = Storage.connection('config.json');
-        const config = configStorage.getItem('translateConfig');
-        // 同步到内存中
-        if (config) app.translateConfig = config;
-        return config;
-      } catch (err) {
-        Log.error('读取翻译配置失败:', err);
-        return null;
-      }
-    });
-
   }
   /**
    * before app close

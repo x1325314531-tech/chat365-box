@@ -267,7 +267,7 @@ async function translateVoice(filePath, fromLang, targetLang, format, rate) {
         // 显式指定文件名 and Content-Type
         formData.append('file', fs.createReadStream(filePath), {
             filename: fileName,
-            // contentType: `audio/${format}`
+            contentType: `audio/${format}`
         });
 
         Log.info('开始语音翻译:', { filePath, from: fromLang, target: targetLang, format, rate });
