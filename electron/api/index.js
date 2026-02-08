@@ -255,7 +255,7 @@ async function translateImage(filePath, fromLang, targetLang) {
 }
 
 // 实现语音翻译函数
-async function translateVoice(filePath, fromLang, targetLang, format) {
+async function translateVoice(filePath, fromLang, targetLang, format, rate) {
     try {
         if (!fs.existsSync(filePath)) {
             throw new Error('语音文件不存在');
@@ -264,16 +264,19 @@ async function translateVoice(filePath, fromLang, targetLang, format) {
         const formData = new FormData();
         const fileName = path.basename(filePath);
         
-        // 显式指定文件名和 Content-Type
+        // 显式指定文件名 and Content-Type
         formData.append('file', fs.createReadStream(filePath), {
             filename: fileName,
-            contentType: `audio/${format}`
+            // contentType: `audio/${format}`
         });
 
-        Log.info('开始语音翻译:', { filePath, from: fromLang, target: targetLang, format });
+        Log.info('开始语音翻译:', { filePath, from: fromLang, target: targetLang, format, rate });
 
         // query params in URL
-        const url = `/app/mediaTranslate/voice?from=${fromLang}&target=${targetLang}&format=${format}`;
+        let url = `/app/mediaTranslate/voice?from=${fromLang}&target=${targetLang}&format=${format}`;
+        if (rate) {
+            url += `&rate=${rate}`;
+        }
         
         const config = {
             headers: {

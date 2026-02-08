@@ -326,7 +326,7 @@ class Index extends Application {
         Log.info('  - target:', target);
         Log.info('  - format:', format || 'wav');
         
-        const result = await translateVoice(finalPath, from, target, format || 'wav');
+        const result = await translateVoice(finalPath, from, target, format || 'wav', args.rate);
         
         Log.info('📥 后端 API 响应:', JSON.stringify(result, null, 2));
         

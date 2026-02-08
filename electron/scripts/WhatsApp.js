@@ -2,14 +2,32 @@
 // 版本：2026-01-30 v2 - 添加 IndexedDB 存储发送消息原文
 console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)');
 
-// ==================== 全局音频监听 (Sniffer) ====================
+// ==================== 全局音频监听 & 自动连播拦截 (Sniffer) ====================
 (function() {
-    console.log('🎧 启动全局音频嗅探器...');
+    console.log('🎧 启动全局音频嗅探器 & 自动连播拦截器...');
     
+    // 记录最后一次用户交互时间，用于判断播放是否由用户触发
+    window._wp_last_user_touch = 0;
+    const updateTouch = () => { window._wp_last_user_touch = Date.now(); };
+    document.addEventListener('mousedown', updateTouch, true);
+    document.addEventListener('keydown', updateTouch, true);
+
     // 拦截 HTMLMediaElement.play (涵盖 audio 和 video)
     const originalPlay = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function() {
-        console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获:', this);
+        // 判断是否是点击触发的播放（2秒内的交互视为用户触发）
+        const isUserInitiated = (Date.now() - window._wp_last_user_touch) < 2000;
+        
+        // WhatsApp 的语音通常是 blob: 开头的 URL
+        const isVoiceMessage = this.src && this.src.startsWith('blob:');
+        
+        if (isVoiceMessage && !isUserInitiated) {
+            console.log('🚫 [Sniffer] 拦截到可能的自动连播:', this.src);
+            // 返回一个已完成的 Promise，防止 WhatsApp 内部代码报错
+            return Promise.resolve();
+        }
+
+        console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获:', this.src);
         window._wp_playing_audio = this;
         return originalPlay.apply(this, arguments);
     };
@@ -1518,7 +1536,7 @@ function processVoiceMessageList() {
                 <line x1="12" y1="19" x2="12" y2="23"></line>
                 <line x1="8" y1="23" x2="16" y2="23"></line>
             </svg>
-            语音翻译
+            语音翻译 ${isOut}
         `;
         
         translateBtn.onmouseover = () => {
@@ -1656,7 +1674,7 @@ async function startAudioRecording(audioElement) {
     }
 }
 
-// WebM 转 WAV 的转换函数
+// WebM 转 WAV/PCM 的转换函数
 async function convertWebMToWAV(webmBlob) {
     return new Promise((resolve, reject) => {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -1674,9 +1692,12 @@ async function convertWebMToWAV(webmBlob) {
                 console.log(`🔊 正在进行音频重采样: ${audioBuffer.sampleRate}Hz -> ${targetRate}Hz (Mono)`);
                 const resampledBuffer = await resampleAudioBuffer(audioBuffer, targetRate);
                 
-                // 转换为 WAV
-                const wavBlob = audioBufferToWav(resampledBuffer);
-                resolve(wavBlob);
+                // 存储时长供后续检查
+                resampledBuffer._user_duration = audioBuffer.duration;
+                
+                // 转换为 PCM (Raw，不带 WAV 头，通常更兼容百度的语音请求)
+                const pcmBlob = audioBufferToRawPcm(resampledBuffer);
+                resolve(pcmBlob);
             } catch (error) {
                 reject(error);
             }
@@ -1685,6 +1706,36 @@ async function convertWebMToWAV(webmBlob) {
         fileReader.onerror = reject;
         fileReader.readAsArrayBuffer(webmBlob);
     });
+}
+
+// AudioBuffer 转 16-bit PCM (Raw)
+function audioBufferToRawPcm(audioBuffer) {
+    const numOfChan = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length * numOfChan * 2;
+    const buffer = new ArrayBuffer(length);
+    const view = new DataView(buffer);
+    const channels = [];
+    let offset = 0;
+    let pos = 0;
+    
+    // 写入交错的音频数据
+    for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+        channels.push(audioBuffer.getChannelData(i));
+    }
+    
+    while (pos < length) {
+        for (let i = 0; i < numOfChan; i++) {
+            let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+            sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            view.setInt16(pos, sample, true);
+            pos += 2;
+        }
+        offset++;
+    }
+    
+    const blob = new Blob([buffer], { type: 'audio/pcm' });
+    blob.duration = audioBuffer._user_duration; // 透传时长
+    return blob;
 }
 
 // 音频重采样函数
@@ -1704,7 +1755,7 @@ async function resampleAudioBuffer(audioBuffer, targetSampleRate) {
     return await offlineContext.startRendering();
 }
 
-// AudioBuffer 转 WAV格式
+// AudioBuffer 转 WAV格式 (保留备用，但当前优先使用 PCM)
 function audioBufferToWav(audioBuffer) {
     const numOfChan = audioBuffer.numberOfChannels;
     const sampleRate = audioBuffer.sampleRate;
@@ -1837,28 +1888,40 @@ async function translateVoiceMessage(voiceContainer, playIcon) {
             
             console.log('📤 准备发送语音翻译请求');
             console.log('  - audioData 类型:', typeof audioDataBase64);
-            console.log('  - audioData 前100字符:', audioDataBase64.substring(0, 100));
+            console.log('  - audioData 长前缀:', audioDataBase64);
             console.log('  - from:', getTargetLanguage());
             console.log('  - target:', getLocalLanguage());
             
+            // 强制限制音频时长（百度语音翻译建议 10s 以内，超过 60s 会报错）
+            const duration = recordedAudioBlob.duration || 0;
+            const maxDuration = 15; 
+            if (duration > maxDuration) {
+                console.warn(`⚠️ 音频时长 (${duration.toFixed(1)}s) 超过阈值，可能会导致 20200 错误`);
+            }
+
             // 调用翻译接口
             const result = await window.electronAPI.translateVoice({
-                audioData: audioDataBase64,  // 包含完整的 data URL
+                audioData: audioDataBase64, 
                 from: getTargetLanguage(),
                 target: getLocalLanguage(),
-                format: 'wav'
+                format: 'pcm', // 切换到 pcm 提升兼容性
+                rate: 16000     // 明确告知采样率
             });
             
             console.log('✅ 语音翻译结果:', result);
             
-            if (result && (result.code === 200 || result.status)) {
-                displayVoiceTranslation(voiceContainer, result);
+            // 兼容性检查成功状态
+            const isSuccess = result && (result.success === true || (result.data && (result.data.code === 200 || result.data.error_code === "0" || result.data.error_code === 0)));
+            
+            if (isSuccess) {
+                displayVoiceTranslation(voiceContainer, result.data || result);
                 window.electronAPI.showNotification({
                     message: '翻译成功',
                     type: 'is-success'
                 });
             } else {
-                throw new Error(result?.msg || result?.message || '翻译失败');
+                const errorInfo = result?.msg || result?.message || (result?.data ? JSON.stringify(result.data) : '未知错误');
+                throw new Error(errorInfo);
             }
         };
         
