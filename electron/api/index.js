@@ -46,130 +46,124 @@ async function translateText(text,localLanguage, targetLanguage) {
 }
 
 // 实现敏感词检测函数
+// 实现敏感词检测函数
 async function checkSensitiveContent(content) {
-    const sensitiveRequestBody = {
-        content: content
-    };
-    
-    Log.info('敏感词检测请求:', sensitiveRequestBody);
-    
-    try {
-        // 1. 调用敏感词检测接口
-        const sensitiveResponse = await request.post(`/app/sensitive/check`,  sensitiveRequestBody);
-        Log.info('敏感词检测响应结果:', sensitiveResponse);
-        
-        // 检查敏感词接口返回
-        if (sensitiveResponse.code === 200 && sensitiveResponse.data && sensitiveResponse.data.sensitiveWord) {
-             // 触发验证请求 (Sensitive Word - Type 0)
-             try {
-                 const triggerRequestBody = {
-                      triggerContent: content,
-                     triggerType: 0,
-                     sensitiveWord: sensitiveResponse.data.sensitiveWord
-                 };
-                 Log.info('触发验证请求 (Type 1):', triggerRequestBody);
-                 await request.post('/app/trigger', triggerRequestBody);
-             } catch (triggerError) {
-                 Log.error('Type 1 触发验证接口失败:', triggerError);
-             }
+    const tenantConfig = app.tenantConfig || {};
+    Log.info('当前租户配置:', tenantConfig);
 
-             return {
-                success: true,
-                data: {
-                    isSensitive: true,
-                    reason: `内容包含敏感词: ${sensitiveResponse.data.sensitiveWord}`,
-                    details: sensitiveResponse.data
+    try {
+        // 1. 敏感词检测 (Sensitive Word)
+        if (tenantConfig.sensitiveIntercepted === "true") {
+            const sensitiveRequestBody = { content: content };
+            Log.info('敏感词检测请求:', sensitiveRequestBody);
+            const sensitiveResponse = await request.post(`/app/sensitive/check`,  sensitiveRequestBody);
+            Log.info('敏感词检测响应结果:', sensitiveResponse);
+
+            if (sensitiveResponse.code === 200 && sensitiveResponse.data && sensitiveResponse.data.sensitiveWord) {
+                // 如果开启了 trigger，则上报服务器
+                if (tenantConfig.sensitiveTrigger === "true") {
+                    try {
+                        const triggerRequestBody = {
+                            triggerContent: content,
+                            triggerType: 0,
+                            sensitiveWord: sensitiveResponse.data.sensitiveWord
+                        };
+                        Log.info('触发验证请求 (Type 0 - 敏感词):', triggerRequestBody);
+                        await request.post('/app/trigger', triggerRequestBody);
+                    } catch (triggerError) {
+                        Log.error('Type 0 触发验证接口失败:', triggerError);
+                    }
                 }
-            };
+
+                return {
+                    success: true,
+                    data: {
+                        isSensitive: true,
+                        reason: `内容包含敏感词: ${sensitiveResponse.data.sensitiveWord}`,
+                        details: sensitiveResponse.data
+                    }
+                };
+            }
         }
 
         // 2. 本地检测 URL 和 加密货币地址
-        const urlResults = validateUrls(content);
-        const cryptoResults = validateWalletAddress(content); // 这里返回的是 CryptoScanner.scan 的结果数组
+        const urlResults = (tenantConfig.urlIntercepted === "true" || tenantConfig.urlTrigger === "true") ? validateUrls(content) : [];
+        const cryptoResults = (tenantConfig.walletIntercepted === "true" || tenantConfig.walletTrigger === "true") ? validateWalletAddress(content) : [];
 
         const hasUrl = urlResults.length > 0;
         const hasCrypto = cryptoResults.length > 0;
 
         if (hasUrl || hasCrypto) {
-            Log.info('本地检测到敏感内容 (URL/Crypto):', { urls: urlResults, crypto: cryptoResults });
+            Log.info('本地检测到特殊内容 (URL/Crypto):', { urls: urlResults, crypto: cryptoResults });
 
-            // 3. 如果包含 URL 或 Crypto 地址，调用 /app/trigger 接口验证
-            // 优先级：加密货币 (3) > URL (2)
-            const triggerType = hasCrypto ? 2 : 1;
-
-            const triggerRequestBody = {
-                triggerContent: content,
-                // hasUrl: hasUrl,
-                // hasCrypto: hasCrypto,
-                // urls: urlResults,
-                // crypto: cryptoResults,
-                triggerType: triggerType.toString()
-            };
+            // 检查是否需要触发 trigger
+            const shouldTrigger = (hasCrypto && tenantConfig.walletTrigger === "true") || (hasUrl && tenantConfig.urlTrigger === "true");
             
-            Log.info(`触发验证请求 (Type ${triggerType}):`, triggerRequestBody);
-
-            let triggerResponse;
-            try {
-                 triggerResponse = await request.post('/app/trigger', triggerRequestBody);
-                 Log.info('触发验证响应:', triggerResponse);
-            } catch (triggerError) {
-                 Log.error('触发验证接口调用失败:', triggerError);
-                 return {
-                    success: true,
-                    data: {
-                        isSensitive: true, 
-                        reason: '安全验证服务连接失败，请稍后重试',
-                        details: { error: triggerError.message }
-                    }
+            if (shouldTrigger) {
+                const triggerType = hasCrypto ? 2 : 1;
+                const triggerRequestBody = {
+                    triggerContent: content,
+                    triggerType: triggerType.toString()
                 };
+                
+                Log.info(`触发验证请求 (Type ${triggerType}):`, triggerRequestBody);
+
+                let triggerResponse;
+                try {
+                    triggerResponse = await request.post('/app/trigger', triggerRequestBody);
+                    Log.info('触发验证响应:', triggerResponse);
+                } catch (triggerError) {
+                    Log.error('触发验证接口调用失败:', triggerError);
+                    // 如果连接失败且开启了拦截，则为了安全起见默认拦截
+                    if ((hasCrypto && tenantConfig.walletIntercepted === "true") || (hasUrl && tenantConfig.urlIntercepted === "true")) {
+                        return {
+                            success: true,
+                            data: {
+                                isSensitive: true, 
+                                reason: '安全验证服务连接失败，请稍后重试',
+                                details: { error: triggerError.message }
+                            }
+                        };
+                    }
+                }
+
+                // 如果后端明确返回需要拦截 (block)
+                if (triggerResponse && (triggerResponse.code === 200 || triggerResponse.success)) {
+                    if (triggerResponse.data && (triggerResponse.data.block || triggerResponse.data.sensitiveWord)) {
+                        return {
+                            success: true,
+                            data: {
+                                isSensitive: true,
+                                reason: triggerResponse.data.msg || (hasCrypto ? '检测到受限钱包地址' : '检测到受限链接'),
+                                details: triggerResponse.data
+                            }
+                        };
+                    }
+                }
             }
 
-            if (triggerResponse && (triggerResponse.code === 200 || triggerResponse.success)) {
-                 // 假设后端逻辑：如果 trigger 认为需要阻止，会返回 code!=200 或 data.block=true
-                 if (triggerResponse.data && (triggerResponse.data.block || triggerResponse.data.sensitiveWord)) {
-                     return {
-                        success: true,
-                        data: {
-                            isSensitive: true,
-                            reason: triggerResponse.data.msg || '内容包含受限链接或地址',
-                            details: triggerResponse.data
-                        }
-                    };
-                 }
-            } else {
-                 // trigger 接口返回非 200，视为阻止
-                 return {
+            // 本地 Intercepted 开启且检测到了，直接拦截
+            const shouldIntercept = (hasCrypto && tenantConfig.walletIntercepted === "true") || (hasUrl && tenantConfig.urlIntercepted === "true");
+            if (shouldIntercept) {
+                return {
                     success: true,
                     data: {
                         isSensitive: true,
-                        reason: triggerResponse.msg || '内容安全验证未通过',
-                        details: triggerResponse
+                        reason: hasCrypto ? '检测到受限钱包地址' : '检测到受限链接',
+                        details: { urls: urlResults, crypto: cryptoResults }
                     }
                 };
             }
         }
-        
-        // 所有检查通过
-        return { 
-            success: true, 
-            data: {
-                isSensitive: false,
-                reason: '',
-                details: {}
-            }
+
+        return {
+            success: true,
+            data: { isSensitive: false }
         };
-        
+
     } catch (error) {
-        Log.error('敏感词检测流程异常:', error);
-         return { 
-            success: false, 
-            msg: '安全检测服务异常',
-            data: {
-                isSensitive: false, // 暂时放行，或者改为 true 阻止
-                reason: '检测服务连接超时',
-                details: {}
-            }
-        };
+        Log.error('checkSensitiveContent 异常:', error);
+        return { success: false, msg: error.message };
     }
 }
 

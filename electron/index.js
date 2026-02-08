@@ -386,14 +386,9 @@ class Index extends Application {
         
         Log.info('📥 后端 API 响应:', JSON.stringify(result, null, 2));
         
-        // 如果是临时文件，删除它
+        // 如果是临时文件，保留在本地供调试
         if (tempFile && fs.existsSync(tempFile)) {
-          try { 
-            fs.unlinkSync(tempFile);
-            Log.info('🗑️  临时语音文件已删除:', tempFile);
-          } catch(e) {
-            Log.warn('⚠️  删除临时文件失败:', e.message);
-          }
+          Log.info('📂 临时语音文件已保留在本地:', tempFile);
         }
 
         return result;
