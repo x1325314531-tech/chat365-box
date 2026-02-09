@@ -1676,7 +1676,7 @@ function processVoiceMessageList() {
         btnWrapper.onclick = async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            await translateVoiceMessage(voiceContainer, playIcon);
+            await translateVoiceMessage(voiceContainer, playIcon, isOut);
         };
         
         btnWrapper.appendChild(translateBtn);
@@ -2033,7 +2033,7 @@ async function getVoiceAudioBuffer(voiceContainer, playIcon) {
 }
 
 // 翻译语音消息
-async function translateVoiceMessage(voiceContainer, playIcon) {
+async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
     try {
         console.log('🌐 发起语音翻译 (V12: State-Aware)');
         
@@ -2094,8 +2094,15 @@ async function translateVoiceMessage(voiceContainer, playIcon) {
 
         // 调用翻译 API
         const tenantConfig = await window.electronAPI.getTenantConfig();
-        const fromLang = getTargetLanguage(); 
-        const toLang = getLocalLanguage();     
+         let  fromLang = null;
+         let   toLang =null
+        if(isOut) { 
+         fromLang = getLocalLanguage(); 
+         toLang =  getTargetLanguage();
+        }else { 
+          fromLang = getTargetLanguage(); 
+          toLang = getLocalLanguage();   
+        }
 
         console.log(`🌐 正在请求翻译: ${fromLang} -> ${toLang}`);
 
