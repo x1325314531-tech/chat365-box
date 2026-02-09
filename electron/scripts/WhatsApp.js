@@ -439,37 +439,15 @@ function getInputContent() {
 // 敏感词检测函数
 async function checkSensitiveContent(text) {
     try {
-        console.log('🔍 开始敏感词检测:', text);
+        console.log('🔍 开始敏感词及特殊内容检测:', text);
         
-        // 使用 electronAPI 调用后端接口（包含 validator 和 bitcoin-address-validation 验证）
+        // 使用 electronAPI 调用后端接口
         const result = await window.electronAPI.checkSensitiveContent({ content: text });
         console.log('后端验证结果:', result);
         
-        if (result && result.success) {
-            // 检查本地验证结果
-            if (result.localValidation) {
-                console.log('本地验证详情:', result.localValidation);
-                if (result.localValidation.hasSensitiveContent) {
-                    console.log('检测到:', {
-                        URLs: result.localValidation.urls,
-                        BTC地址: result.localValidation.btcAddresses,
-                        ETH地址: result.localValidation.ethAddresses
-                    });
-                }
-            }
-            
-            // 检查后端是否返回敏感词
-            if (result.data && result.data.sensitiveWord) {
-                return {
-                    isSensitive: true,
-                    reason: `内容包含敏感词: ${result.data.sensitiveWord}`,
-                    details: {
-                        type: 'keyword',
-                        sensitiveWord: result.data.sensitiveWord,
-                        localValidation: result.localValidation
-                    }
-                };
-            }
+        if (result && result.success && result.data) {
+            // 后端现在统一判断并在 data.isSensitive 中返回结果
+            return result.data;
         }
         
         return {
@@ -480,7 +458,7 @@ async function checkSensitiveContent(text) {
         
     } catch (error) {
         console.error('❌ 敏感词检测失败:', error);
-        // 检测失败时，为了安全起见，允许发送
+        // 检测失败时，为了不影响正常沟通，允许发送
         return {
             isSensitive: false,
             reason: '',
@@ -1603,7 +1581,7 @@ function processVoiceMessageList() {
     // 查找所有语音消息 - 使用更通用的选择器
     const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"]');
     
-    console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
+    // console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
     
     voiceMessages.forEach((playIcon, index) => {
         // 尝试多种方式找到消息容器
