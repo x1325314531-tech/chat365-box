@@ -6,8 +6,6 @@ import { post, put, get } from "@/utils/request";
 import { nanoid } from 'nanoid';
 import { ElMessage } from 'element-plus';
 import moment from 'moment-timezone';
-import { conforms } from 'lodash';
-
 const props = defineProps({
   card: {
     type: Object,
@@ -1108,7 +1106,9 @@ const confirmClick = async () => {
     platform: props.platform,
     cardId: configForm.cardId,
     activeStatus: 0,
+    onlineStatus:1,
   };
+  console.log('data会话参数',data);
   
   try {
     const requestMethod = props.isEdit ? put : post;
@@ -1170,9 +1170,12 @@ const confirmClick = async () => {
           activeStatus: false,
           cardId: configForm.cardId,
           title: configForm.name,
-          online: false,
+          name: configForm.name,
+          online: true,
           platform: props.platform,
         };
+        console.log('addIPC', addArgs);
+        
         await ipc.invoke(ipcApiRoute.addSession, addArgs);
       }
 
