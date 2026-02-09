@@ -126,12 +126,14 @@ function getCanonicalVoiceContainer(element) {
         return messageNode.getAttribute('data-id') || messageNode;
     }
     
-    // 2. 其次寻找语音特定的按钮容器
-    const voiceBtnContainer = element.closest('div[role="button"]')?.parentElement;
-    if (voiceBtnContainer) return voiceBtnContainer;
+    // 2. 其次寻找语音特定的按钮容器或气泡
+    const container = element.closest('.message-in') || 
+                      element.closest('.message-out') || 
+                      element.closest('div[role="button"]')?.parentElement ||
+                      element.closest('.x1n2onr6') || 
+                      element.closest('div[role="row"]');
     
-    // 3. 兜底找气泡容器
-    return element.closest('.x1n2onr6') || element.closest('div[role="row"]') || element;
+    return container || element;
 }
 
 // 录音全局状态
@@ -141,7 +143,7 @@ let audioChunks = [];
 let recordedAudioBlob = null;
 let currentAudioElement = null; // 当前正在录制的音频元素
 let recordingStateMap = new Map(); // 追踪录制状态，防止并发冲突: key -> 'recording' | 'processing' | 'done'
-
+let voiceRecordingData= null
 // ArrayBuffer 转 Base64 辅助函数
 function bufferToBase64(buffer) {
     let binary = '';
@@ -1823,7 +1825,11 @@ async function saveRecordingToCache(audioElement, blob) {
             });
             recordingStateMap.set(containerKey, 'done');
             console.log('✅ [Save] 录制音频已保存至本地:', res.path, 'Key:', containerKey);
-
+            voiceRecordingData = null
+            voiceRecordingData =  { 
+                 path: res.path,
+                time: Date.now()
+            }
             // [AUTO] 录制完成后自动触发翻译
             const voiceContainer = (typeof containerKey === 'string') ? 
                 document.querySelector(`[data-id="${containerKey}"]`) : 
@@ -2067,15 +2073,16 @@ async function translateVoiceMessage(voiceContainer, playIcon) {
                 });
                 
                 await autoCaptureVoice(audioElement);
-                cached = audioCacheMap.get(containerKey);
+                cached = audioCacheMap.get(containerKey) || voiceRecordingData;
             }
         }
 
         // 4. 最终检查结果
         let audioSourceInfo = null;
-        if (cached && cached.path) {
-            console.log('📁 [Translate] 使用文件:', cached.path);
-            audioSourceInfo = { voicePath: cached.path };
+        if ((cached && cached.path) || voiceRecordingData?.path ) {
+            const finalPath = cached?.path || voiceRecordingData?.path;
+            console.log('📁 [Translate] 使用文件:', finalPath);
+            audioSourceInfo = { voicePath: finalPath };
         } else {
             console.log('🔍 [Translate] 仍未找到音频，提示用户播放');
             window.electronAPI.showNotification({
@@ -2208,7 +2215,25 @@ function displayVoiceTranslation(voiceContainer, translationData) {
         <div style="color: #128C7E; line-height: 1.4; font-weight: 450;">${translationText}</div>
     `;
     
-    voiceContainer.appendChild(resultNode);
+    // 确保我们是在消息气泡容器上进行操作
+    if (voiceContainer.tagName === 'AUDIO') {
+        const betterContainer = getCanonicalVoiceContainer(voiceContainer);
+        if (betterContainer && betterContainer.tagName !== 'AUDIO') {
+            voiceContainer = betterContainer;
+        } else if (voiceContainer.parentElement) {
+            voiceContainer = voiceContainer.parentElement;
+        }
+    }
+
+    // 插入到容器中
+    const translateBtn = voiceContainer.querySelector('.voice-translate-btn');
+    console.log('translateBtn', translateBtn, voiceContainer);
+    
+    if (translateBtn) {
+        translateBtn.after(resultNode);
+    } else {
+        voiceContainer.appendChild(resultNode);
+    }
     console.log('✅ 翻译结果已显示');
 }
 
