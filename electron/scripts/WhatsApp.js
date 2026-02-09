@@ -33,16 +33,23 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
 
             // 提示正在录音
             window.electronAPI.showNotification({
-                message: '🎤 正在自动录制语音...',
+                message: '🎤 正在同步录制语音...',
                 type: 'is-info'
             });
 
+            // 启动录音逻辑
+            startAudioRecording(this).catch(console.error);
+
             // 绑定结束事件用于自动停止和捕获
-            if (!this._capture_inited) {
-                this._capture_inited = true;
-                this.addEventListener('ended', () => {
-                    console.log('🛑 [Sniffer] 语音播放结束，触发自动保存');
-                    autoCaptureVoice(this).catch(console.error);
+            if (!this._sniffer_event_inited) {
+                this._sniffer_event_inited = true;
+                this.addEventListener('pause', () => {
+                    console.log('⏸️ [Sniffer] 音频暂停，同步录制结束');
+                    stopAudioRecording();
+                });
+                this.addEventListener('stop', () => {
+                    console.log('⏹️ [Sniffer] 音频停止');
+                    stopAudioRecording();
                 });
             }
         } else {
@@ -105,8 +112,35 @@ let lastPreviewedSource = '';
 let previewNode = null;
 
 // ==================== 自动化语音捕获系统 ====================
-// 缓存：voiceContainer -> filePath
-const audioCacheMap = new WeakMap();
+// 缓存：voiceContainer (Canonical) -> { path, time }
+const audioCacheMap = new Map(); // 使用 Map 支持字符串(ID)或元素键
+
+// 获取规范的消息容器 (用于作为统一的缓存 Key)
+function getCanonicalVoiceContainer(element) {
+    if (!element) return null;
+    
+    // 1. 优先寻找带有 data-id 的消息根容器 (最稳定)
+    const messageNode = element.closest('[data-id]');
+    if (messageNode) {
+        // 返回 data-id 字符串作为 Key，确保在 UI 重新渲染后依然能对应
+        return messageNode.getAttribute('data-id') || messageNode;
+    }
+    
+    // 2. 其次寻找语音特定的按钮容器
+    const voiceBtnContainer = element.closest('div[role="button"]')?.parentElement;
+    if (voiceBtnContainer) return voiceBtnContainer;
+    
+    // 3. 兜底找气泡容器
+    return element.closest('.x1n2onr6') || element.closest('div[role="row"]') || element;
+}
+
+// 录音全局状态
+let audioSourceMap = new WeakMap(); // audioElement -> { audioContext, source, destination }
+let currentRecorder = null;
+let audioChunks = [];
+let recordedAudioBlob = null;
+let currentAudioElement = null; // 当前正在录制的音频元素
+let recordingStateMap = new Map(); // 追踪录制状态，防止并发冲突: key -> 'recording' | 'processing' | 'done'
 
 // ArrayBuffer 转 Base64 辅助函数
 function bufferToBase64(buffer) {
@@ -125,16 +159,13 @@ async function autoCaptureVoice(audioElement) {
         const src = audioElement.src;
         console.log('🎙️ [Auto-Capture] 开始处理音频:', src);
         
-        // 查找对应的气泡容器
-        const playIcon = audioElement.closest('div')?.querySelector('span[data-icon="audio-play"], span[data-icon="audio-pause"]') || 
-                       document.querySelector(`span[data-icon="audio-play"], span[data-icon="audio-pause"]`);
-        const messageNode = audioElement.closest('[data-id]');
-        const voiceContainer = playIcon?.closest('div[role="button"]')?.parentElement || messageNode || audioElement.closest('.x1n2onr6');
-        
-        if (!voiceContainer) {
+        const containerKey = getCanonicalVoiceContainer(audioElement);
+        if (!containerKey) {
             console.warn('⚠️ [Capture] 无法找到关联的消息容器');
             return;
         }
+
+        recordingStateMap.set(containerKey, 'processing');
 
         // 1. 获取 Buffer
         const response = await fetch(src);
@@ -159,14 +190,20 @@ async function autoCaptureVoice(audioElement) {
 
         if (res && res.success) {
             // 存入缓存
-            audioCacheMap.set(voiceContainer, {
+            audioCacheMap.set(containerKey, {
                 path: res.path,
                 time: Date.now()
             });
-            console.log('✅ [Capture] 音频已自动保存至本地:', res.path);
+            recordingStateMap.set(containerKey, 'done');
+            console.log('✅ [Capture] 音频已自动保存至本地:', res.path, 'Key:', containerKey);
+        } else {
+            recordingStateMap.delete(containerKey);
         }
     } catch (e) {
         console.error('❌ [Auto-Capture] 捕获失败:', e);
+        // 清理状态
+        const key = getCanonicalVoiceContainer(audioElement);
+        if (key) recordingStateMap.delete(key);
     }
 }
 // ==========================================================
@@ -1656,7 +1693,16 @@ function startVoiceMessageMonitor() {
 // 开始录制音频 (使用浏览器原生 MediaRecorder 并转换为 WAV)
 async function startAudioRecording(audioElement) {
     try {
-        console.log('🔴 开始录制音频 (原生 MediaRecorder)');
+        const containerKey = getCanonicalVoiceContainer(audioElement);
+        
+        // 如果已经有录制在进行，先停止它
+        if (currentRecorder && currentRecorder.state !== 'inactive') {
+            stopAudioRecording();
+        }
+
+        console.log('🔴 开始录制音频 (原生 MediaRecorder), Key:', containerKey);
+        currentAudioElement = audioElement;
+        if (containerKey) recordingStateMap.set(containerKey, 'recording');
         
         // 检查是否已经为this audio element创建了source
         let cached = audioSourceMap.get(audioElement);
@@ -1704,6 +1750,10 @@ async function startAudioRecording(audioElement) {
                 // 将 WebM 转换为 WAV
                 recordedAudioBlob = await convertWebMToWAV(webmBlob);
                 console.log('✅ WAV 转换完成，大小:', recordedAudioBlob.size, 'bytes');
+
+                // 自动保存到本地和缓存
+                await saveRecordingToCache(audioElement, recordedAudioBlob);
+
             } catch (error) {
                 console.error('❌ WAV 转换失败:', error);
                 // 如果转换失败，使用原始 webm
@@ -1716,21 +1766,82 @@ async function startAudioRecording(audioElement) {
         
         // 监听音频结束事件
         audioElement.addEventListener('ended', () => {
+            console.log('🏁 音频播放结束，正在停止录制...');
             stopAudioRecording();
         }, { once: true });
         
         audioElement.addEventListener('pause', () => {
-            if (audioElement.currentTime >= audioElement.duration - 0.1) {
-                stopAudioRecording();
+            // 如果是用户暂停，我们也可以选择停止或保持当前录制
+            // WhatsApp 暂停通常意味着录制应该告一段落
+            if (audioElement.currentTime >= audioElement.duration - 0.2) {
+                 stopAudioRecording();
             }
         }, { once: true });
         
     } catch (error) {
         console.error('❌ 录制音频失败:', error);
-        window.electronAPI.showNotification({
-            message: `录制失败: ${error.message}`,
-            type: 'is-danger'
+        // window.electronAPI.showNotification({
+        //     message: `录制失败: ${error.message}`,
+        //     type: 'is-danger'
+        // });
+    }
+}
+
+// 停止录音
+function stopAudioRecording() {
+    if (currentRecorder && currentRecorder.state !== 'inactive') {
+        const key = getCanonicalVoiceContainer(currentAudioElement);
+        if (key && recordingStateMap.get(key) === 'recording') {
+            recordingStateMap.set(key, 'processing');
+        }
+        currentRecorder.stop();
+        console.log('⏹️ MediaRecorder 已手动或自动停止');
+    }
+}
+
+// 将录制内容保存至缓存系统，与 autoCaptureVoice 兼容
+async function saveRecordingToCache(audioElement, blob) {
+    try {
+        const containerKey = getCanonicalVoiceContainer(audioElement);
+        if (!containerKey) {
+            console.warn('⚠️ [Save] 无法找到关联的消息容器');
+            return;
+        }
+
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = bufferToBase64(arrayBuffer);
+        
+        const res = await window.electronAPI.saveCapturedAudio({ 
+            audioData: base64, 
+            format: 'pcm' 
         });
+
+        if (res && res.success) {
+            audioCacheMap.set(containerKey, {
+                path: res.path,
+                time: Date.now()
+            });
+            recordingStateMap.set(containerKey, 'done');
+            console.log('✅ [Save] 录制音频已保存至本地:', res.path, 'Key:', containerKey);
+
+            // [AUTO] 录制完成后自动触发翻译
+            const voiceContainer = (typeof containerKey === 'string') ? 
+                document.querySelector(`[data-id="${containerKey}"]`) : 
+                containerKey;
+            
+            if (voiceContainer) {
+                console.log('🚀 [Auto-Translate] 录制完成，正在启动自动翻译...');
+                translateVoiceMessage(voiceContainer).catch(err => {
+                    console.error('❌ [Auto-Translate] 自动翻译启动失败:', err);
+                });
+            }
+        } else {
+            recordingStateMap.delete(containerKey);
+        }
+    } catch (e) {
+        console.error('❌ [Save] 保存录音失败:', e);
+        const key = getCanonicalVoiceContainer(audioElement);
+        if (key) recordingStateMap.delete(key);
     }
 }
 
@@ -1918,81 +2029,87 @@ async function getVoiceAudioBuffer(voiceContainer, playIcon) {
 // 翻译语音消息
 async function translateVoiceMessage(voiceContainer, playIcon) {
     try {
-        console.log('🌐 发起语音翻译 (V9: Lang Normalization + Raw PCM)');
+        console.log('🌐 发起语音翻译 (V12: State-Aware)');
         
-        // 检查是否有自动捕获的本地缓存
-        const cached = audioCacheMap.get(voiceContainer);
-        let audioSourceInfo = null;
+        const containerKey = getCanonicalVoiceContainer(voiceContainer);
+        console.log('🔍 [Translate] Container Key:', containerKey);
 
-        if (cached && cached.path) {
-            console.log('📁 [Translate] 使用自动捕获的本地文件:', cached.path);
-            audioSourceInfo = { voicePath: cached.path };
-        } else {
-            console.log('🔍 [Translate] 未找到本地缓存，执行实时抓取...');
+        // 1. 检查是否正在录制或处理中 (解决竞态问题)
+        let state = recordingStateMap.get(containerKey);
+        if (state === 'recording' || state === 'processing') {
+            console.log(`⏳ [Translate] 正在${state === 'recording' ? '录制' : '处理'}中，请稍候...`);
             window.electronAPI.showNotification({
-                message: '深度分析音频中...',
+                message: '音频正在处理中，请稍后再次点击',
                 type: 'is-info'
             });
-
-            // 获取解压后的音频 Buffer
-            const audioBuffer = await getVoiceAudioBuffer(voiceContainer, playIcon);
-            if (!audioBuffer) {
-                throw new Error('未检测到有效的语音数据，请确保语音已加载并播放');
-            }
-
-            // 深度质量检查
-            const stats = getAudioStats(audioBuffer);
-            console.log('📊 [Audio Stats]:', stats);
-
-            if (parseFloat(stats.duration) < 0.8) {
-                throw new Error(`音频太短 (${stats.duration}s)，无法识别`);
-            }
-            
-            if (parseFloat(stats.peak) < 0.005) {
-                throw new Error(`音频音量过低或接近静音 (Peak: ${stats.peak})，请重新播放或增大音量`);
-            }
-
-            // 重采样到 16kHz Mono
-            const resampledBuffer = await resampleAudioBuffer(audioBuffer, 16000);
-            
-            // 转换为 Raw PCM (无文件头)
-            const pcmBuffer = audioBufferToRawBuffer(resampledBuffer);
-            const base64 = bufferToBase64(pcmBuffer);
-            // 确保包含 base64 标识符，以便 index.js 识别
-            audioSourceInfo = { audioData: 'data:audio/pcm;base64,' + base64 };
+            return;
         }
 
-        // 语言代码归一化
-        const fromLang = normalizeLangCode(getTargetLanguage());
-        const targetLang = normalizeLangCode(getLocalLanguage());
-        console.log(`🌍 语言参数: ${fromLang} -> ${targetLang}`);
+        // 2. 检查是否有本地缓存
+        let cached = audioCacheMap.get(containerKey);
+        
+        // 3. 如果没有缓存，尝试寻找 audio 元素并执行“静默抓取”
+        if (!cached || !cached.path) {
+            console.log('🔍 [Translate] 未找到录音缓存，尝试直接从 DOM 抓取...');
+            
+            // 查找容器内的 audio 元素
+            let audioElement = voiceContainer.querySelector('audio');
+            if (!audioElement) {
+                const messageNode = voiceContainer.closest('[data-id]');
+                audioElement = messageNode?.querySelector('audio');
+            }
 
-        // 发送请求
-        const requestParams = {
-            voicePath: audioSourceInfo.voicePath,
-            audioData: audioSourceInfo.audioData, 
-            from: fromLang,
-            target: targetLang,
-            format: 'pcm',
-            rate: 16000
-        };
-        console.log(`📤 发送请求 参数:`, requestParams);
-        const result = await window.electronAPI.translateVoice(requestParams);
-        
-        const isSuccess = result && (result.success === true || (result.data && (result.data.code === 200 || result.data.error_code === "0" || result.data.error_code === 0)));
-        
-        if (isSuccess) {
-            displayVoiceTranslation(voiceContainer, result.data || result);
-            window.electronAPI.showNotification({ message: '翻译成功', type: 'is-success' });
+            if (audioElement && audioElement.src) {
+                console.log('🎙️ [Translate] 发现 audio 元素，开始执行自动抓取...');
+                window.electronAPI.showNotification({
+                    message: '正在极速抓取音频数据...',
+                    type: 'is-info'
+                });
+                
+                await autoCaptureVoice(audioElement);
+                cached = audioCacheMap.get(containerKey);
+            }
+        }
+
+        // 4. 最终检查结果
+        let audioSourceInfo = null;
+        if (cached && cached.path) {
+            console.log('📁 [Translate] 使用文件:', cached.path);
+            audioSourceInfo = { voicePath: cached.path };
         } else {
-            const errorMsg = result?.msg || result?.message || (result?.data ? JSON.stringify(result.data) : '翻译服务无响应');
-            throw new Error(errorMsg);
+            console.log('🔍 [Translate] 仍未找到音频，提示用户播放');
+            window.electronAPI.showNotification({
+                message: '请点击播放语音以完成自动录制',
+                type: 'is-warning'
+            });
+            return;
+        }
+
+        // 调用翻译 API
+        const tenantConfig = await window.electronAPI.getTenantConfig();
+        const fromLang = getTargetLanguage(); 
+        const toLang = getLocalLanguage();     
+
+        console.log(`🌐 正在请求翻译: ${fromLang} -> ${toLang}`);
+
+        const translateRes = await window.electronAPI.translateVoice({
+            voicePath: audioSourceInfo.voicePath,
+            from: normalizeLangCode(fromLang),
+            target: normalizeLangCode(toLang),
+            tenantId: tenantConfig?.tenantId
+        });
+         console.log(`🌐99999999 正在响应语音翻译结果: `,translateRes);
+        if (translateRes && translateRes.success) {
+            console.log('✅ 语音翻译成功:', translateRes.data);
+            displayVoiceTranslation(voiceContainer, translateRes.data);
+        } else {
+            throw new Error(translateRes?.msg || '翻译服务返回失败');
         }
 
     } catch (error) {
-        console.error('❌ 翻译失败详情:', error);
+        console.error('❌ 语音翻译流程出错:', error);
         window.electronAPI.showNotification({
-            message: `翻译失败: ${error.message}`,
+            message: `语音翻译失败: ${error.message}`,
             type: 'is-danger'
         });
     }

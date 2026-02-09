@@ -304,17 +304,21 @@ class Index extends Application {
 
         const result = await translateImage(finalPath, from, target);
         
-        // 如果是临时文件，删除它
+        // [DEBUG] 临时文件不再删除，保留在 chat365_temp 中方便调试
+        /*
         if (tempFile && fs.existsSync(tempFile)) {
           try { fs.unlinkSync(tempFile); } catch(e) {}
         }
+        */
 
         return result;
       } catch (error) {
         Log.error('IPC translate-image error:', error);
+        /*
         if (tempFile && fs.existsSync(tempFile)) {
           try { fs.unlinkSync(tempFile); } catch(e) {}
         }
+        */
       }
     });
 
