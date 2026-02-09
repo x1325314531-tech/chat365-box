@@ -130,7 +130,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { AlarmClock, QuestionFilled } from '@element-plus/icons-vue'
 import LineChart from '../components/LineChart.vue'
-
+import Notification from "@/utils/notification";
 // 当前时间
 const currentTime = ref('00:00:00')
 let timer = null
@@ -206,6 +206,11 @@ const router = useRouter()
 const handleQuickAccess = (item) => {
   if (item.id === 'translate') {
     router.push('/home/settings')
+  }else  { 
+     Notification.message({ 
+      message:'开发中',
+      type:'info'
+     })
   }
 }
 </script>
