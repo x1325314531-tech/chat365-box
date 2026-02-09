@@ -104,7 +104,7 @@ const form = reactive({
   remember: false,
 });
 const router = useRouter();
-const handleAccountLogin = () => {
+const handleAccountLogin = async () => {
   if (!form.userName || !form.password) {
     Notification.message({ message: '请输入用户名和密码', type: 'warning' });
     return;
@@ -118,50 +118,54 @@ const handleAccountLogin = () => {
     macCode: form.machineCode
   };
 
-  //用户名登录
-  post("/app/account/login", payload).then(res => {
-    if (res.code === 200) {
-      // Notification.message({ message: '登录成功' || res.msg, type: 'success' });
-      //缓存token
-      localStorage.setItem('box-token', res.data);
+  try {
+    // 1. 用户名登录
+    const loginRes = await post("/app/account/login", payload);
+    if (loginRes.code === 200) {
+      // 缓存 token
+      localStorage.setItem('box-token', loginRes.data);
+      
       // 同步 Token 到主进程
-      ipc.invoke(ipcApiRoute.saveAuthToken, { token: res.data }).then(res => {
-          console.log('令牌已同步到主进程:', res);
-      });
+      await ipc.invoke(ipcApiRoute.saveAuthToken, { token: loginRes.data });
       
-      //获取用户信息
-      get("/app/account/getInfo").then(infoRes => {
-          if(infoRes.code === 200){
-              Notification.message({ message: '登录成功', type: 'success' });
-              localStorage.setItem('userInfo', JSON.stringify(infoRes.data))
-              // 登录成功后跳转到主页
-              router.push('/home');
-          }
-      });
-      get('/app/tenantSetting').then(tenantRes=> {
-         if(tenantRes.code===200) { 
-       console.log('配置tenantRes', tenantRes);
-       const  triggerSetting=  JSON.parse(tenantRes.data.triggerSetting)
-       const  interceptedSetting = JSON.parse(tenantRes.data.interceptedSetting)
-       const tenantConfig = { 
-             ...triggerSetting,
-             ...interceptedSetting
-       }
-       console.log('tenantConfig', tenantConfig);
-        localStorage.setItem('tenantConfig', JSON.stringify(tenantConfig))
-          // 保存配置到electron
-      ipc.invoke('save-tenant-config', JSON.parse(JSON.stringify(tenantConfig))).then(res => {
-        console.log('租房配置已同步到主进程:', res);
-  });
-         }
-      })
-      
+      // 2. 并行获取用户信息和租户配置
+      const [infoRes, tenantRes] = await Promise.all([
+        get("/app/account/getInfo"),
+        get("/app/tenantSetting")
+      ]);
+
+      // 处理用户信息
+      if (infoRes.code === 200) {
+        localStorage.setItem('userInfo', JSON.stringify(infoRes.data));
+      }
+
+      // 处理租户配置
+      if (tenantRes.code === 200) {
+        console.log('配置tenantRes', tenantRes);
+        const tenantConfig = { 
+          ...JSON.parse(tenantRes.data.triggerSetting || '{}'), 
+          ...JSON.parse(tenantRes.data.interceptedSetting || '{}') 
+        };
+        console.log('tenantConfig', tenantConfig);
+        localStorage.setItem('tenantConfig', JSON.stringify(tenantConfig));
+        
+        // 关键：确保同步到主进程后再跳转
+        await ipc.invoke('save-tenant-config', tenantConfig);
+        console.log('租房配置已同步到主进程');
+      }
+
+      Notification.message({ message: '登录成功', type: 'success' });
+      // 登录成功后跳转到主页
+      router.push('/home');
+    } else {
+      Notification.message({ message: loginRes.msg || '登录失败', type: 'error' });
     }
-  }).catch(error => {
-    console.error('登录失败:', error);
-  }).finally(() => {
+  } catch (error) {
+    console.error('登录异常:', error);
+    Notification.message({ message: '网络请求失败，请稍后重试', type: 'error' });
+  } finally {
     submitLoading.value = false;
-  });
+  }
 };
 const handleLogin = () => {
   // if (!form.agree) {
