@@ -49,6 +49,25 @@ const submitLoading = ref(false)
 
 const animationContainer = ref(null);
 const  isMachineCode = ref(false)
+const config = reactive({
+  // 发送设置
+  sendAutoTranslate: true,
+  sendChannel: 'Baidu',
+  sendTargetLang: 'en',
+  translatePreview: false,
+  blockChineseMessage: false,
+  blockChineseTranslation: true,
+  // 接收设置
+  receiveAutoTranslate: true,
+  receiveChannel: 'Baidu',
+  receiveTargetLang: 'zh',
+  // manualTranslate: true,
+  // 聊天列表
+  showTranslateConfig: true,
+  // showSourcePlatform: false,
+  // 智能转发
+  // groupAutoTranslate: false
+})
 onMounted(() => {
   lottie.loadAnimation({
     container: animationContainer.value, // 动画容器
@@ -89,10 +108,12 @@ onMounted(()=>{
     
     if (res.status){
       form.machineCode = res.data.machineCode
+      initializeTranslateConfig()
     }else {
       Notification.message({ message: '初始化错误请重试', type: 'warning' });
     }
   })
+  
 })
 
 const form = reactive({
@@ -104,6 +125,15 @@ const form = reactive({
   remember: false,
 });
 const router = useRouter();
+function initializeTranslateConfig() {
+  try {
+    if (!localStorage.getItem('translateConfig')) {
+      localStorage.setItem('translateConfig', JSON.stringify(config))
+    }
+  } catch (error) {
+    console.error('配置初始化失败:', error)
+  }
+}
 const handleAccountLogin = async () => {
   if (!form.userName || !form.password) {
     Notification.message({ message: '请输入用户名和密码', type: 'warning' });
