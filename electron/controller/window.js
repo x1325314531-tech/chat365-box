@@ -13,6 +13,8 @@ class WindowController extends Controller {
     }
 
     async addSession(args, event) {
+        Log.info('添加回话',args)
+        
         const { cardId, platform } = args;
 
         if (cardId === undefined || cardId === '' || platform === '' || platform === undefined) {

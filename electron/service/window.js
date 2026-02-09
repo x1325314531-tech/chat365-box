@@ -27,7 +27,7 @@ class WindowService extends Service {
     }
 
     async addCard(args, event) {
-        const {cardId, platform} = args;
+        const {cardId, platform, online, name} = args;
         const url = platforms.find(item => item.platform === platform)?.url;
         if (!url) return {message:'未找到对应平台的URL',status:false};
         // const mainId = Addon.get('window').getMWCid();
@@ -44,10 +44,16 @@ class WindowService extends Service {
             platform: platform,
             platform_url: url,
             active_status: 'false',
-            online_status: 'false',
-            show_badge: 'false'
+            online_status: online ? 'true' : 'false',
+            show_badge: 'false',
+            card_name: name || ''
         })
-        await app.sdb.insert('card_config', {card_id: cardId, user_agent: userAgent})
+        await app.sdb.insert('card_config', {
+            card_id: cardId, 
+            user_agent: userAgent,
+            browser: 'Chrome随机版本',
+            os: 'Windows'
+        })
         Log.info('新窗口创建成功')
         return {status:true,message:"创建成功"};
     }

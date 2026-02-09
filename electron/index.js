@@ -88,6 +88,7 @@ class Index extends Application {
           geolocation_latitude: 'TEXT',
           geolocation_longitude: 'TEXT',
           geolocation_accuracy: 'TEXT',
+          bluetooth: 'TEXT',
         },
         constraints: []
       },

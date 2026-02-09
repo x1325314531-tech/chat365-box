@@ -111,7 +111,7 @@ async function getAllSessions() {
           cardId: item.card_id || item.cardId, // 确保 cardId 和 card_id 都存在
           card_id: item.card_id || item.cardId,
           active_status: activeStatus,
-          online_status: String(item.online_status || item.onlineStatus || 'false'),
+          online_status: String(item.online_status || item.onlineStatus || 'false') === 'true' || String(item.online_status || item.onlineStatus) === '1' ? 'true' : 'false',
           show_badge: String(item.show_badge || 'false')
         };
       });
@@ -387,7 +387,8 @@ function handleClose(card) {
             <el-icon><User /></el-icon>
           </el-avatar>
 
-          <h4 class="title">{{ card.card_name ?? props.title }}</h4>
+          <h4 class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
+          <span v-if="card.card_name" class="subtitle">({{ props.title }})</span>
         </div>
         <!-- 右上角的按钮 -->
         <div class="action-buttons">
@@ -518,6 +519,16 @@ function handleClose(card) {
   font-size: 16px;
   font-weight: 500;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: #999;
+  margin-left: 4px;
 }
 
 .action-buttons {

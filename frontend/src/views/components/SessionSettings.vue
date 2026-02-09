@@ -1157,7 +1157,7 @@ const confirmClick = async () => {
         memory_custom: configForm.memoryCustom,
         do_not_track: configForm.doNotTrack,
         screen: configForm.screen,
-        Bluetooth: configForm.Bluetooth,
+        bluetooth: configForm.Bluetooth,
         battery: configForm.battery,
         battery_custom: configForm.batteryCustom,
         port_scan_protection: configForm.portScanProtection,
