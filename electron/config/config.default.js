@@ -151,7 +151,7 @@ module.exports = (appInfo) => {
     tray: {
       enable: true,
       title: 'Chat365',
-      icon: '/public/images/tray.png'
+      icon: '/public/images/chat365-tray.png'
     },
     security: {
       enable: true,
