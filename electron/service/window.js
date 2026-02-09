@@ -154,21 +154,30 @@ class WindowService extends Service {
     }
 
     async saveCardConfig(args, event) {
-        const { card_id ,name} = args;
-        const config = await app.sdb.selectOne('card_config',{card_id:card_id})
-        const card = await app.sdb.selectOne('card_config',{card_id:card_id})
+        const { card_id, name } = args;
+        const config = await app.sdb.selectOne('card_config', { card_id: card_id })
+        
         if (config) {
-            const count = await app.sdb.update('card_config',args,{card_id:card_id})
+            // Create a copy of args to modify for card_config update
+            const configArgs = { ...args };
+            // Remove fields that don't belong to card_config table to avoid SQL errors
+            delete configArgs.name;
+            delete configArgs.card_id; // card_id is used in where clause, not set clause usually, or if it is, better to be safe if it's primary key
+
+            const count = await app.sdb.update('card_config', configArgs, { card_id: card_id })
+            
+            // Update session name in cards table if provided
             if (name !== undefined && name !== '') {
-                await app.sdb.update('cards', {card_name:name},{card_id:card_id})
+                await app.sdb.update('cards', { card_name: name }, { card_id: card_id })
             }
-            if (count >0) {
-                return {status:true,message:'保存成功'}
-            }else {
-                return {status:false,message:'找不到对应配置数据'}
+            
+            if (count > 0 || (name !== undefined && name !== '')) {
+                return { status: true, message: '保存成功' }
+            } else {
+                return { status: false, message: '没有数据被修改' }
             }
         }
-        return {status:false,message:'找不到对应配置数据'}
+        return { status: false, message: '找不到对应配置数据' }
     }
 
     async getCardConfig(args, event) {
