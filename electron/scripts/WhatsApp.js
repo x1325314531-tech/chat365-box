@@ -364,25 +364,7 @@ function handleInput(event) {
 // 分离事件处理函数，便于管理
 function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.ctrlKey) {
-        console.log('⏺️ Enter键按下，开始处理翻译');
-
-        // 检查全局发送自动翻译开关
-        if (!globalConfig?.sendAutoTranslate) {
-            console.log('🔇 发送自动翻译未开启，跳过拦截');
-            return;
-        }
-
-        // 立即阻止事件传播
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-
-        // 检查是否正在处理中
-        let loadingNode = document.getElementById('editDivLoadingNode');
-        if (loadingNode) {
-            console.log('⏳ 已有处理中的请求，跳过');
-            return;
-        }
+        console.log('⏺️ Enter键按下,开始处理翻译');
 
         // 获取输入框内容
         const inputText = getInputContent();
@@ -393,40 +375,77 @@ function handleKeyDown(event) {
             return;
         }
 
-        // --- 翻译预览逻辑 ---
-        if (globalConfig?.translatePreview && lastPreviewedTranslation) {
-            if (inputText.trim() === lastPreviewedTranslation.trim()) {
-                console.log('✅ 预览已确认，发送消息');
-                event.preventDefault();
-                event.stopPropagation();
-                
-                sendMsg();
-                
-                // 确保发送后也能持久化原文显示
-                const original = lastPreviewedSource;
-                const translated = lastPreviewedTranslation;
-                setTimeout(() => {
-                    addOriginalTextToSentMessage(original, translated);
-                }, 500);
-
-                updatePreviewUI(null);
-                lastPreviewedTranslation = '';
-                lastPreviewedSource = '';
-                return;
-            }
-        }
-        // ------------------
-
         // 判断是否纯表情
         const hasSpan = document.querySelector('footer div[contenteditable="true"]')?.querySelector('span');
         if (hasSpan && !inputText.trim()) {
-            console.log('😀 纯表情，直接发送');
+            console.log('😀 纯表情,直接发送');
             sendMsg();
             return;
         }
 
-        // 执行翻译流程
-        executeTranslationFlow(inputText);
+        // ========== 场景1: 发送自动翻译开启 - 翻译后发送 ==========
+        if (globalConfig?.sendAutoTranslate) {
+            console.log('🔄 场景1: 发送自动翻译开启,翻译后发送');
+            
+            // 立即阻止事件传播
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+
+            // 检查是否正在处理中
+            let loadingNode = document.getElementById('editDivLoadingNode');
+            if (loadingNode) {
+                console.log('⏳ 已有处理中的请求,跳过');
+                return;
+            }
+
+            // --- 翻译预览逻辑 ---
+            if (globalConfig?.translatePreview && lastPreviewedTranslation) {
+                if (inputText.trim() === lastPreviewedTranslation.trim()) {
+                    console.log('✅ 预览已确认,发送消息');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    
+                    sendMsg();
+                    
+                    // 确保发送后也能持久化原文显示
+                    const original = lastPreviewedSource;
+                    const translated = lastPreviewedTranslation;
+                    setTimeout(() => {
+                        addOriginalTextToSentMessage(original, translated);
+                    }, 500);
+
+                    updatePreviewUI(null);
+                    lastPreviewedTranslation = '';
+                    lastPreviewedSource = '';
+                    return;
+                }
+            }
+            // ------------------
+
+            // 执行翻译流程
+            executeTranslationFlow(inputText);
+            return;
+        }
+
+        // ========== 场景2: 发送自动翻译关闭,但开启了消息下方显示译文 ==========
+        if (!globalConfig?.sendAutoTranslate && globalConfig?.sendAutoNotTranslate) {
+            console.log('📝 场景2: 发送原文,稍后在消息下方显示译文');
+            
+            // 不阻止默认发送行为,让消息正常发送
+            // 记录原文,用于后续翻译
+            const originalText = inputText;
+            
+            // 延迟调用翻译并渲染
+            setTimeout(() => {
+                translateAndDisplayBelowSentMessage(originalText);
+            }, 500);
+            return;
+        }
+
+        // ========== 场景3: 两个开关都关闭 - 直接发送,不做任何处理 ==========
+        console.log('➡️ 场景3: 直接发送原文,不翻译');
+        // 不需要额外代码,让消息正常发送即可
     }
 }
 
@@ -635,6 +654,91 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
         
     } catch (error) {
         console.error('❌ 添加原文失败:', error);
+    }
+}
+
+/**
+ * 翻译已发送的消息并在消息下方显示译文
+ * 用于场景: sendAutoTranslate: false 且 sendAutoNotTranslate: true
+ * @param {string} originalText - 原始消息文本
+ */
+async function translateAndDisplayBelowSentMessage(originalText) {
+    try {
+        console.log('🌐 开始翻译已发送的消息:', originalText.substring(0, 50));
+        
+        // 1. 获取目标语言
+        const fromLang =globalConfig?.sendAutoNotSourceLang ||'en'; // 本地语言(如中文)
+        const toLang = globalConfig?.sendAutoNotTargetlseLang || 'en'; // 目标语言
+        
+        console.log(`🌐 翻译发送消息: ${fromLang} -> ${toLang}`);
+        
+        // 2. 调用翻译接口
+        const result = await translateTextAPI(originalText, fromLang, toLang);
+        
+        if (!result || !result.success) {
+            console.warn('⚠️ 翻译失败:', result?.msg);
+            window.electronAPI.showNotification({
+                message: `翻译失败: ${result?.msg || '服务异常'}`,
+                type: 'is-warning'
+            });
+            return;
+        }
+        
+        const translatedText = result.data;
+        console.log('✅ 翻译成功:', translatedText);
+        
+        // 3. 查找最新发送的消息
+        const sentMessages = document.querySelectorAll('.message-out');
+        if (sentMessages.length === 0) {
+            console.log('❌ 未找到发送的消息');
+            return;
+        }
+        
+        const lastSentMessage = sentMessages[sentMessages.length - 1];
+        
+        // 4. 查找消息文本的span
+        const textSpan = lastSentMessage.querySelector('span[dir="ltr"], span[dir="rtl"]');
+        if (!textSpan) {
+            console.log('❌ 未找到消息文本span');
+            return;
+        }
+        
+        // 5. 检查是否已经添加过译文
+        if (textSpan.querySelector('.translation-result')) {
+            console.log('⏳ 译文已显示,跳过');
+            return;
+        }
+        
+        // 6. 验证是否是刚发送的消息
+        const msgContent = textSpan.textContent.trim();
+        if (!msgContent.includes(originalText.substring(0, 20))) {
+            console.log('⚠️ 消息内容不匹配,跳过');
+            return;
+        }
+        
+        // 7. 创建译文显示节点(样式与接收消息翻译一致)
+        const translationNode = document.createElement('div');
+        translationNode.className = 'translation-result';
+        translationNode.style.cssText = `
+            font-size: 13px;
+            color: #25D366;
+            border-top: 1px dashed #ccc;
+            padding-top: 5px;
+            margin-top: 5px;
+            font-style: italic;
+        `;
+        translationNode.textContent = translatedText;
+        
+        // 8. 添加到消息下方
+        textSpan.appendChild(translationNode);
+        console.log('✅ 译文已显示在消息下方');
+        
+    } catch (error) {
+        console.error('❌ 翻译并显示失败:', error);
+        window.electronAPI.showNotification({
+            message: `翻译异常: ${error.message}`,
+            type: 'is-danger'
+        });
     }
 }
 

@@ -97,6 +97,17 @@
                         <el-option label="百度" value="Baidu"  />
                       </el-select>
                     </div>
+                     <div class="form-col">
+                      <div class="form-label">来源语言</div>
+                      <el-select v-model="config.sendAutoNotSourceLang" placeholder="请选择">
+                        <el-option
+                          v-for="lang in languageList"
+                          :key="lang.id"
+                          :label="lang.displayName"
+                          :value="lang.code"
+                        />
+                      </el-select>
+                    </div>
                     <div class="form-col">
                       <div class="form-label">目标语言</div>
                       <el-select v-model="config.sendAutoNotTargetlseLang" placeholder="请选择">
@@ -287,6 +298,7 @@ const config = reactive({
   receiveChannel: 'Baidu',
   receiveTargetLang: 'zh',
   sendAutoNotTranslate:false,
+  sendAutoNotSourceLang:'en',
   sendAutoNotTargetlseLang:'zh',
   sendColoseChannel:'Baidu',
   // manualTranslate: true,
