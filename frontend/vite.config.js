@@ -27,8 +27,9 @@ export default defineConfig(({ command, mode }) => {
       port: 8080,
       proxy: {
         '/box': {
-           target: 'http://192.168.3.18:38080/box',
+          //  target: 'http://192.168.3.18:38080/box',
           // target:'http://192.168.3.13:39205',
+          target:'http://54.179.179.222:38080/box',
            changeOrigin: true,
            rewrite: (path) => path.replace(/^\/box/, '')
         }

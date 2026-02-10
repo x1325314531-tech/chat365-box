@@ -117,8 +117,8 @@ onMounted(()=>{
 })
 
 const form = reactive({
-  userName: 'mehm02',
-  password: '123456',
+  userName: '',
+  password: '',
   machineCode: '',
   line: '',
   agree: false,
