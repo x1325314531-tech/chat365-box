@@ -663,31 +663,13 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
  * @param {string} originalText - 原始消息文本
  */
 async function translateAndDisplayBelowSentMessage(originalText) {
+    let loadingNode = null;
+    let textSpan = null;
+    
     try {
         console.log('🌐 开始翻译已发送的消息:', originalText.substring(0, 50));
         
-        // 1. 获取目标语言
-        const fromLang =globalConfig?.sendAutoNotSourceLang ||'en'; // 本地语言(如中文)
-        const toLang = globalConfig?.sendAutoNotTargetlseLang || 'en'; // 目标语言
-        
-        console.log(`🌐 翻译发送消息: ${fromLang} -> ${toLang}`);
-        
-        // 2. 调用翻译接口
-        const result = await translateTextAPI(originalText, fromLang, toLang);
-        
-        if (!result || !result.success) {
-            console.warn('⚠️ 翻译失败:', result?.msg);
-            window.electronAPI.showNotification({
-                message: `翻译失败: ${result?.msg || '服务异常'}`,
-                type: 'is-warning'
-            });
-            return;
-        }
-        
-        const translatedText = result.data;
-        console.log('✅ 翻译成功:', translatedText);
-        
-        // 3. 查找最新发送的消息
+        // 1. 查找最新发送的消息
         const sentMessages = document.querySelectorAll('.message-out');
         if (sentMessages.length === 0) {
             console.log('❌ 未找到发送的消息');
@@ -696,27 +678,110 @@ async function translateAndDisplayBelowSentMessage(originalText) {
         
         const lastSentMessage = sentMessages[sentMessages.length - 1];
         
-        // 4. 查找消息文本的span
-        const textSpan = lastSentMessage.querySelector('span[dir="ltr"], span[dir="rtl"]');
+        // 2. 查找消息文本的span
+        textSpan = lastSentMessage.querySelector('span[dir="ltr"], span[dir="rtl"]');
         if (!textSpan) {
             console.log('❌ 未找到消息文本span');
             return;
         }
         
-        // 5. 检查是否已经添加过译文
+        // 3. 检查是否已经添加过译文
         if (textSpan.querySelector('.translation-result')) {
             console.log('⏳ 译文已显示,跳过');
             return;
         }
         
-        // 6. 验证是否是刚发送的消息
+        // 4. 验证是否是刚发送的消息
         const msgContent = textSpan.textContent.trim();
         if (!msgContent.includes(originalText.substring(0, 20))) {
             console.log('⚠️ 消息内容不匹配,跳过');
             return;
         }
         
-        // 7. 创建译文显示节点(样式与接收消息翻译一致)
+        // 5. 创建并显示加载状态指示器
+        loadingNode = document.createElement('div');
+        loadingNode.className = 'translation-loading';
+        loadingNode.style.cssText = `
+            font-size: 12px;
+            color: #8696a0;
+            border-top: 1px dashed #ccc;
+            padding-top: 5px;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        `;
+        loadingNode.innerHTML = `
+            <span>翻译中</span>
+            <div style="display: flex; gap: 3px;">
+                <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite;"></div>
+                <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.2s;"></div>
+                <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.4s;"></div>
+            </div>
+        `;
+        
+        // 添加动画样式(如果还没有)
+        if (!document.getElementById('translation-loading-animation')) {
+            const style = document.createElement('style');
+            style.id = 'translation-loading-animation';
+            style.textContent = `
+                @keyframes bounce {
+                    0%, 80%, 100% { transform: scale(0); }
+                    40% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        textSpan.appendChild(loadingNode);
+        console.log('⏳ 加载指示器已显示');
+        
+        // 6. 获取目标语言
+        const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
+        const toLang = globalConfig?.sendAutoNotTargetlseLang || 'en';
+        
+        console.log(`🌐 翻译发送消息: ${fromLang} -> ${toLang}`);
+        
+        // 7. 先检查缓存
+        let translatedText = await getTranslationCache(originalText, fromLang, toLang);
+        
+        if (!translatedText) {
+            // 缓存未命中,调用翻译接口
+            console.log('📡 缓存未命中,调用翻译API...');
+            const result = await translateTextAPI(originalText, fromLang, toLang);
+            
+            // 移除加载指示器
+            if (loadingNode && loadingNode.parentNode) {
+                loadingNode.remove();
+                loadingNode = null;
+            }
+            
+            if (!result || !result.success) {
+                console.warn('⚠️ 翻译失败:', result?.msg);
+                window.electronAPI.showNotification({
+                    message: `翻译失败: ${result?.msg || '服务异常'}`,
+                    type: 'is-warning'
+                });
+                return;
+            }
+            
+            translatedText = result.data;
+            console.log('✅ 翻译成功:', translatedText);
+            
+            // 保存到缓存
+            await saveTranslationCache(originalText, translatedText, fromLang, toLang);
+        } else {
+            // 缓存命中,直接使用
+            console.log('🚀 使用缓存的翻译结果');
+            
+            // 移除加载指示器
+            if (loadingNode && loadingNode.parentNode) {
+                loadingNode.remove();
+                loadingNode = null;
+            }
+        }
+        
+        // 9. 创建译文显示节点(样式与接收消息翻译一致)
         const translationNode = document.createElement('div');
         translationNode.className = 'translation-result';
         translationNode.style.cssText = `
@@ -729,12 +794,18 @@ async function translateAndDisplayBelowSentMessage(originalText) {
         `;
         translationNode.textContent = translatedText;
         
-        // 8. 添加到消息下方
+        // 10. 添加到消息下方
         textSpan.appendChild(translationNode);
         console.log('✅ 译文已显示在消息下方');
         
     } catch (error) {
         console.error('❌ 翻译并显示失败:', error);
+        
+        // 移除加载指示器
+        if (loadingNode && loadingNode.parentNode) {
+            loadingNode.remove();
+        }
+        
         window.electronAPI.showNotification({
             message: `翻译异常: ${error.message}`,
             type: 'is-danger'
@@ -999,6 +1070,9 @@ function monitorMainNode() {
     async function processMessageList() {
         // 恢复发送消息的原文显示（从本地存储）
         await restoreSentMessageOriginals();
+        
+        // 恢复发送消息的译文显示（从翻译缓存）
+        await restoreSentMessageTranslations();
         
         // 检查全局接收自动翻译开关
         if (!globalConfig?.receiveAutoTranslate) {
@@ -1675,6 +1749,232 @@ async function getAllSentMessages() {
         return [];
     }
 }
+
+// ==================== 翻译缓存 IndexedDB ====================
+
+/**
+ * 打开或创建翻译缓存数据库
+ * 用于存储所有翻译结果,避免重复翻译
+ */
+function openTranslationCacheDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('WhatsAppTranslationCacheDB', 1);
+        
+        request.onupgradeneeded = function(event) {
+            const db = event.target.result;
+            // 创建对象存储,使用复合键(原文+语言对)的hash作为主键
+            if (!db.objectStoreNames.contains('translationCache')) {
+                const store = db.createObjectStore('translationCache', { keyPath: 'cacheKey' });
+                store.createIndex('originalText', 'originalText', { unique: false });
+                store.createIndex('timestamp', 'timestamp', { unique: false });
+                store.createIndex('langPair', 'langPair', { unique: false });
+            }
+        };
+        
+        request.onsuccess = function(event) {
+            resolve(event.target.result);
+        };
+        
+        request.onerror = function(event) {
+            reject(`翻译缓存数据库打开失败: ${event.target.errorCode}`);
+        };
+    });
+}
+
+/**
+ * 生成缓存键
+ * @param {string} text - 原文
+ * @param {string} fromLang - 源语言
+ * @param {string} toLang - 目标语言
+ * @returns {string} 缓存键
+ */
+function generateCacheKey(text, fromLang, toLang) {
+    // 使用简单的字符串拼接作为键,实际项目中可以使用hash
+    return `${fromLang}_${toLang}_${text}`;
+}
+
+/**
+ * 保存翻译结果到缓存
+ * @param {string} originalText - 原文
+ * @param {string} translatedText - 译文
+ * @param {string} fromLang - 源语言
+ * @param {string} toLang - 目标语言
+ */
+async function saveTranslationCache(originalText, translatedText, fromLang, toLang) {
+    try {
+        const db = await openTranslationCacheDB();
+        const transaction = db.transaction(['translationCache'], 'readwrite');
+        const store = transaction.objectStore('translationCache');
+        
+        const cacheKey = generateCacheKey(originalText, fromLang, toLang);
+        const cacheData = {
+            cacheKey: cacheKey,
+            originalText: originalText,
+            translatedText: translatedText,
+            fromLang: fromLang,
+            toLang: toLang,
+            langPair: `${fromLang}-${toLang}`,
+            timestamp: Date.now()
+        };
+        
+        return new Promise((resolve, reject) => {
+            const request = store.put(cacheData);
+            request.onsuccess = () => {
+                console.log('💾 翻译缓存已保存:', {
+                    original: originalText.substring(0, 30),
+                    translated: translatedText.substring(0, 30),
+                    langPair: `${fromLang}-${toLang}`
+                });
+                resolve();
+            };
+            request.onerror = (event) => {
+                console.error('❌ 翻译缓存保存失败:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    } catch (error) {
+        console.error('保存翻译缓存失败:', error);
+    }
+}
+
+/**
+ * 从缓存获取翻译结果
+ * @param {string} originalText - 原文
+ * @param {string} fromLang - 源语言
+ * @param {string} toLang - 目标语言
+ * @returns {Promise<string|null>} 译文或null
+ */
+async function getTranslationCache(originalText, fromLang, toLang) {
+    try {
+        const db = await openTranslationCacheDB();
+        const transaction = db.transaction(['translationCache'], 'readonly');
+        const store = transaction.objectStore('translationCache');
+        
+        const cacheKey = generateCacheKey(originalText, fromLang, toLang);
+        
+        return new Promise((resolve, reject) => {
+            const request = store.get(cacheKey);
+            request.onsuccess = (event) => {
+                const result = event.target.result;
+                if (result) {
+                    console.log('✅ 翻译缓存命中:', {
+                        original: originalText.substring(0, 30),
+                        translated: result.translatedText.substring(0, 30),
+                        age: Math.floor((Date.now() - result.timestamp) / 1000) + 's'
+                    });
+                    resolve(result.translatedText);
+                } else {
+                    // console.log('❌ 翻译缓存未命中:', originalText.substring(0, 30));
+                    resolve(null);
+                }
+            };
+            request.onerror = (event) => {
+                console.error('查询翻译缓存失败:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    } catch (error) {
+        console.error('获取翻译缓存失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 根据原文查找翻译缓存（不限语言对）
+ * @param {string} originalText 
+ */
+async function getTranslationByOriginalText(originalText) {
+    try {
+        const db = await openTranslationCacheDB();
+        const transaction = db.transaction(['translationCache'], 'readonly');
+        const store = transaction.objectStore('translationCache');
+        const index = store.index('originalText');
+        
+        return new Promise((resolve, reject) => {
+            const request = index.getAll(originalText);
+            request.onsuccess = (event) => {
+                const results = event.target.result;
+                if (results && results.length > 0) {
+                    // 按时间倒序排序，取最新的
+                    results.sort((a, b) => b.timestamp - a.timestamp);
+                    resolve(results[0]);
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = (event) => reject(event.target.error);
+        });
+    } catch (error) {
+        console.error('根据原文查找缓存失败:', error);
+        return null;
+    }
+}
+
+// 恢复发送消息的译文显示（针对 sendAutoTranslate: false 场景）
+async function restoreSentMessageTranslations() {
+    // 只有在开启“发送消息显示译文”时才执行
+    if (!globalConfig?.sendAutoNotTranslate) return;
+
+    try {
+        // 查找所有发送的消息
+        const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"]:not([data-translation-restored]), .message-out span[dir="rtl"]:not([data-translation-restored])');
+        
+        for (let span of sentMessages) {
+             // 跳过已经有翻译结果显示的
+            if (span.querySelector('.translation-result')) {
+                span.setAttribute('data-translation-restored', 'true');
+                continue;
+            }
+
+            const msgText = span.textContent.trim();
+            if (!msgText || msgText.length < 1) continue;
+
+            // 尝试从缓存获取
+            // 优先使用当前配置的语言对查询
+            const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
+            const toLang = globalConfig?.sendAutoNotTargetlseLang || 'en';
+            
+            let cachedTrans = await getTranslationCache(msgText, fromLang, toLang);
+            
+            // 如果精确匹配没找到，尝试只用原文查找（可能配置变了，但想显示历史翻译）
+            if (!cachedTrans) {
+                 // 避免对很短的文本进行模糊查询，防止误判
+                 if (msgText.length > 1) {
+                    const record = await getTranslationByOriginalText(msgText);
+                    if (record) cachedTrans = record.translatedText;
+                 }
+            }
+
+            if (cachedTrans) {
+                 // 创建译文显示节点
+                const translationNode = document.createElement('div');
+                translationNode.className = 'translation-result';
+                translationNode.style.cssText = `
+                    font-size: 13px;
+                    color: #25D366;
+                    border-top: 1px dashed #ccc;
+                    padding-top: 5px;
+                    margin-top: 5px;
+                    font-style: italic;
+                `;
+                translationNode.textContent = cachedTrans;
+                
+                span.appendChild(translationNode);
+                span.setAttribute('data-translation-restored', 'true');
+                console.log('🔄 已从缓存恢复发送消息译文:', msgText.substring(0, 20));
+            } else {
+                 // 标记已检查，但如果未找到，不设置 data-translation-restored，
+                 // 以便下次有缓存时能再次检查（或者可以设置个临时状态）
+                 // 这里暂不处理
+            }
+        }
+    } catch (e) {
+        console.error('恢复发送消息译文失败:', e);
+    }
+}
+
+// ==========================================================
+
 
 // ===================== 语音翻译模块 (使用原生 API) =====================
 

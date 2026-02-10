@@ -4,7 +4,8 @@ const Log = require('ee-core/log');
 // 创建 axios 实例
 const axiosInstance = axios.create({
     // baseURL: 'http://192.168.3.13:39205',
-      baseURL: 'http://192.168.3.18:38080/box', // 可以根据需要修改
+    // baseURL: 'http://192.168.3.18:38080/box', // 可以根据需要修改
+    baseURL:'http://chat365.cc:38080/box',
     timeout: 10000, // 请求超时时间（毫秒）
     headers: {
         'Content-Type': 'application/json'
