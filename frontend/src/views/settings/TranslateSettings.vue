@@ -58,7 +58,7 @@
                     </div>
                     <div class="form-desc">发送时是否自动翻译成目标语言</div>
                     </div>
-                    <el-switch v-model="config.sendAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"  />
+                    <el-switch v-model="config.sendAutoTranslate"  @change="handleSendAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"  />
                   </div>
 
                   <div class="form-row" v-if="config.sendAutoTranslate ">
@@ -80,7 +80,35 @@
                       </el-select>
                     </div>
                   </div>
-
+                  <div class="form-item" v-if="!config.sendAutoTranslate">
+                   
+                    <div class="form-item-left">
+                    <div class="form-label">设置发送消息</div>
+                    <div class="form-desc">发送自动翻译关闭，消息下面显示译文</div>
+                    <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
+                    </div>
+                    <el-switch v-model="config.sendAutoNotTranslate"  @change="handlesendAutoNotTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"/>
+                  
+                  </div> 
+                  <div class="form-row" v-if="!config.sendAutoTranslate ">
+                    <div class="form-col" >
+                      <div class="form-label">翻译通道</div>
+                      <el-select v-model="config.sendColoseChannel" disabled placeholder="请选择">
+                        <el-option label="百度" value="Baidu"  />
+                      </el-select>
+                    </div>
+                    <div class="form-col">
+                      <div class="form-label">目标语言</div>
+                      <el-select v-model="config.sendAutoNotTargetlseLang" placeholder="请选择">
+                        <el-option
+                          v-for="lang in languageList"
+                          :key="lang.id"
+                          :label="lang.displayName"
+                          :value="lang.code"
+                        />
+                      </el-select>
+                    </div>
+                  </div>
                   <div class="form-item">
                     <div class="form-item-left">
                     <div class="form-label">翻译预览</div>
@@ -258,6 +286,9 @@ const config = reactive({
   receiveAutoTranslate: true,
   receiveChannel: 'Baidu',
   receiveTargetLang: 'zh',
+  sendAutoNotTranslate:false,
+  sendAutoNotTargetlseLang:'zh',
+  sendColoseChannel:'Baidu',
   // manualTranslate: true,
   // 聊天列表
   showTranslateConfig: true,
@@ -300,6 +331,16 @@ onMounted(() => {
 const toggleSection = (section) => {
   expandedSections[section] = !expandedSections[section]
 }
+//发送自动消息
+const handleSendAutoTranslate= (val) =>{ 
+  if(!val) { 
+    config.sendAutoNotTranslate =  true
+  }
+}
+const handlesendAutoNotTranslate = (val) =>{
+
+}
+//消息预览
 const handleTranslatePreview = (val) => {
   // val 是 translatePreview 的最新值
   // 如果开启了“翻译预览”，通常也需要同时开启“发送自动翻译”

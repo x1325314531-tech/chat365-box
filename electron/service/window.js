@@ -421,7 +421,9 @@ class WindowService extends Service {
             mainWin.on('resize', () => this._resizeView(mainWin, view));
             this._resizeView(mainWin, view);
             view.setVisible(true);
-            view.webContents.openDevTools()
+            if (!app.isPackaged) {
+                view.webContents.openDevTools()
+            }
         }
     }
     _createWebView(cardId) {
