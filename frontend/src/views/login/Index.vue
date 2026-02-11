@@ -17,7 +17,7 @@
         <div class="input-container">
           <el-input v-model="form.userName" placeholder="请输入用户名" :prefix-icon="User" class="input-item" size="large"/>
           <el-input v-model="form.password" placeholder="请输入密码" :prefix-icon="Lock" type="password" show-password class="input-item" size="large"/>
-          <el-input v-model="form.machineCode" placeholder="本机机器码" readonly class="input-item">
+          <el-input v-model="form.machineCode" v-if="isMachineCode" placeholder="本机机器码" readonly class="input-item">
             <template #append>
               <el-button  size="large" @click="copyMachineCode" :icon="DocumentCopy" />
             </template>

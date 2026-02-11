@@ -1195,6 +1195,7 @@ function addTranslateButtonWithSelect() {
         cursor: pointer;
         padding: 5px;
         margin: 0 5px;
+        display:none;
     `;
 
     button.addEventListener('click', function() {

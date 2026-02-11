@@ -69,6 +69,7 @@
     "lottie-web": "^5.12.2",
     "multicoin-address-validator": "^0.5.26",
     "node-machine-id": "^1.1.12",
+    "systeminformation": "^5.30.7",
     "validator": "^13.15.26",
     "vue3-lottie": "^3.3.1"
   }
