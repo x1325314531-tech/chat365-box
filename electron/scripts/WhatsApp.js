@@ -371,6 +371,11 @@ function populateLanguageSelects() {
             fromSelect.appendChild(opt);
         });
         if (languages.some(l => l.code === currentVal)) fromSelect.value = currentVal;
+
+        // 如果存在自定义 UI 更新钩子，则调用它
+        if (typeof fromSelect._updateCustomUI === 'function') {
+            fromSelect._updateCustomUI();
+        }
     });
 
     targetSelects.forEach(targetSelect => {
@@ -383,6 +388,11 @@ function populateLanguageSelects() {
             targetSelect.appendChild(opt);
         });
         if (languages.some(l => l.code === currentVal)) targetSelect.value = currentVal;
+
+        // 如果存在自定义 UI 更新钩子，则调用它
+        if (typeof targetSelect._updateCustomUI === 'function') {
+            targetSelect._updateCustomUI();
+        }
     });
 }
 
@@ -1457,13 +1467,15 @@ function addTranslateButtonToPreview(imgElement, dialog) {
         z-index: 10000;
         display: flex;
         align-items: center;
-        gap: 15px;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(15px);
-        padding: 8px 20px;
-        border-radius: 40px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-        border: 1px solid rgba(0,0,0,0.05);
+        gap: 16px;
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        padding: 10px 24px;
+        border-radius: 50px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     `;
 
     // 下拉框容器
@@ -1471,8 +1483,7 @@ function addTranslateButtonToPreview(imgElement, dialog) {
     langBox.style.cssText = `
         display: flex;
         align-items: center;
-        gap: 10px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        gap: 12px;
     `;
 
     const createStyledSelect = (className, labelText, defaultVal) => {
@@ -1480,44 +1491,227 @@ function addTranslateButtonToPreview(imgElement, dialog) {
         wrapper.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
+            position: relative;
         `;
         
         const label = document.createElement('span');
         label.textContent = labelText;
         label.style.cssText = `
-            font-size: 11px;
+            font-size: 12px;
             color: #667781;
-            font-weight: 500;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 60px;
         `;
         
+        // 隐藏的原生 select 用于数据存储和 populateLanguageSelects 兼容
         const select = document.createElement('select');
         select.className = className;
-        select.style.cssText = `
-            border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 8px;
-            padding: 4px 8px;
-            font-size: 12px;
-            outline: none;
-            background: #f0f2f5;
+        select.style.display = 'none';
+        select.value = defaultVal;
+
+        // 自定义触发按钮
+        const trigger = document.createElement('div');
+        trigger.style.cssText = `
+            border: none;
+            border-radius: 12px;
+            padding: 6px 32px 6px 12px;
+            font-size: 13px;
+            background: #f0f2f5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667781' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 12px center;
             cursor: pointer;
             color: #111b21;
-            font-weight: 500;
-            transition: all 0.2s;
-            min-width: 80px;
+            font-weight: 600;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 100px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+            user-select: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         `;
-        select.value = defaultVal;
-        
-        select.onmouseover = () => { select.style.background = '#e1e3e6'; };
-        select.onmouseout = () => { select.style.background = '#f0f2f5'; };
-        
+        trigger.textContent = '加载中...';
+
+        // 自定义弹窗列表
+        const listContainer = document.createElement('div');
+        listContainer.style.cssText = `
+            position: absolute;
+            bottom: 130%;
+            left: 66px;
+            width: 180px;
+            max-height: 420px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(25px) saturate(190%);
+            -webkit-backdrop-filter: blur(25px) saturate(190%);
+            border-radius: 18px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            display: none;
+            flex-direction: column;
+            z-index: 10001;
+            opacity: 0;
+            transform: translateY(12px) scale(0.96);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        `;
+
+        // 搜索框
+        const searchBox = document.createElement('div');
+        searchBox.style.cssText = `
+            padding: 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            background: rgba(255,255,255,0.4);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        `;
+        const searchInput = document.createElement('input');
+        searchInput.placeholder = '搜索语言...';
+        searchInput.style.cssText = `
+            width: 100%;
+            border: 1px solid rgba(0,0,0,0.05);
+            background: #fdfdfd;
+            border-radius: 10px;
+            padding: 7px 10px;
+            font-size: 13px;
+            outline: none;
+            color: #111b21;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        `;
+        searchBox.appendChild(searchInput);
+
+        const itemsWrapper = document.createElement('div');
+        itemsWrapper.style.cssText = `
+            padding: 6px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        `;
+
+        const updateList = (filter = '') => {
+            itemsWrapper.innerHTML = '';
+            const filteredOptions = Array.from(select.options).filter(opt => 
+                !filter || opt.textContent.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filteredOptions.length === 0) {
+                const noResult = document.createElement('div');
+                noResult.style.cssText = 'padding: 20px; text-align: center; color: #8696a0; font-size: 13px;';
+                noResult.textContent = '无结果';
+                itemsWrapper.appendChild(noResult);
+                return;
+            }
+
+            filteredOptions.forEach(opt => {
+                const isSelected = opt.value === select.value;
+                const item = document.createElement('div');
+                item.style.cssText = `
+                    padding: 10px 14px;
+                    font-size: 14px;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    transition: all 0.2s ease;
+                    color: ${isSelected ? '#25D366' : '#111b21'};
+                    background: ${isSelected ? 'rgba(37, 211, 102, 0.1)' : 'transparent'};
+                    font-weight: ${isSelected ? '700' : '500'};
+                `;
+                item.textContent = opt.textContent;
+
+                if (isSelected) {
+                    item.innerHTML += `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                }
+
+                item.onmouseover = () => {
+                    item.style.background = isSelected ? 'rgba(37, 211, 102, 0.15)' : 'rgba(0,0,0,0.04)';
+                    if (!isSelected) item.style.transform = 'translateX(4px)';
+                };
+                item.onmouseout = () => {
+                    item.style.background = isSelected ? 'rgba(37, 211, 102, 0.1)' : 'transparent';
+                    item.style.transform = 'translateX(0)';
+                };
+
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    select.value = opt.value;
+                    select.dispatchEvent(new Event('change'));
+                    updateUI();
+                    closeList();
+                };
+                itemsWrapper.appendChild(item);
+            });
+        };
+
+        const updateUI = () => {
+            const selectedOpt = select.options[select.selectedIndex];
+            trigger.textContent = selectedOpt ? selectedOpt.textContent : '选择语言';
+            if (listContainer.style.display === 'flex') updateList(searchInput.value);
+        };
+
+        searchInput.oninput = (e) => updateList(e.target.value);
+
+        const openList = () => {
+            // 关闭所有正在打开的自定义弹窗
+            document.querySelectorAll('.custom-popover-open').forEach(p => p._close());
+
+            listContainer.style.display = 'flex';
+            listContainer.classList.add('custom-popover-open');
+            listContainer._close = closeList;
+            
+            updateList();
+
+            requestAnimationFrame(() => {
+                listContainer.style.opacity = '1';
+                listContainer.style.transform = 'translateY(0) scale(1)';
+            });
+
+            setTimeout(() => searchInput.focus(), 100);
+            
+            // 自动滚动到当前选中的项
+            const selected = itemsWrapper.querySelector('[style*="rgba(37, 211, 102, 0.1)"]');
+            if (selected) selected.scrollIntoView({ block: 'center' });
+        };
+
+        const closeList = () => {
+            listContainer.style.opacity = '0';
+            listContainer.style.transform = 'translateY(12px) scale(0.96)';
+            listContainer.classList.remove('custom-popover-open');
+            setTimeout(() => {
+                if (!listContainer.classList.contains('custom-popover-open')) {
+                    listContainer.style.display = 'none';
+                    searchInput.value = '';
+                }
+            }, 250);
+        };
+
+        trigger.onclick = (e) => {
+            e.stopPropagation();
+            if (listContainer.style.display === 'flex') closeList(); else openList();
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!listContainer.contains(e.target) && e.target !== trigger) closeList();
+        });
+
+        // 挂载更新钩子给 populateLanguageSelects 使用
+        select._updateCustomUI = updateUI;
+
+        listContainer.appendChild(searchBox);
+        listContainer.appendChild(itemsWrapper);
         wrapper.appendChild(label);
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(listContainer);
         wrapper.appendChild(select);
         return { wrapper, select };
     };
 
     // 来源语言
-    const { wrapper: fromWrapper, select: fromSelect } = createStyledSelect('fromImageLangSelect', '来源:', fromImageLang);
+    const { wrapper: fromWrapper, select: fromSelect } = createStyledSelect('fromImageLangSelect', '来源', fromImageLang);
     fromSelect.onchange = (e) => { 
         fromImageLang = e.target.value;
         syncAllImageLangSelects('from', e.target.value);
@@ -1526,15 +1720,15 @@ function addTranslateButtonToPreview(imgElement, dialog) {
     // 箭头
     const arrow = document.createElement('div');
     arrow.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"></line>
             <polyline points="12 5 19 12 12 19"></polyline>
         </svg>
     `;
-    arrow.style.cssText = 'display: flex; align-items: center;';
+    arrow.style.cssText = 'display: flex; align-items: center; opacity: 0.8;';
 
     // 目标语言
-    const { wrapper: targetWrapper, select: targetSelect } = createStyledSelect('targetImageLangSelect', '目标:', targetImageLang);
+    const { wrapper: targetWrapper, select: targetSelect } = createStyledSelect('targetImageLangSelect', '目标', targetImageLang);
     targetSelect.onchange = (e) => { 
         targetImageLang = e.target.value;
         syncAllImageLangSelects('target', e.target.value);
@@ -1547,7 +1741,7 @@ function addTranslateButtonToPreview(imgElement, dialog) {
     // 翻译按钮
     const btn = document.createElement('div');
     btn.innerHTML = `
-        <div style="cursor: pointer; background: #25D366; color: white; padding: 10px 22px; border-radius: 25px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);">
+        <div style="cursor: pointer; background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; padding: 10px 24px; border-radius: 30px; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.35); border: 1px solid rgba(255,255,255,0.15);">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
             图片翻译
         </div>
@@ -1560,14 +1754,20 @@ function addTranslateButtonToPreview(imgElement, dialog) {
     };
 
     const inner = btn.querySelector('div');
-    inner.onmouseover = () => { inner.style.transform = 'scale(1.05)'; inner.style.background = '#20bd5a'; };
-    inner.onmouseout = () => { inner.style.transform = 'scale(1)'; inner.style.background = '#25D366'; };
+    inner.onmouseover = () => { 
+        inner.style.transform = 'translateY(-2px) scale(1.02)'; 
+        inner.style.boxShadow = '0 6px 20px rgba(37, 211, 102, 0.45)';
+    };
+    inner.onmouseout = () => { 
+        inner.style.transform = 'translateY(0) scale(1)'; 
+        inner.style.boxShadow = '0 4px 15px rgba(37, 211, 102, 0.35)';
+    };
 
     container.appendChild(langBox);
     
     // 分割线
     const divider = document.createElement('div');
-    divider.style.cssText = 'width: 1px; height: 24px; background: rgba(0,0,0,0.06); margin: 0 5px;';
+    divider.style.cssText = 'width: 1px; height: 28px; background: rgba(0,0,0,0.08); margin: 0 4px;';
     container.appendChild(divider);
     
     container.appendChild(btn);

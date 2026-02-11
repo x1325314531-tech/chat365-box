@@ -57,8 +57,16 @@ const CryptoScanner = {
     searchConfigs: [
         { coin: 'btc', regex: /\b(1|3)[a-km-zA-NP-Z1-9]{25,34}\b|\b(bc1)[a-z0-9]{25,39}\b/g },
         { coin: 'eth', regex: /\b0x[a-fA-F0-9]{40}\b/g }, // ETH 校验也适用于 BNB/MATIC
-        { coin: 'tron', regex: /\bT[a-zA-Z0-9]{33}\b/g }  // TRON 用于 USDT-TRC20
+        { coin: 'tron', regex: /\bT[a-zA-Z0-9]{33}\b/g }, // TRON 用于 USDT-TRC20
+        {coin:'trx', regex:/^T[a-zA-Z0-9]{33}$/},
+        {coin:'ltc', regex:/^(L|M|3)[a-zA-Z1-9]{26,33}$/},
+        {coin:'doge', regex:/^(D|9|A)[a-zA-Z1-9]{33}$/},
+        {coin:'sol', regex:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/},
+        {coin:'xrp', regex:/^r[a-zA-Z0-9]{24,34}$/},
+        {coin:'bnb',regex:/^(bnb1|0x)[a-zA-Z0-9]{39,59}$/},
+        {coin:'Bitcoin-like',regex:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/}
     ],
+
 
     scan(text) {
         const results = [];
