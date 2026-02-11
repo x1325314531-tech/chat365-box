@@ -139,6 +139,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTenantConfig:()=> { 
     return ipcRenderer.invoke('get-tenant-config')
   },
+  fetchTenantSetting: () => {
+    return ipcRenderer.invoke('fetch-tenant-setting');
+  },
   saveTenantConfig: (args) => {
     return ipcRenderer.invoke('save-tenant-config', args);
   },

@@ -177,10 +177,10 @@ const handleAccountLogin = async () => {
           ...JSON.parse(tenantRes.data.interceptedSetting || '{}') 
         };
         console.log('tenantConfig', tenantConfig);
-        localStorage.setItem('tenantConfig', JSON.stringify(tenantConfig));
+        // localStorage.setItem('tenantConfig', JSON.stringify(tenantConfig));
         
         // 关键：确保同步到主进程后再跳转
-        await ipc.invoke('save-tenant-config', tenantConfig);
+        // await ipc.invoke('save-tenant-config', tenantConfig);
         console.log('租房配置已同步到主进程');
       }
 

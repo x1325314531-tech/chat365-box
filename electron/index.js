@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -249,6 +249,7 @@ class Index extends Application {
         return null;
       }
     });
+
   }
 
   /**
@@ -536,6 +537,28 @@ class Index extends Application {
         const args = {card_id: card.card_id, platform: card.platform,phone_number:phone_number};
         const result = await Services.get('user').getUserPortrait(args)
         mainWin.webContents.send('open-user-portrait', result)
+      }
+    });
+
+    // 从后端刷新并解析租户配置
+    ipcMain.handle('fetch-tenant-setting', async (event) => {
+      try {
+        Log.info('📡 IPC: fetch-tenant-setting 被调用');
+        const response = await getTenantSetting();
+        if (response && response.code === 200) {
+          const config = response.data;
+          // 持久化到本地
+          const configStorage = Storage.connection('config.json');
+          configStorage.setItem('tenantConfig', config);
+          app.tenantConfig = config;
+          Log.info('✅ 租户配置已从后端获取并持久化');
+          return { success: true, data: config };
+        }
+        Log.error('❌ 获取租户配置失败:', response?.msg);
+        return { success: false, msg: response?.msg || '获取配置失败' };
+      } catch (err) {
+        Log.error('❌ fetch-tenant-setting 异常:', err);
+        return { success: false, error: err.message };
       }
     });
   }

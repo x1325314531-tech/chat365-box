@@ -16,6 +16,17 @@ async function getLanguages() {
         throw error; // 抛出错误以便调用方处理
     }
 }
+//获取租户配置
+async function getTenantSetting() {
+    try {
+        // 调用封装好的 get 请求，发送到指定的端点
+        return await request.get("/app/tenantSetting"); // 返回数据以供其他地方使用
+    } catch (error) {
+        throw error; // 抛出错误以便调用方处理
+    }
+}
+    
+
 // 实现 translateText 函数
 async function translateText(text,localLanguage, targetLanguage) {
 
@@ -48,8 +59,13 @@ async function translateText(text,localLanguage, targetLanguage) {
 // 实现敏感词检测函数
 // 实现敏感词检测函数
 async function checkSensitiveContent(content) {
-    const tenantConfig = app.tenantConfig || {};
-    Log.info('当前租户配置:', tenantConfig);
+      const tenantConfigToTemp = { 
+          ...JSON.parse(app.tenantConfig.triggerSetting || '{}'), 
+          ...JSON.parse(app.tenantConfig.interceptedSetting || '{}') 
+        };
+    const tenantConfig = tenantConfigToTemp || {};
+    Log.info('当前租户配置:',  tenantConfig);
+    Log.info('CCCCC', tenantConfigToTemp)
     
     try {
         // 1. 敏感词检测 (Sensitive Word) 
@@ -93,7 +109,10 @@ async function checkSensitiveContent(content) {
         // 如果开启了 trigger 或 intercepted，则进行本地正则检测
         const urlResults = (tenantConfig.urlTrigger === "true" || tenantConfig.urlIntercepted === "true") ? validateUrls(content) : [];
         const cryptoResults = (tenantConfig.walletTrigger === "true" || tenantConfig.walletIntercepted === "true") ? validateWalletAddress(content) : [];
-
+        Log.info('urlResults', urlResults)
+        Log.info('cryptoResults', cryptoResults)
+        
+               
         const hasUrl = urlResults.length > 0;
         const hasCrypto = cryptoResults.length > 0;
 
@@ -335,5 +354,6 @@ module.exports = {
     getLanguages,
     checkSensitiveContent,
     translateImage,
-    translateVoice
+    translateVoice,
+    getTenantSetting
 };

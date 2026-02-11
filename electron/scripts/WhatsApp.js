@@ -111,6 +111,10 @@ let lastPreviewedTranslation = '';
 let lastPreviewedSource = '';
 let previewNode = null;
 
+// 图片翻译语言选择
+let fromImageLang = 'zh';
+let targetImageLang = 'en';
+
 // ==================== 自动化语音捕获系统 ====================
 // 缓存：voiceContainer (Canonical) -> { path, time }
 const audioCacheMap = new Map(); // 使用 Map 支持字符串(ID)或元素键
@@ -287,14 +291,46 @@ function updatePreviewUI(text) {
 async function syncGlobalConfig() {
     try {
         const config = await window.electronAPI.getTranslateConfig();
-        const tenantConfig = await window.electronAPI.getTenantConfig()
+        // const tenantConfig = await window.electronAPI.getTenantConfig()
+        const tenantConfig  = await  initTenantConfig()
+        
+        console.log('eeeeee',tenantConfig);
+        
         if (config) {
             globalConfig =  { ...config, ...tenantConfig}
             console.log('🔄 全局配置同步成功:', globalConfig);
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
+    }
+}
 
+// 初始化租户配置
+async function initTenantConfig() {
+    try {
+        console.log('📡 正在初始化租户配置...');
+        const result = await window.electronAPI.fetchTenantSetting();
+        console.log('租户配置初始化结果：', result);
+        
+        if (result && result.success) {
+            console.log('✅ 租户配置初始化成功:', result.data);
+            // 更新当前全局配置以确保 UI 能够实时响应
+           let tenantConfig = { 
+          ...JSON.parse(result.data.triggerSetting || '{}'), 
+          ...JSON.parse(result.data.interceptedSetting || '{}') 
+            };
+            console.log('tenantConfig',tenantConfig);
+             return tenantConfig
+            // if (globalConfig) {
+            //     globalConfig = { ...globalConfig, ...tenantConfig };
+            // } else {
+            //     globalConfig =  tenantConfig;
+            // }
+        } else {
+            console.warn('⚠️ 租户配置初始化失败:', result?.msg || '未知错误');
+        }
+    } catch (e) {
+        console.error('❌ 初始化租户配置异常:', e);
     }
 }
 
@@ -303,14 +339,60 @@ function notify() {
 }
 
 monitorMainNode()
+initTenantConfig()
 
 // 初始化语言列表
 function getLanguageList() {
     window.electronAPI.languageList().then((response) => {
         languages = response.data;
         console.log('语言列表加载完成:', languages.length, '种语言');
+        // 加载完成后填充所有下拉框
+        populateLanguageSelects();
     }).catch(error => {
         console.error('加载语言列表失败:', error);
+    });
+}
+// 初始化租户配置
+
+// 填充语言下拉框
+function populateLanguageSelects() {
+    const fromSelects = document.querySelectorAll('.fromImageLangSelect');
+    const targetSelects = document.querySelectorAll('.targetImageLangSelect');
+    
+    if (fromSelects.length === 0 && targetSelects.length === 0) return;
+
+    fromSelects.forEach(fromSelect => {
+        const currentVal = fromSelect.value || fromImageLang;
+        fromSelect.innerHTML = '';
+        languages.forEach(lang => {
+            const opt = document.createElement('option');
+            opt.value = lang.code;
+            opt.textContent = lang.displayName;
+            fromSelect.appendChild(opt);
+        });
+        if (languages.some(l => l.code === currentVal)) fromSelect.value = currentVal;
+    });
+
+    targetSelects.forEach(targetSelect => {
+        const currentVal = targetSelect.value || targetImageLang;
+        targetSelect.innerHTML = '';
+        languages.forEach(lang => {
+            const opt = document.createElement('option');
+            opt.value = lang.code;
+            opt.textContent = lang.displayName;
+            targetSelect.appendChild(opt);
+        });
+        if (languages.some(l => l.code === currentVal)) targetSelect.value = currentVal;
+    });
+}
+
+// 同步所有图片语言下拉框
+function syncAllImageLangSelects(type, value) {
+    const selector = type === 'from' ? '.fromImageLangSelect' : '.targetImageLangSelect';
+    document.querySelectorAll(selector).forEach(select => {
+        if (select.value !== value) {
+            select.value = value;
+        }
     });
 }
 
@@ -1177,7 +1259,7 @@ function monitorMainNode() {
     }
 }
 
-// 添加翻译按钮（简化版）
+// 添加翻译按钮及语言选择下拉框
 function addTranslateButtonWithSelect() {
     let targetNode = document.querySelector('footer')?.firstChild?.firstChild?.firstChild?.firstChild?.firstChild;
     if (!targetNode) {
@@ -1185,9 +1267,84 @@ function addTranslateButtonWithSelect() {
         return;
     }
 
+    // 避免重复添加
+    if (document.getElementById('fromImageLang')) return;
+
+    // 创建容器
+    const container = document.createElement('div');
+    container.id = 'imageLangSelectionContainer';
+    container.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 0 5px;
+       display:none;
+    `;
+
+    // 来源语言
+    const { wrapper: fromWrapper, select: fromSelect } = createStyledSelectFooter('fromImageLangSelect', '来源:', fromImageLang);
+    fromSelect.id = 'fromImageLang';
+    fromSelect.onchange = (e) => { 
+        fromImageLang = e.target.value;
+        syncAllImageLangSelects('from', e.target.value);
+    };
+
+    // 箭头
+    const arrow = document.createElement('span');
+    arrow.textContent = '→';
+    arrow.style.cssText = 'font-size: 12px; color: #8696a0; margin: 0 2px;';
+
+    // 目标语言
+    const { wrapper: targetWrapper, select: targetSelect } = createStyledSelectFooter('targetImageLangSelect', '目标:', targetImageLang);
+    targetSelect.id = 'targetImageLang';
+    targetSelect.onchange = (e) => { 
+        targetImageLang = e.target.value;
+        syncAllImageLangSelects('target', e.target.value);
+    };
+
+    container.appendChild(fromWrapper);
+    container.appendChild(arrow);
+    container.appendChild(targetWrapper);
+
+    // 辅助函数：创建样式一致的下拉框
+    function createStyledSelectFooter(className, labelText, defaultVal) {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'display: flex; align-items: center; gap: 3px;';
+        
+        const label = document.createElement('span');
+        label.textContent = labelText;
+        label.style.cssText = 'font-size: 11px; color: #667781;';
+        
+        const select = document.createElement('select');
+        select.className = className;
+        select.style.cssText = `
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 6px;
+            padding: 2px 4px;
+            font-size: 11px;
+            outline: none;
+            background: #f0f2f5;
+            cursor: pointer;
+            color: #111b21;
+        `;
+        select.value = defaultVal;
+        
+        wrapper.appendChild(label);
+        wrapper.appendChild(select);
+        return { wrapper, select };
+    }
+
+    // 插入到翻译按钮前面 (当前 targetNode 是 flex 容器)
+    targetNode.appendChild(container);
+
+    // 填充数据
+    populateLanguageSelects();
+
     // 创建按钮
     const button = document.createElement('button');
+    button.id = 'footerTranslateButton';
     button.innerHTML = `🌐`;
+    button.title = '图片翻译设置';
     button.style.cssText = `
         background: none;
         border: none;
@@ -1195,11 +1352,17 @@ function addTranslateButtonWithSelect() {
         cursor: pointer;
         padding: 5px;
         margin: 0 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         display:none;
     `;
 
     button.addEventListener('click', function() {
-        alert(`当前翻译设置:\n源语言: ${getLocalLanguage()}\n目标语言: ${getTargetLanguage()}`);
+        window.electronAPI.showNotification({
+            message: `当前图片翻译设置: ${fromSelect.options[fromSelect.selectedIndex].text} → ${targetSelect.options[targetSelect.selectedIndex].text}`,
+            type: 'is-info'
+        });
     });
 
     targetNode.appendChild(button);
@@ -1267,22 +1430,128 @@ function startMediaPreviewMonitor() {
 }
 
 function addTranslateButtonToPreview(imgElement, dialog) {
-    if (document.querySelector('#image-translate-btn')) return;
+    if (document.querySelector('#image-translate-container')) return;
 
+    // 智能默认值判断
+    // 优先通过对话框或消息容器判断是发送还是接收
+    const isIncoming = !!(imgElement.closest('.message-in') || 
+                         document.querySelector('.message-in img[src="' + imgElement.src + '"]') ||
+                         // 兜底：如果无法确定，根据全局配置或默认逻辑
+                         (typeof lastPreviewedSource === 'undefined' ? false : true));
+    
+    // 设置初始全局变量
+    if (isIncoming) {
+        fromImageLang = 'en';
+        targetImageLang = 'zh';
+    } else {
+        fromImageLang = 'zh';
+        targetImageLang = 'en';
+    }
+
+    const container = document.createElement('div');
+    container.id = 'image-translate-container';
+    container.style.cssText = `
+        position: fixed; 
+        bottom: 35px; 
+        right: 40px; 
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(15px);
+        padding: 8px 20px;
+        border-radius: 40px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        border: 1px solid rgba(0,0,0,0.05);
+    `;
+
+    // 下拉框容器
+    const langBox = document.createElement('div');
+    langBox.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    `;
+
+    const createStyledSelect = (className, labelText, defaultVal) => {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        `;
+        
+        const label = document.createElement('span');
+        label.textContent = labelText;
+        label.style.cssText = `
+            font-size: 11px;
+            color: #667781;
+            font-weight: 500;
+        `;
+        
+        const select = document.createElement('select');
+        select.className = className;
+        select.style.cssText = `
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 12px;
+            outline: none;
+            background: #f0f2f5;
+            cursor: pointer;
+            color: #111b21;
+            font-weight: 500;
+            transition: all 0.2s;
+            min-width: 80px;
+        `;
+        select.value = defaultVal;
+        
+        select.onmouseover = () => { select.style.background = '#e1e3e6'; };
+        select.onmouseout = () => { select.style.background = '#f0f2f5'; };
+        
+        wrapper.appendChild(label);
+        wrapper.appendChild(select);
+        return { wrapper, select };
+    };
+
+    // 来源语言
+    const { wrapper: fromWrapper, select: fromSelect } = createStyledSelect('fromImageLangSelect', '来源:', fromImageLang);
+    fromSelect.onchange = (e) => { 
+        fromImageLang = e.target.value;
+        syncAllImageLangSelects('from', e.target.value);
+    };
+
+    // 箭头
+    const arrow = document.createElement('div');
+    arrow.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+    `;
+    arrow.style.cssText = 'display: flex; align-items: center;';
+
+    // 目标语言
+    const { wrapper: targetWrapper, select: targetSelect } = createStyledSelect('targetImageLangSelect', '目标:', targetImageLang);
+    targetSelect.onchange = (e) => { 
+        targetImageLang = e.target.value;
+        syncAllImageLangSelects('target', e.target.value);
+    };
+
+    langBox.appendChild(fromWrapper);
+    langBox.appendChild(arrow);
+    langBox.appendChild(targetWrapper);
+
+    // 翻译按钮
     const btn = document.createElement('div');
-    btn.id = 'image-translate-btn';
     btn.innerHTML = `
-        <div style="cursor: pointer; background: #25D366; color: white; padding: 10px 20px; border-radius: 25px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 1555px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; user-select: none;">
+        <div style="cursor: pointer; background: #25D366; color: white; padding: 10px 22px; border-radius: 25px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
             图片翻译
         </div>
     `;
-     if(dialog) {
-        btn.style.cssText = `position: fixed; bottom: 35px; right: 60px; z-index: 10000;`;
-     }else { 
-         btn.style.cssText = `display:none`;
-     }
-   
     
     btn.onclick = (e) => {
         e.preventDefault();
@@ -1291,14 +1560,33 @@ function addTranslateButtonToPreview(imgElement, dialog) {
     };
 
     const inner = btn.querySelector('div');
-    inner.onmouseover = () => inner.style.transform = 'scale(1.05)';
-    inner.onmouseout = () => inner.style.transform = 'scale(1)';
+    inner.onmouseover = () => { inner.style.transform = 'scale(1.05)'; inner.style.background = '#20bd5a'; };
+    inner.onmouseout = () => { inner.style.transform = 'scale(1)'; inner.style.background = '#25D366'; };
+
+    container.appendChild(langBox);
     
-    document.body.appendChild(btn);
+    // 分割线
+    const divider = document.createElement('div');
+    divider.style.cssText = 'width: 1px; height: 24px; background: rgba(0,0,0,0.06); margin: 0 5px;';
+    container.appendChild(divider);
+    
+    container.appendChild(btn);
+    
+    document.body.appendChild(container);
+
+    // 填充数据并设置选中值
+    populateLanguageSelects();
+    // 补充设置值以确保智能默认生效
+    setTimeout(() => {
+        const f = container.querySelector('.fromImageLangSelect');
+        const t = container.querySelector('.targetImageLangSelect');
+        if (f) f.value = fromImageLang;
+        if (t) t.value = targetImageLang;
+    }, 50);
 
     const closeMonitor = setInterval(() => {
         if (!imgElement.isConnected || !document.querySelector('img[src^="blob:"]')) {
-            btn.remove();
+            container.remove();
             clearInterval(closeMonitor);
         }
     }, 1000);
@@ -1383,10 +1671,31 @@ async function translateImageInWhatsApp(imgElement) {
         
         window.electronAPI.showNotification({ message: '正在发起图片翻译请求...', type: 'is-info' });
 
+        // 根据图片是发送还是接收，设置默认方向
+        const isIncoming = !!imgElement.closest('.message-in');
+        if (isIncoming) {
+            fromImageLang = 'en';
+            targetImageLang = 'zh';
+        } else {
+            // 发送的消息或预览图
+            fromImageLang = 'zh';
+            targetImageLang = 'en';
+        }
+
+        // 同步到下拉框
+        const fromSelect = document.getElementById('fromImageLang');
+        const targetSelect = document.getElementById('targetImageLang');
+        if (fromSelect) fromSelect.value = fromImageLang;
+        if (targetSelect) targetSelect.value = targetImageLang;
+
+        // 获取最终使用的语言（优先取下拉框的值）
+        const finalFromLang = fromSelect ? fromSelect.value : fromImageLang;
+        const finalTargetLang = targetSelect ? targetSelect.value : targetImageLang;
+
         const result = await window.electronAPI.translateImage({
             imageData: imageData,
-            from: getLocalLanguage(),
-            target: getTargetLanguage()
+            from: finalFromLang,
+            target: finalTargetLang
         });
          console.log('图片翻译结果返回', result);
         if (result && result.success) {
