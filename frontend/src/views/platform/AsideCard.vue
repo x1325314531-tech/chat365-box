@@ -361,7 +361,8 @@ function handleClose(card) {
       >
         <!-- 状态和用户信息 -->
         <div class="status">
-          <span class="status-label" :class="{ 'online-status': card.online_status==='true' }">{{ card.online_status === 'true' ? '在线' : '未登录' }}</span>
+          <!-- <span class="status-label" :class="{ 'online-status': card.online_status==='true' }">{{ card.online_status === 'true' ? '在线' : '未登录' }}</span> -->
+        <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }}</span>
         </div>
         <div class="card-header">
           <!-- 根据 card.showBadge 控制徽标的显示 -->
@@ -388,13 +389,13 @@ function handleClose(card) {
           </el-avatar>
 
           <h4 class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
-          <span v-if="card.card_name" class="subtitle">({{ props.title }})</span>
+         <!--- <span v-if="card.card_name" class="subtitle">({{ props.title }})</span>-->
         </div>
         <!-- 右上角的按钮 -->
         <div class="action-buttons">
-          <el-icon v-if="card.online_status==='true' && props.title==='WhatsApp'" :size="20" @click.stop="importContacts(card)">
+          <!-- <el-icon v-if="card.online_status==='true' && props.title==='WhatsApp'" :size="20" @click.stop="importContacts(card)">
             <img style="height: 20px;width: 20px" :src="importSvg" class="platform-svg" draggable="false">
-          </el-icon>
+          </el-icon> -->
 <!--          <el-icon v-if="card.online_status==='true'" :size="20" @click.stop="userPortrait(card)">-->
 <!--            <img style="height: 20px;width: 20px" :src="userportrait" class="platform-svg" draggable="false">-->
 <!--          </el-icon>-->
@@ -530,7 +531,9 @@ function handleClose(card) {
   color: #999;
   margin-left: 4px;
 }
-
+.subtitle-title { 
+   font-size: 16px;
+}
 .action-buttons {
   position: absolute;
   top: 10px;

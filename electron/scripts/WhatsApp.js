@@ -90,17 +90,31 @@ function printElementEvery5Seconds() {
     console.info('✅ 进入 WhatsApp.js 脚本');
 
     setInterval(() => {
-        const element = document.querySelector("#app > div > div.two._aigs.x1n2onr6.x13vifvy.x17qophe.x78zum5.xh8yej3.x5yr21d.x6ikm8r.x10wlt62.x1iek97a.x1w3jsh0.xf8xn22.x168nmei.x13lgxp2.x5pf9jr.xo71vjh.x1g0ag68.xcgwb2z.x4afe7t.x1alahoq.x1j6awrg.x1m1drc7.x1n449xj.x162n7g1.xitxdhh.x134s4mn.x1s928wv.x1setqd9 > header > div > div > div > div > span > div > div.x1c4vz4f.xs83m0k.xdl72j9.x1g77sc7.xeuugli.x2lwn1j.xozqiw3.x1oa3qoh.x12fk4p8.xyorhqc > div:nth-child(1) > div")
-        if (element) {
-            const avatar = document.querySelector("#app > div > div.two._aigs.x1n2onr6.x13vifvy.x17qophe.x78zum5.xh8yej3.x5yr21d.x6ikm8r.x10wlt62.x1iek97a.x1w3jsh0.xf8xn22.x168nmei.x13lgxp2.x5pf9jr.xo71vjh.x1g0ag68.xcgwb2z.x4afe7t.x1alahoq.x1j6awrg.x1m1drc7.x1n449xj.x162n7g1.xitxdhh.x134s4mn.x1s928wv.x1setqd9 > header > div > div > div > div > span > div > div.x1c4vz4f.xs83m0k.xdl72j9.x1g77sc7.xeuugli.x2lwn1j.xozqiw3.x1oa3qoh.x12fk4p8.xyorhqc > div:nth-child(2) > div > div > div > div > img")
-            const url = avatar?.src || '';
-            window.electronAPI.sendMsg({platform:'WhatsApp',online: true,avatarUrl:url}).then(res=>{
-                console.log('用户已登录：',res)
-            })
+        // 稳健的选择器列表：
+        // 1. 登录后的标志性元素 (侧边栏、主对话窗口、欢迎页标题)
+        const loggedInElement = document.getElementById('pane-side') || 
+                                document.querySelector('[data-testid="side-panel"]') ||
+                                document.getElementById('main') ||
+                                document.querySelector('[data-testid="intro-text-title"]');
+        
+        // 2. 扫码页面的标志性元素 (二维码 canvas 或容器)
+        const qrCodeElement = document.querySelector('canvas') || 
+                              document.querySelector('[data-testid="qrcode"]') ||
+                              document.querySelector('._ak96'); // WhatsApp 扫码容器常见类名
+
+        if (loggedInElement || qrCodeElement) {
+            // 尝试获取用户头像（仅登录后有效）
+            const avatarImg = document.querySelector('header img') || 
+                            document.querySelector('div[role="button"] img');
+            const url = avatarImg?.src || '';
+            
+            window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url}).then(res => {
+                // console.log('状态上报（在线）：', res);
+            });
         } else {
-            window.electronAPI.sendMsg({platform:'WhatsApp',online: false,avatarUrl: ''}).then(res=>{
-                console.log('用户未登录：',res)
-            })
+            window.electronAPI.sendMsg({platform:'WhatsApp', online: false, avatarUrl: ''}).then(res => {
+                // console.log('状态上报（离线）：', res);
+            });
         }
     }, 5000);
 }
@@ -111,9 +125,13 @@ let lastPreviewedTranslation = '';
 let lastPreviewedSource = '';
 let previewNode = null;
 
+// 钱包地址正则 (ETH/BNB/TRON等)
+const walletAddressRegex = /\b0x[a-fA-F0-9]{40}\b/g;
+const tronAddressRegex = /\bT[a-zA-Z0-9]{33}\b/g;
+
 // 图片翻译语言选择
-let fromImageLang = 'zh';
-let targetImageLang = 'en';
+let fromImageLang = 'en';
+let targetImageLang = 'zh';
 
 // ==================== 自动化语音捕获系统 ====================
 // 缓存：voiceContainer (Canonical) -> { path, time }
@@ -732,6 +750,14 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
             console.log('⚠️ 消息内容不匹配，跳过');
             return;
         }
+
+        // 校验：如果原文与译文完全一致，则不显示原文节点
+        if (originalText.trim() === translatedText.trim()) {
+            console.log('ℹ️ 原文与译文一致，跳过显示原文');
+            // 仍然保存到数据库，以便后续恢复状态
+            await saveSentMessage(translatedText, originalText);
+            return;
+        }
         
         // 保存原文到本地存储（IndexedDB）
         await saveSentMessage(translatedText, originalText);
@@ -881,6 +907,12 @@ async function translateAndDisplayBelowSentMessage(originalText) {
                 loadingNode = null;
             }
         }
+
+        // 校验：如果译文与原文完全一致，则不显示翻译节点
+        if (translatedText.trim() === originalText.trim()) {
+            console.log('ℹ️ 译文与原文一致，跳过显示译文');
+            return;
+        }
         
         // 9. 创建译文显示节点(样式与接收消息翻译一致)
         const translationNode = document.createElement('div');
@@ -921,12 +953,37 @@ async function translateTextAPI(text, fromLang, toLang) {
 
     console.log(`调用翻译API: "${text.substring(0, 50)}..." ${fromLang} -> ${toLang}`);
 
+    // 保护逻辑：如果是一个纯钱包地址，直接返回原文
+    const trimmedText = text.trim();
+    if (/^0x[a-fA-F0-9]{40}$/i.test(trimmedText) || /^T[a-zA-Z0-9]{33}$/.test(trimmedText)) {
+        console.log('🛡️ 检测到纯钱包地址，跳过翻译API调用，直接返回原文');
+        return { success: true, data: trimmedText };
+    }
+
     try {
         const result = await window.electronAPI.translateText({
             text: text,
             local: fromLang,
             target: toLang
         });
+
+        // 二次校验：如果原文包含钱包地址，而译文中的地址发生了变化，则恢复译文中的地址
+        if (result && result.success && typeof result.data === 'string') {
+            let processedResult = result.data;
+            let originalAddresses = text.match(walletAddressRegex) || [];
+            let translatedAddresses = result.data.match(walletAddressRegex) || [];
+            
+            // 如果地址数量一致但内容不一致，尝试按顺序替换回原地址
+            if (originalAddresses.length > 0 && originalAddresses.length === translatedAddresses.length) {
+                for (let i = 0; i < originalAddresses.length; i++) {
+                    if (originalAddresses[i].toLowerCase() !== translatedAddresses[i].toLowerCase()) {
+                        console.log(`🛡️ 监测到地址被篡改: ${translatedAddresses[i]} -> ${originalAddresses[i]}, 已自动修正`);
+                        processedResult = processedResult.replace(translatedAddresses[i], originalAddresses[i]);
+                    }
+                }
+                result.data = processedResult;
+            }
+        }
 
         return result;
     } catch (error) {
@@ -1244,7 +1301,7 @@ function monitorMainNode() {
             const result = await translateTextAPI(msg, fromLang, toLang);
             console.log('✅ 翻译结果:', result);
 
-            if (result && result.success && result.data !== msg) {
+            if (result && result.success && result.data && result.data.trim() !== msg.trim()) {
                 span.setAttribute('data-translate-status', 'translated');
 
                 // 创建翻译结果显示节点
@@ -1262,6 +1319,9 @@ function monitorMainNode() {
 
                 span.appendChild(translationNode);
                 console.log('✅ 翻译结果已显示');
+            } else if (result && result.success && result.data && result.data.trim() === msg.trim()) {
+                span.setAttribute('data-translate-status', 'same');
+                console.log('ℹ️ 译文与原文一致，跳过显示');
             } else if (result && !result.success) {
                 span.setAttribute('data-translate-status', 'failed');
                 console.warn('❌ 消息翻译失败 (业务):', result.msg);
@@ -1463,8 +1523,9 @@ function addTranslateButtonToPreview(imgElement, dialog) {
         fromImageLang = 'en';
         targetImageLang = 'zh';
     } else {
-        fromImageLang = 'zh';
-        targetImageLang = 'en';
+        // 修改：即使是发送消息或预览图，也默认 en -> zh
+        fromImageLang = 'en';
+        targetImageLang = 'zh';
     }
 
     const container = document.createElement('div');
@@ -1886,9 +1947,9 @@ async function translateImageInWhatsApp(imgElement) {
             fromImageLang = 'en';
             targetImageLang = 'zh';
         } else {
-            // 发送的消息或预览图
-            fromImageLang = 'zh';
-            targetImageLang = 'en';
+            // 修改：即使是发送的消息或预览图，也默认 en -> zh
+            fromImageLang = 'en';
+            targetImageLang = 'zh';
         }
 
         // 同步到下拉框
@@ -2193,6 +2254,13 @@ async function restoreSentMessageOriginals() {
             console.log('📦 查询结果:', record);
             
             if (record && record.originalText) {
+                // 校验：如果原文与译文完全一致，则不显示原文节点
+                if (record.originalText.trim() === msgText.trim()) {
+                    span.setAttribute('data-original-restored', 'true');
+                    console.log('ℹ️ 恢复出的原文与当前译文一致，跳过显示');
+                    continue;
+                }
+
                 // 创建原文显示节点
                 let originalNode = document.createElement('div');
                 originalNode.className = 'original-text-result';
@@ -2210,37 +2278,9 @@ async function restoreSentMessageOriginals() {
                 span.setAttribute('data-original-restored', 'true');
                 console.log('🔄 已恢复原文显示:', record.originalText);
             } else {
-                // 尝试遍历数据库查找匹配
-                const allRecords = await getAllSentMessages();
-                let found = false;
-                for (let rec of allRecords) {
-                    // 检查消息文本是否包含存储的翻译文本（以处理可能的格式差异）
-                    if (msgText.includes(rec.translatedText.substring(0, 20)) || 
-                        rec.translatedText.includes(msgText.substring(0, 20))) {
-                        console.log('🔄 通过模糊匹配找到原文:', rec.originalText);
-                        
-                        let originalNode = document.createElement('div');
-                        originalNode.className = 'original-text-result';
-                        originalNode.style.cssText = `
-                            font-size: 13px;
-                            color: #25D366;
-                            border-top: 1px dashed #ccc;
-                            padding-top: 5px;
-                            margin-top: 5px;
-                            font-style: italic;
-                        `;
-                        originalNode.textContent = rec.originalText;
-                        
-                        span.appendChild(originalNode);
-                        span.setAttribute('data-original-restored', 'true');
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    // 标记为已检查，避免重复查询
-                    span.setAttribute('data-original-restored', 'checked');
-                }
+                // 移除模糊匹配逻辑，仅支持精确匹配。模糊匹配曾导致钱包地址碰撞（20位前缀相同导致误判）。
+                // 标记为已检查，避免重复查询
+                span.setAttribute('data-original-restored', 'checked');
             }
         }
     } catch (error) {
