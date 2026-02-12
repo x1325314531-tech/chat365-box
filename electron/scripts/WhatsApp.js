@@ -446,7 +446,7 @@ function handleInput(event) {
 }
 
 // 分离事件处理函数，便于管理
-function handleKeyDown(event) {
+async function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.ctrlKey) {
         console.log('⏺️ Enter键按下,开始处理翻译');
 
@@ -519,7 +519,24 @@ function handleKeyDown(event) {
             // 不阻止默认发送行为,让消息正常发送
             // 记录原文,用于后续翻译
             const originalText = inputText;
+             // ===== 敏感词检测 =====
+        
+        const sensitiveCheck = await checkSensitiveContent(inputText);
+        
+        if (sensitiveCheck.isSensitive) {
+            console.warn('🚫 检测到敏感内容，阻止发送');
             
+            // 显示警告通知
+            window.electronAPI.showNotification({
+                message: `⚠️ ${sensitiveCheck.reason}`,
+                type: 'is-danger'
+            });
+            
+            // 可选：在输入框下方显示警告提示
+            showSensitiveWarning(sensitiveCheck.reason);
+            
+             
+        }
             // 延迟调用翻译并渲染
             setTimeout(() => {
                 translateAndDisplayBelowSentMessage(originalText);

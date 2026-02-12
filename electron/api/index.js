@@ -62,7 +62,7 @@ async function checkSensitiveContent(content, tenantGlobalConfig) {
           ...JSON.parse(tenantGlobalConfig.triggerSetting || '{}'), 
           ...JSON.parse(tenantGlobalConfig.interceptedSetting || '{}') 
         };
-    const tenantConfig = tenantConfigToTemp || {};
+    const tenantConfig = tenantGlobalConfig || {};
     Log.info('当前租户配置:',  tenantConfig);
     Log.info('tenantConfigToTemp', tenantConfigToTemp)
     try {

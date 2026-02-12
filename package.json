@@ -1,7 +1,7 @@
 {
   "name": "Chat365",
   "version": "1.0.0",
-  "description": "WhatsApp,Telegram,多账号管理工具.独立会话;独立IP;独立Cookie;聊天实时翻译.",
+  "description": "Chat365,多账号管理工具.独立会话;独立IP;独立Cookie;聊天实时翻译.",
   "main": "main.js",
   "scripts": {
     "dev": "chcp 65001&ee-bin dev",
@@ -36,13 +36,13 @@
     "build-lp-64": "electron-builder --config=./electron/config/builder.json -l=pacman --x64",
     "test": "set DEBUG=* && electron . --env=local"
   },
-  "repository": "https://github.com/dromara/electron-egg.git",
+  "repository": "",
   "keywords": [
     "Electron",
     "electron-egg",
     "ElectronEgg"
   ],
-  "author": "Mr",
+  "author": "CHAT365",
   "license": "Apache",
   "devDependencies": {
     "@electron/rebuild": "^3.2.13",
