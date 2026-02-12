@@ -23,6 +23,12 @@ module.exports = (appInfo) => {
     messageLog: false
   };
 
+  /**
+   * 生产环境URL
+   */
+  //config.baseUrl = 'http://18.143.17.49:38080/box'
+
+
   return {
     ...config
   };

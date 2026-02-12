@@ -27,6 +27,11 @@ module.exports = (appInfo) => {
     messageLog: true
   };
 
+  /**
+   * 本地开发环境URL
+   */
+  // config.baseUrl = 'http://192.168.3.18:38080/box';
+
   return {
     ...config
   };
