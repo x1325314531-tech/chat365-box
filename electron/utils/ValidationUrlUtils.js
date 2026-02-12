@@ -63,8 +63,8 @@ const CryptoScanner = {
         {coin:'doge', regex:/^(D|9|A)[a-zA-Z1-9]{33}$/},
         {coin:'sol', regex:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/},
         {coin:'xrp', regex:/^r[a-zA-Z0-9]{24,34}$/},
-        {coin:'bnb',regex:/^(bnb1|0x)[a-zA-Z0-9]{39,59}$/},
-        {coin:'Bitcoin-like',regex:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/}
+        {coin:'bnb',regex:/^(bnb1|0x)[a-zA-Z0-9]{39,59}$/}
+        // {coin:'Bitcoin-like',regex:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/}
     ],
 
 

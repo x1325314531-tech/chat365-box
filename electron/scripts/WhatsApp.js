@@ -292,12 +292,9 @@ async function syncGlobalConfig() {
     try {
         const config = await window.electronAPI.getTranslateConfig();
         // const tenantConfig = await window.electronAPI.getTenantConfig()
-        const tenantConfig  = await  initTenantConfig()
-        
-        console.log('eeeeee',tenantConfig);
-        
+        // const tenantConfig  = await  initTenantConfig()   
         if (config) {
-            globalConfig =  { ...config, ...tenantConfig}
+            globalConfig =  { ...config, }
             console.log('🔄 全局配置同步成功:', globalConfig);
         }
     } catch (e) {
@@ -321,11 +318,6 @@ async function initTenantConfig() {
             };
             console.log('tenantConfig',tenantConfig);
              return tenantConfig
-            // if (globalConfig) {
-            //     globalConfig = { ...globalConfig, ...tenantConfig };
-            // } else {
-            //     globalConfig =  tenantConfig;
-            // }
         } else {
             console.warn('⚠️ 租户配置初始化失败:', result?.msg || '未知错误');
         }
@@ -551,9 +543,9 @@ function getInputContent() {
 async function checkSensitiveContent(text) {
     try {
         console.log('🔍 开始敏感词及特殊内容检测:', text);
-        
+        const tenantConfig  = await initTenantConfig()
         // 使用 electronAPI 调用后端接口
-        const result = await window.electronAPI.checkSensitiveContent({ content: text });
+        const result = await window.electronAPI.checkSensitiveContent({ content: text,tenantConfig:tenantConfig } );
         console.log('后端验证结果:', result);
         
         if (result && result.success && result.data) {

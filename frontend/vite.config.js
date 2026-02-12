@@ -30,6 +30,7 @@ export default defineConfig(({ command, mode }) => {
           target: 'http://192.168.3.18:38080/box',
         //target:'http://192.168.3.13:39205',
         //target:'http://18.143.17.49:38080/box', //生产环境
+        // target:'http://chat365.cc:38080/box',
            changeOrigin: true,
            rewrite: (path) => path.replace(/^\/box/, '')
         }

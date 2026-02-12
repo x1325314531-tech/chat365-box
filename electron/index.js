@@ -279,8 +279,8 @@ class Index extends Application {
       return translateText(text,local,target)
     });
     ipcMain.handle('check-sensitive-content', async (event, args) => {
-      const { content } = args;
-      return checkSensitiveContent(content);
+      const { content,tenantConfig } = args;
+      return checkSensitiveContent(content, tenantConfig);
     });
 
     ipcMain.handle('translate-image', async (event, args) => {

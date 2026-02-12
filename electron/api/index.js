@@ -55,18 +55,16 @@ async function translateText(text,localLanguage, targetLanguage) {
         return { success: false, msg: '网络请求失败，请检查网络连接' };
     }
 }
-
 // 实现敏感词检测函数
-// 实现敏感词检测函数
-async function checkSensitiveContent(content) {
+async function checkSensitiveContent(content, tenantGlobalConfig) {
+    console.log('我是租户配置监控和拦截', tenantGlobalConfig);
       const tenantConfigToTemp = { 
-          ...JSON.parse(app.tenantConfig.triggerSetting || '{}'), 
-          ...JSON.parse(app.tenantConfig.interceptedSetting || '{}') 
+          ...JSON.parse(tenantGlobalConfig.triggerSetting || '{}'), 
+          ...JSON.parse(tenantGlobalConfig.interceptedSetting || '{}') 
         };
     const tenantConfig = tenantConfigToTemp || {};
     Log.info('当前租户配置:',  tenantConfig);
-    Log.info('CCCCC', tenantConfigToTemp)
-    
+    Log.info('tenantConfigToTemp', tenantConfigToTemp)
     try {
         // 1. 敏感词检测 (Sensitive Word) 
         // 如果开启了 trigger，检查敏感词
