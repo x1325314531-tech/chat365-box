@@ -27,7 +27,7 @@ class WindowService extends Service {
     }
 
     async addCard(args, event) {
-        const {cardId, platform, online, name} = args;
+        const {cardId, platform, online, name, sessionId} = args;
         const url = platforms.find(item => item.platform === platform)?.url;
         if (!url) return {message:'未找到对应平台的URL',status:false};
         // const mainId = Addon.get('window').getMWCid();
@@ -46,7 +46,8 @@ class WindowService extends Service {
             active_status: 'false',
             online_status: online ? 'true' : 'false',
             show_badge: 'false',
-            card_name: name || ''
+            card_name: name || '',
+            session_id: sessionId || ''
         })
         await app.sdb.insert('card_config', {
             card_id: cardId, 
@@ -230,16 +231,46 @@ class WindowService extends Service {
         });
     }
     async logOut(args, event) {
-        // 获取主窗口 ID，确保不销毁其 WebContents
+        Log.info('开始执行全局退出注销流程...');
+        
+        // 1. 获取所有卡片以确保能清除每个独立分区的存储
+        const allCards = await app.sdb.select('cards', {});
+        
+        // 2. 销毁所有活跃视图（WebContentsView）
+        app.viewsMap.forEach((view, key) => {
+            this._destroyView(key);
+        });
+
+        // 3. 彻底清除每个账户的分区数据（Cookies, LocalStorage, IndexedDB 等）
+        // 这样可以确保下次登录时必须重新扫码
+        for (const card of allCards) {
+            const cardId = card.card_id;
+            const partitionKey = `persist:${cardId}`;
+            const cardSession = session.fromPartition(partitionKey);
+            
+            try {
+                await cardSession.clearStorageData({
+                    storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage', 'serviceworkers', 'websql'],
+                    quotas: ['persistent', 'temporary', 'syncable']
+                });
+                Log.info(`已彻底注销分区数据: ${partitionKey}`);
+            } catch (err) {
+                Log.error(`注销分区数据失败 ${partitionKey}:`, err);
+            }
+        }
+
+        // 4. 重置数据库中的在线状态和头像信息
+        await app.sdb.update('cards', { show_badge: 'false', online_status: 'false', avatar_url: '' }, {});
+
+        // 5. 重置主窗口标题及清除内存中的 Token
         const mainId = Addon.get('window').getMWCid();
         const mainWin = BrowserWindow.fromId(mainId);
-        app.viewsMap.forEach((view, key) => {
-            this._destroyView(key)
-        });
-        await app.sdb.update('cards',{show_badge:'false',online_status:'false',avatar_url:''},{})
-        mainWin.setTitle('setToolbox')
-        app.boxToken = null; // Clear token
-        Log.info('Token cleared from app.boxToken');
+        if (mainWin) {
+            mainWin.setTitle('setToolbox');
+        }
+        
+        app.boxToken = null; 
+        Log.info('✅ 全局退出完成，所有 WhatsApp 会话已注销。');
     }
 
     async filterNumber(args, event) {

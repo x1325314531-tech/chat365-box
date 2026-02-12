@@ -86,6 +86,7 @@ function handleMenuSelect(id) {
   if (item) {
     router.push(item.path);
   }
+  
 }
 
 // 处理退出按钮点击

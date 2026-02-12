@@ -39,6 +39,7 @@ class Index extends Application {
           active_status: 'TEXT',
           online_status: 'TEXT',
           show_badge: 'TEXT',
+          session_id: 'TEXT',
         },
         constraints: []
       },

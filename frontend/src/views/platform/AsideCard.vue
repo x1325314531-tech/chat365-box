@@ -110,6 +110,7 @@ async function getAllSessions() {
           ...item,
           cardId: item.card_id || item.cardId, // 确保 cardId 和 card_id 都存在
           card_id: item.card_id || item.cardId,
+          sessionId: item.session_id || item.sessionId,
           active_status: activeStatus,
           online_status: String(item.online_status || item.onlineStatus || 'false') === 'true' || String(item.online_status || item.onlineStatus) === '1' ? 'true' : 'false',
           show_badge: String(item.show_badge || 'false')

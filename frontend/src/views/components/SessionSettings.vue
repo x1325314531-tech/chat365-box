@@ -1173,6 +1173,7 @@ const confirmClick = async () => {
           name: configForm.name,
           online: true,
           platform: props.platform,
+          sessionId: res.data && (typeof res.data === 'object' ? (res.data.id || res.data.sessionId) : res.data)
         };
         console.log('addIPC', addArgs);
         

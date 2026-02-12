@@ -411,7 +411,14 @@ function syncAllImageLangSelects(type, value) {
     const selector = type === 'from' ? '.fromImageLangSelect' : '.targetImageLangSelect';
     document.querySelectorAll(selector).forEach(select => {
         if (select.value !== value) {
+
             select.value = value;
+            console.log('select.value', select.value);
+            
+            // 如果存在自定义 UI 更新钩子，则调用它
+            if (typeof select._updateCustomUI === 'function') {
+                select._updateCustomUI();
+            }
         }
     });
 }
@@ -1517,6 +1524,7 @@ function addTranslateButtonToPreview(imgElement, dialog) {
                          document.querySelector('.message-in img[src="' + imgElement.src + '"]') ||
                          // 兜底：如果无法确定，根据全局配置或默认逻辑
                          (typeof lastPreviewedSource === 'undefined' ? false : true));
+    console.log('isIncoming', isIncoming);
     
     // 设置初始全局变量
     if (isIncoming) {
@@ -1579,6 +1587,8 @@ function addTranslateButtonToPreview(imgElement, dialog) {
         // 隐藏的原生 select 用于数据存储和 populateLanguageSelects 兼容
         const select = document.createElement('select');
         select.className = className;
+        // 提取 ID：去掉 Select 后缀，例如 fromImageLangSelect -> fromImageLang
+        select.id = className.replace('Select', '');
         select.style.display = 'none';
         select.value = defaultVal;
 
@@ -1801,6 +1811,9 @@ function addTranslateButtonToPreview(imgElement, dialog) {
     const { wrapper: targetWrapper, select: targetSelect } = createStyledSelect('targetImageLangSelect', '目标', targetImageLang);
     targetSelect.onchange = (e) => { 
         targetImageLang = e.target.value;
+       console.log('选中目标语音', e.target.value);
+       
+        
         syncAllImageLangSelects('target', e.target.value);
     };
 
@@ -1940,28 +1953,21 @@ async function translateImageInWhatsApp(imgElement) {
         }
         
         window.electronAPI.showNotification({ message: '正在发起图片翻译请求...', type: 'is-info' });
-
-        // 根据图片是发送还是接收，设置默认方向
-        const isIncoming = !!imgElement.closest('.message-in');
-        if (isIncoming) {
-            fromImageLang = 'en';
-            targetImageLang = 'zh';
-        } else {
-            // 修改：即使是发送的消息或预览图，也默认 en -> zh
-            fromImageLang = 'en';
-            targetImageLang = 'zh';
-        }
-
-        // 同步到下拉框
+ 
+        // 尝试从 DOM 中实时获取下拉框的值（以最新的 UI 为准）
         const fromSelect = document.getElementById('fromImageLang');
         const targetSelect = document.getElementById('targetImageLang');
-        if (fromSelect) fromSelect.value = fromImageLang;
-        if (targetSelect) targetSelect.value = targetImageLang;
+        
+        if (fromSelect) fromImageLang = fromSelect.value;
+        if (targetSelect) targetImageLang = targetSelect.value;
 
-        // 获取最终使用的语言（优先取下拉框的值）
-        const finalFromLang = fromSelect ? fromSelect.value : fromImageLang;
-        const finalTargetLang = targetSelect ? targetSelect.value : targetImageLang;
-
+        console.log('选中状态确认:', fromImageLang, targetImageLang);
+          
+        // 获取最终使用的语言
+        const finalFromLang = fromImageLang;
+        const finalTargetLang = targetImageLang;
+        console.log('图片翻译参数', finalFromLang, finalTargetLang);
+         
         const result = await window.electronAPI.translateImage({
             imageData: imageData,
             from: finalFromLang,
