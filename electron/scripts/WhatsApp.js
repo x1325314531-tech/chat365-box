@@ -351,6 +351,7 @@ function notify() {
 monitorMainNode()
 initTenantConfig()
 
+
 // 初始化语言列表
 function getLanguageList() {
     window.electronAPI.languageList().then((response) => {
@@ -445,7 +446,9 @@ function startMonitor() {
         console.log('✅ 找到输入框，添加事件监听');
 
         // 移除可能存在的旧监听器
-        editableDiv.removeEventListener('keydown', handleKeyDown);
+        // 关键修复：移除监听器时必须与添加时的 useCapture 参数（true）一致
+        editableDiv.removeEventListener('keydown', handleKeyDown, true);
+        editableDiv.removeEventListener('input', handleInput, true);
 
         // 添加新的事件监听器
         editableDiv.addEventListener('keydown', handleKeyDown, true);
@@ -469,7 +472,18 @@ function handleInput(event) {
         }
     }
 }
+// 归一化文本，将所有空白字符（含换行、制表符、多个空格）统一处理为单个半角空格并修剪首尾
+function normalizeText(text) {
+    if (!text) return '';
+    return text.trim().replace(/\s+/g, ' ');
+}
 
+// 处理空格 换行 
+function cleanParagraph(text) {
+  let noLineBreaks = text.replace(/[\r\n]+/g, ' ');
+  let singleSpaces = noLineBreaks.replace(/\s{2,}/g, ' ');
+  return singleSpaces.trim();
+}
 // 分离事件处理函数，便于管理
 async function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.ctrlKey) {
@@ -477,6 +491,7 @@ async function handleKeyDown(event) {
 
         // 获取输入框内容
         const inputText = getInputContent();
+
         console.log('输入内容:', inputText);
 
         if (!inputText.trim()) {
@@ -545,8 +560,9 @@ async function handleKeyDown(event) {
             // 记录原文,用于后续翻译
             const originalText = inputText;
              // ===== 敏感词检测 =====
-        
+         console.log('敏感词inputText', inputText);
         const sensitiveCheck = await checkSensitiveContent(inputText);
+        console.log('敏感词', sensitiveCheck);
         
         if (sensitiveCheck.isSensitive) {
             console.warn('🚫 检测到敏感内容，阻止发送');
@@ -560,11 +576,15 @@ async function handleKeyDown(event) {
             // 可选：在输入框下方显示警告提示
             showSensitiveWarning(sensitiveCheck.reason);
             
-             
+            return false; // 修复：检测到敏感词应直接返回，不再执行后续流程
         }
+        //  originalText = cleanParagraph(originalText); 
+        //   
             // 延迟调用翻译并渲染
+            let noLineBreaks = normalizeText(originalText);
+            //      console.log('originalText++++++', noLineBreaks);                    
             setTimeout(() => {
-                translateAndDisplayBelowSentMessage(originalText);
+                translateAndDisplayBelowSentMessage(noLineBreaks);
             }, 500);
             return;
         }
@@ -578,7 +598,8 @@ async function handleKeyDown(event) {
 // 获取输入框内容的函数
 function getInputContent() {
     let editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
-    return editableDiv ? editableDiv.textContent || editableDiv.innerText : '';
+    // 优先使用 innerText，因为它能更好地处理换行块 (<div>/p/<br>) 转换为文字
+    return editableDiv ? (editableDiv.innerText || editableDiv.textContent) : '';
 }
 
 // 敏感词检测函数
@@ -796,43 +817,66 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
  * 用于场景: sendAutoTranslate: false 且 sendAutoNotTranslate: true
  * @param {string} originalText - 原始消息文本
  */
-async function translateAndDisplayBelowSentMessage(originalText) {
+/**
+ * 翻译已发送的消息并在消息下方显示译文
+ * 用于场景: sendAutoTranslate: false 且 sendAutoNotTranslate: true
+ * @param {string} originalText - 原始消息文本
+ * @param {number} retryCount - 当前重试次数
+ */
+async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0) {
     let loadingNode = null;
     let textSpan = null;
+    const MAX_RETRIES = 3;
     
     try {
-        console.log('🌐 开始翻译已发送的消息:', originalText.substring(0, 50));
+        console.log(`🌐 [Attempt ${retryCount + 1}] 开始查找已发送的消息:`, originalText.substring(0, 30));
         
-        // 1. 查找最新发送的消息
-        const sentMessages = document.querySelectorAll('.message-out');
+        // 1. 查找发送的消息 (message-out 是发送的消息)
+        const sentMessages = Array.from(document.querySelectorAll('.message-out'));
         if (sentMessages.length === 0) {
-            console.log('❌ 未找到发送的消息');
+            if (retryCount < MAX_RETRIES) {
+                console.log('⏳ 未找到发送消息，可能是 DOM 尚未更新，500ms 后重试...');
+                setTimeout(() => translateAndDisplayBelowSentMessage(originalText, retryCount + 1), 500);
+            } else {
+                console.log('❌ 达到最大重试次数，放弃查找');
+            }
             return;
         }
         
-        const lastSentMessage = sentMessages[sentMessages.length - 1];
-        
-        // 2. 查找消息文本的span
-        textSpan = lastSentMessage.querySelector('span[dir="ltr"], span[dir="rtl"]');
-        if (!textSpan) {
-            console.log('❌ 未找到消息文本span');
+        // 2. 倒序遍历最后几条消息寻找匹配项 (防止乱序或消息堆叠)
+        const searchRange = Math.min(sentMessages.length, 5);
+        let matchedMessage = null;
+        let normOriginal = normalizeText(originalText);
+
+        for (let i = 1; i <= searchRange; i++) {
+            const msgNode = sentMessages[sentMessages.length - i];
+            const span = msgNode.querySelector('span[dir="ltr"], span[dir="rtl"]');
+            if (!span) continue;
+
+            // 优先使用 innerText 获取带换行的文本
+            const spanText = span.innerText || span.textContent;
+            const normMsg = normalizeText(spanText);
+            if (normMsg.includes(normOriginal) || normOriginal.includes(normMsg)) {
+                // 确保该消息还没添加翻译
+                if (!span.querySelector('.translation-result')) {
+                    matchedMessage = msgNode;
+                    textSpan = span;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedMessage) {
+            if (retryCount < MAX_RETRIES) {
+                console.log('⏳ 尚未在 DOM 中找到内容匹配的消息，500ms 后重试...');
+                setTimeout(() => translateAndDisplayBelowSentMessage(originalText, retryCount + 1), 500);
+            } else {
+                console.log('⚠️ 最终未找到匹配的可翻译消息');
+            }
             return;
         }
         
-        // 3. 检查是否已经添加过译文
-        if (textSpan.querySelector('.translation-result')) {
-            console.log('⏳ 译文已显示,跳过');
-            return;
-        }
-        
-        // 4. 验证是否是刚发送的消息
-        const msgContent = textSpan.textContent.trim();
-        if (!msgContent.includes(originalText.substring(0, 20))) {
-            console.log('⚠️ 消息内容不匹配,跳过');
-            return;
-        }
-        
-        // 5. 创建并显示加载状态指示器
+        // 3. 创建并显示加载状态指示器
         loadingNode = document.createElement('div');
         loadingNode.className = 'translation-loading';
         loadingNode.style.cssText = `
@@ -854,7 +898,7 @@ async function translateAndDisplayBelowSentMessage(originalText) {
             </div>
         `;
         
-        // 添加动画样式(如果还没有)
+        // 添加动画样式
         if (!document.getElementById('translation-loading-animation')) {
             const style = document.createElement('style');
             style.id = 'translation-loading-animation';
@@ -868,88 +912,43 @@ async function translateAndDisplayBelowSentMessage(originalText) {
         }
         
         textSpan.appendChild(loadingNode);
-        console.log('⏳ 加载指示器已显示');
         
-        // 6. 获取目标语言
+        // 4. 获取语言配置
         const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
-        const toLang = globalConfig?.sendAutoNotTargetlseLang || 'en';
+        const toLang = globalConfig?.sendAutoNotTargetLang || 'zh';
         
-        console.log(`🌐 翻译发送消息: ${fromLang} -> ${toLang}`);
-        
-        // 7. 先检查缓存
+        // 5. 调用翻译API (先查缓存)
         let translatedText = await getTranslationCache(originalText, fromLang, toLang);
-        
         if (!translatedText) {
-            // 缓存未命中,调用翻译接口
-            console.log('📡 缓存未命中,调用翻译API...');
             const result = await translateTextAPI(originalText, fromLang, toLang);
-            
-            // 移除加载指示器
-            if (loadingNode && loadingNode.parentNode) {
-                loadingNode.remove();
-                loadingNode = null;
-            }
-            
-            if (!result || !result.success) {
-                console.warn('⚠️ 翻译失败:', result?.msg);
-                window.electronAPI.showNotification({
-                    message: `翻译失败: ${result?.msg || '服务异常'}`,
-                    type: 'is-warning'
-                });
-                return;
-            }
-            
-            translatedText = result.data;
-            console.log('✅ 翻译成功:', translatedText);
-            
-            // 保存到缓存
-            await saveTranslationCache(originalText, translatedText, fromLang, toLang);
-        } else {
-            // 缓存命中,直接使用
-            console.log('🚀 使用缓存的翻译结果');
-            
-            // 移除加载指示器
-            if (loadingNode && loadingNode.parentNode) {
-                loadingNode.remove();
-                loadingNode = null;
+            if (result && result.success) {
+                translatedText = result.data;
+                await saveTranslationCache(originalText, translatedText, fromLang, toLang);
             }
         }
 
-        // 校验：如果译文与原文完全一致，则不显示翻译节点
-        if (translatedText.trim() === originalText.trim()) {
-            console.log('ℹ️ 译文与原文一致，跳过显示译文');
-            return;
+        // 移除指示器
+        if (loadingNode && loadingNode.parentNode) loadingNode.remove();
+
+        if (translatedText && normalizeText(translatedText) !== normalizeText(originalText)) {
+            const translationNode = document.createElement('div');
+            translationNode.className = 'translation-result';
+            translationNode.style.cssText = `
+                font-size: 13px;
+                color: #25D366;
+                border-top: 1px dashed #ccc;
+                padding-top: 5px;
+                margin-top: 5px;
+                font-style: italic;
+            `;
+            translationNode.textContent = translatedText;
+            textSpan.appendChild(translationNode);
+            console.log('✅ 译文已追加');
         }
-        
-        // 9. 创建译文显示节点(样式与接收消息翻译一致)
-        const translationNode = document.createElement('div');
-        translationNode.className = 'translation-result';
-        translationNode.style.cssText = `
-            font-size: 13px;
-            color: #25D366;
-            border-top: 1px dashed #ccc;
-            padding-top: 5px;
-            margin-top: 5px;
-            font-style: italic;
-        `;
-        translationNode.textContent = translatedText;
-        
-        // 10. 添加到消息下方
-        textSpan.appendChild(translationNode);
-        console.log('✅ 译文已显示在消息下方');
         
     } catch (error) {
-        console.error('❌ 翻译并显示失败:', error);
-        
-        // 移除加载指示器
-        if (loadingNode && loadingNode.parentNode) {
-            loadingNode.remove();
-        }
-        
-        window.electronAPI.showNotification({
-            message: `翻译异常: ${error.message}`,
-            type: 'is-danger'
-        });
+        console.error('❌ 异步翻译过程出错:', error);
+        if (loadingNode && loadingNode.parentNode) loadingNode.remove();
     }
 }
 
@@ -2491,21 +2490,26 @@ async function restoreSentMessageTranslations() {
                 continue;
             }
 
-            const msgText = span.textContent.trim();
+            // 获取消息文本 (优先使用 innerText 以获取正确的换行)
+            const spanText = span.innerText || span.textContent;
+            const msgText = spanText.trim();
             if (!msgText || msgText.length < 1) continue;
 
             // 尝试从缓存获取
             // 优先使用当前配置的语言对查询
             const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
-            const toLang = globalConfig?.sendAutoNotTargetlseLang || 'en';
+            const toLang = globalConfig?.sendAutoNotTargetLang || 'en';
             
-            let cachedTrans = await getTranslationCache(msgText, fromLang, toLang);
+            // 关键修复：缓存时使用的是归一化后的文本（去除换行），恢复时也必须归一化才能匹配 key
+            const normalizedMsgText = normalizeText(msgText);
             
-            // 如果精确匹配没找到，尝试只用原文查找（可能配置变了，但想显示历史翻译）
+            let cachedTrans = await getTranslationCache(normalizedMsgText, fromLang, toLang);
+            
+            // 如果精确匹配没找到，尝试只用原文查找
             if (!cachedTrans) {
-                 // 避免对很短的文本进行模糊查询，防止误判
-                 if (msgText.length > 1) {
-                    const record = await getTranslationByOriginalText(msgText);
+                 // 避免对很短的文本进行模糊查询
+                 if (normalizedMsgText.length > 1) {
+                    const record = await getTranslationByOriginalText(normalizedMsgText);
                     if (record) cachedTrans = record.translatedText;
                  }
             }

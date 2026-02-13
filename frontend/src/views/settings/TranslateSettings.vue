@@ -299,7 +299,7 @@ const config = reactive({
   receiveTargetLang: 'zh',
   sendAutoNotTranslate:false,
   sendAutoNotSourceLang:'en',
-  sendAutoNotTargetlseLang:'zh',
+  sendAutoNotTargetLang:'zh',
   sendColoseChannel:'Baidu',
   // manualTranslate: true,
   // 聊天列表

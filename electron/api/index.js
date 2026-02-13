@@ -41,8 +41,8 @@ async function translateText(text,localLanguage, targetLanguage) {
     try {
         // 使用封装好的 request 模块的 POST 方法发送数据
         const response = await request.post('/app/translate', requestBody);
-        Log.info('响应结果：',response)
-       
+        Log.info('文本翻译应结果：',response)
+        
         // 判断响应状态码
         if (response.code === 200) {
             return { success: true, data: response.data }; // 返回翻译结果
