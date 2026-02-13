@@ -581,10 +581,10 @@ async function handleKeyDown(event) {
         //  originalText = cleanParagraph(originalText); 
         //   
             // 延迟调用翻译并渲染
-            let noLineBreaks = normalizeText(originalText);
-            //      console.log('originalText++++++', noLineBreaks);                    
+            // 传递原文(含换行)给翻译函数，以便 API 能正确处理换行，
+            // 但在 translateAndDisplayBelowSentMessage 内部会归一化后进行缓存键匹配
             setTimeout(() => {
-                translateAndDisplayBelowSentMessage(noLineBreaks);
+                translateAndDisplayBelowSentMessage(originalText);
             }, 500);
             return;
         }
@@ -876,7 +876,85 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
             return;
         }
         
-        // 3. 创建并显示加载状态指示器
+        // 3. 立即创建并显示翻译图标 (Before Translation)
+        // 检查是否已经存在图标
+        let iconContainer = textSpan.querySelector('.translate-icon-btn');
+        let translationNode = textSpan.querySelector('.translation-result'); // 预先查找引用
+
+        if (!iconContainer) {
+            iconContainer = document.createElement('span');
+            iconContainer.className = 'translate-icon-btn';
+            iconContainer.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                margin-left: 5px;
+                vertical-align: middle;
+                cursor: pointer;
+                color: #25D366;
+                position: relative;
+                z-index: 10;
+            `;
+            iconContainer.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 8l6 6"></path>
+                <path d="M4 14l6-6 2-3"></path>
+                <path d="M2 5h12"></path>
+                <path d="M7 2h1"></path>
+                <path d="M22 22l-5-10-5 10"></path>
+                <path d="M14 18h6"></path>
+            </svg>`;
+            
+            // 先追加图标到原文后面
+            textSpan.appendChild(iconContainer);
+        }
+
+        // 定义点击事件
+        iconContainer.onclick = async (e) => {
+            e.stopPropagation();
+            
+            // 添加旋转动画
+            iconContainer.style.transition = 'transform 0.5s ease';
+            iconContainer.style.transform = 'rotate(360deg)';
+            
+            // 获取当前语言配置
+            const currentFrom = globalConfig?.sendAutoNotSourceLang || 'en';
+            const currentTo = globalConfig?.sendAutoNotTargetLang || 'zh';
+            
+            try {
+                console.log('🔄 用户点击图标，开始重新翻译:', originalText.substring(0, 20));
+                const res = await translateTextAPI(originalText, currentFrom, currentTo);
+                
+                if (res && res.success) {
+                    // 如果还没有翻译结果节点，则创建一个
+                    if (!translationNode) {
+                        translationNode = document.createElement('div');
+                        translationNode.className = 'translation-result';
+                        translationNode.style.cssText = `
+                            font-size: 13px;
+                            color: #25D366;
+                            border-top: 1px dashed #ccc;
+                            padding-top: 5px;
+                            margin-top: 5px;
+                            font-style: italic;
+                        `;
+                        textSpan.appendChild(translationNode);
+                    }
+                    translationNode.textContent = res.data;
+                    // 更新缓存 (使用归一化文本)
+                    await saveTranslationCache(normalizeText(originalText), res.data, currentFrom, currentTo);
+                    console.log('✅ 重新翻译成功并更新显示');
+                }
+            } catch (error) {
+                console.error('❌ 重新翻译失败:', error);
+            }
+            
+            // 重置动画
+            setTimeout(() => {
+                iconContainer.style.transition = 'none';
+                iconContainer.style.transform = 'rotate(0deg)';
+            }, 500);
+        };
+        
+        // 3.5 创建并显示加载状态指示器
         loadingNode = document.createElement('div');
         loadingNode.className = 'translation-loading';
         loadingNode.style.cssText = `
@@ -917,13 +995,16 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
         const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
         const toLang = globalConfig?.sendAutoNotTargetLang || 'zh';
         
-        // 5. 调用翻译API (先查缓存)
-        let translatedText = await getTranslationCache(originalText, fromLang, toLang);
+        // 5. 调用翻译API (先查缓存 - 使用归一化文本查缓存)
+        const normOriginalForCache = normalizeText(originalText);
+        let translatedText = await getTranslationCache(normOriginalForCache, fromLang, toLang);
         if (!translatedText) {
+            // 翻译时使用原文(含换行)，以获得更好翻译质量
             const result = await translateTextAPI(originalText, fromLang, toLang);
             if (result && result.success) {
                 translatedText = result.data;
-                await saveTranslationCache(originalText, translatedText, fromLang, toLang);
+                // 保存缓存时使用归一化文本作为 key
+                await saveTranslationCache(normOriginalForCache, translatedText, fromLang, toLang);
             }
         }
 
@@ -931,18 +1012,21 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
         if (loadingNode && loadingNode.parentNode) loadingNode.remove();
 
         if (translatedText && normalizeText(translatedText) !== normalizeText(originalText)) {
-            const translationNode = document.createElement('div');
-            translationNode.className = 'translation-result';
-            translationNode.style.cssText = `
-                font-size: 13px;
-                color: #25D366;
-                border-top: 1px dashed #ccc;
-                padding-top: 5px;
-                margin-top: 5px;
-                font-style: italic;
-            `;
+            // 如果翻译结果节点不存在，则创建
+            if (!translationNode) {
+                translationNode = document.createElement('div');
+                translationNode.className = 'translation-result';
+                translationNode.style.cssText = `
+                    font-size: 13px;
+                    color: #25D366;
+                    border-top: 1px dashed #ccc;
+                    padding-top: 5px;
+                    margin-top: 5px;
+                    font-style: italic;
+                `;
+                textSpan.appendChild(translationNode);
+            }
             translationNode.textContent = translatedText;
-            textSpan.appendChild(translationNode);
             console.log('✅ 译文已追加');
         }
         
@@ -2475,66 +2559,134 @@ async function getTranslationByOriginalText(originalText) {
 }
 
 // 恢复发送消息的译文显示（针对 sendAutoTranslate: false 场景）
+// 恢复发送消息的译文显示（针对 sendAutoTranslate: false 场景）
 async function restoreSentMessageTranslations() {
     // 只有在开启“发送消息显示译文”时才执行
     if (!globalConfig?.sendAutoNotTranslate) return;
 
     try {
         // 查找所有发送的消息
-        const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"]:not([data-translation-restored]), .message-out span[dir="rtl"]:not([data-translation-restored])');
+        // 移除 data-translation-restored 限制，因为我们需要检查每一条消息是否缺少图标
+        const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"], .message-out span[dir="rtl"]');
         
         for (let span of sentMessages) {
-             // 跳过已经有翻译结果显示的
-            if (span.querySelector('.translation-result')) {
-                span.setAttribute('data-translation-restored', 'true');
-                continue;
-            }
-
             // 获取消息文本 (优先使用 innerText 以获取正确的换行)
             const spanText = span.innerText || span.textContent;
             const msgText = spanText.trim();
             if (!msgText || msgText.length < 1) continue;
 
-            // 尝试从缓存获取
-            // 优先使用当前配置的语言对查询
-            const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
-            const toLang = globalConfig?.sendAutoNotTargetLang || 'en';
-            
-            // 关键修复：缓存时使用的是归一化后的文本（去除换行），恢复时也必须归一化才能匹配 key
-            const normalizedMsgText = normalizeText(msgText);
-            
-            let cachedTrans = await getTranslationCache(normalizedMsgText, fromLang, toLang);
-            
-            // 如果精确匹配没找到，尝试只用原文查找
-            if (!cachedTrans) {
-                 // 避免对很短的文本进行模糊查询
-                 if (normalizedMsgText.length > 1) {
-                    const record = await getTranslationByOriginalText(normalizedMsgText);
-                    if (record) cachedTrans = record.translatedText;
-                 }
+            // 1. 检查并添加翻译图标 (如果不存在)
+            let iconContainer = span.querySelector('.translate-icon-btn');
+            if (!iconContainer) {
+                iconContainer = document.createElement('span');
+                iconContainer.className = 'translate-icon-btn';
+                iconContainer.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    margin-left: 5px;
+                    vertical-align: middle;
+                    cursor: pointer;
+                    color: #25D366;
+                    position: relative;
+                    z-index: 10;
+                `;
+                iconContainer.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 8l6 6"></path>
+                    <path d="M4 14l6-6 2-3"></path>
+                    <path d="M2 5h12"></path>
+                    <path d="M7 2h1"></path>
+                    <path d="M22 22l-5-10-5 10"></path>
+                    <path d="M14 18h6"></path>
+                </svg>`;
+
+                // 定义点击事件
+                iconContainer.onclick = async (e) => {
+                    e.stopPropagation();
+                    
+                    // 添加旋转动画
+                    iconContainer.style.transition = 'transform 0.5s ease';
+                    iconContainer.style.transform = 'rotate(360deg)';
+                    
+                    // 获取当前语言配置
+                    const currentFrom = globalConfig?.sendAutoNotSourceLang || 'en';
+                    const currentTo = globalConfig?.sendAutoNotTargetLang || 'zh';
+                    
+                    try {
+                        console.log('🔄 用户点击图标，开始重新翻译(恢复消息):', msgText.substring(0, 20));
+                        // 注意：这里使用 msgText (原始文本) 进行重译
+                        const res = await translateTextAPI(msgText, currentFrom, currentTo);
+                        
+                        if (res && res.success) {
+                            // 查找或创建译文节点
+                            let translationNode = span.querySelector('.translation-result');
+                            if (!translationNode) {
+                                translationNode = document.createElement('div');
+                                translationNode.className = 'translation-result';
+                                translationNode.style.cssText = `
+                                    font-size: 13px;
+                                    color: #25D366;
+                                    border-top: 1px dashed #ccc;
+                                    padding-top: 5px;
+                                    margin-top: 5px;
+                                    font-style: italic;
+                                `;
+                                span.appendChild(translationNode);
+                            }
+                            
+                            translationNode.textContent = res.data;
+                            // 更新缓存 (使用归一化文本，确保下次 restore 能找到)
+                            await saveTranslationCache(normalizeText(msgText), res.data, currentFrom, currentTo);
+                            console.log('✅ 重新翻译成功并更新显示');
+                        }
+                    } catch (error) {
+                        console.error('❌ 重新翻译失败:', error);
+                    }
+                    
+                    // 重置动画
+                    setTimeout(() => {
+                        iconContainer.style.transition = 'none';
+                        iconContainer.style.transform = 'rotate(0deg)';
+                    }, 500);
+                };
+
+                // 追加图标到原文后面
+                span.appendChild(iconContainer);
             }
 
-            if (cachedTrans) {
-                 // 创建译文显示节点
-                const translationNode = document.createElement('div');
-                translationNode.className = 'translation-result';
-                translationNode.style.cssText = `
-                    font-size: 13px;
-                    color: #25D366;
-                    border-top: 1px dashed #ccc;
-                    padding-top: 5px;
-                    margin-top: 5px;
-                    font-style: italic;
-                `;
-                translationNode.textContent = cachedTrans;
+            // 2. 检查并恢复缓存的译文 (如果不存在)
+            if (!span.querySelector('.translation-result')) {
+                // 尝试从缓存获取
+                const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
+                const toLang = globalConfig?.sendAutoNotTargetLang || 'en';
+                const normalizedMsgText = normalizeText(msgText);
                 
-                span.appendChild(translationNode);
-                span.setAttribute('data-translation-restored', 'true');
-                console.log('🔄 已从缓存恢复发送消息译文:', msgText.substring(0, 20));
-            } else {
-                 // 标记已检查，但如果未找到，不设置 data-translation-restored，
-                 // 以便下次有缓存时能再次检查（或者可以设置个临时状态）
-                 // 这里暂不处理
+                let cachedTrans = await getTranslationCache(normalizedMsgText, fromLang, toLang);
+                
+                // 如果精确匹配没找到，尝试只用原文查找
+                if (!cachedTrans) {
+                     if (normalizedMsgText.length > 1) {
+                        const record = await getTranslationByOriginalText(normalizedMsgText);
+                        if (record) cachedTrans = record.translatedText;
+                     }
+                }
+
+                if (cachedTrans) {
+                    const translationNode = document.createElement('div');
+                    translationNode.className = 'translation-result';
+                    translationNode.style.cssText = `
+                        font-size: 13px;
+                        color: #25D366;
+                        border-top: 1px dashed #ccc;
+                        padding-top: 5px;
+                        margin-top: 5px;
+                        font-style: italic;
+                    `;
+                    translationNode.textContent = cachedTrans;
+                    
+                    span.appendChild(translationNode);
+                    span.setAttribute('data-translation-restored', 'true');
+                    console.log('🔄 已从缓存恢复发送消息译文:', msgText.substring(0, 20));
+                }
             }
         }
     } catch (e) {
