@@ -156,6 +156,16 @@ class WindowController extends Controller {
         }
     }
 
+    async changeSidebarWidth(args, event) {
+        const { isShrunk } = args;
+        try {
+            return await Services.get('window').changeSidebarWidth(isShrunk);
+        } catch (error) {
+            Log.error('更改侧边栏宽度时出错:', error);
+            return { status: false, message: '同步侧边栏状态失败' };
+        }
+    }
+
     async filterNumber(args, event) {
         // 解构参数
         const { platform, cardId, phoneNumber } = args;

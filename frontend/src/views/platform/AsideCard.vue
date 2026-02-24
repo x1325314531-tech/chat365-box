@@ -47,6 +47,7 @@ const ipcApiRoute = {
   getConfigInfo: 'controller.window.getConfigInfo',
   executeJavaScript: 'controller.window.executeJavaScript',
   hideWindow: 'controller.window.hideWindow',
+  changeSidebarWidth: 'controller.window.changeSidebarWidth',
 };
 
 
@@ -303,6 +304,7 @@ async function handleRefresh(card) {
 // 处理打开/关闭侧边栏
 const handleShrink=() => {
   openSidebar.value= !openSidebar.value
+  ipc.invoke(ipcApiRoute.changeSidebarWidth, { isShrunk: openSidebar.value });
 }
 // 处理关闭按钮点击
 function handleClose(card) {

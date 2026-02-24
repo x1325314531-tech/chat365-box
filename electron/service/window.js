@@ -24,6 +24,7 @@ class WindowService extends Service {
     constructor(ctx) {
         super(ctx);
         app.platforms = app.platforms || platforms;
+        this.isShrunk = false; // 记录侧边栏是否收缩
     }
 
     async addCard(args, event) {
@@ -273,6 +274,23 @@ class WindowService extends Service {
         Log.info('✅ 全局退出完成，所有 WhatsApp 会话已注销。');
     }
 
+    async changeSidebarWidth(isShrunk) {
+        this.isShrunk = isShrunk;
+        Log.info('侧边栏状态变更:', isShrunk ? '收缩' : '展开');
+        
+        // 获取当前活跃的 view
+        const activeCard = await app.sdb.selectOne('cards', { active_status: 'true' });
+        if (activeCard) {
+            const view = app.viewsMap.get(activeCard.card_id);
+            const mainId = Addon.get('window').getMWCid();
+            const mainWin = BrowserWindow.fromId(mainId);
+            if (view && mainWin) {
+                this._resizeView(mainWin, view);
+            }
+        }
+        return { status: true };
+    }
+
     async filterNumber(args, event) {
         const { platform, cardId, phoneNumber } = args;
         //查询手机号码是否存在检测记录
@@ -364,7 +382,9 @@ class WindowService extends Service {
     _resizeView(mainWin, view) {
         if (mainWin && view) {
             const [width, height] = mainWin.getContentSize();
-            view.setBounds({ x: 291, y: 0, width: width - 289, height });
+            // 左侧导航(50) + AsideCard(240/100) + border(1)
+            const xOffset = this.isShrunk ? 151 : 291;
+            view.setBounds({ x: xOffset, y: 0, width: width - xOffset + 2, height });
         }
     }
     async _applyProxySettings(webContents, config) {
@@ -446,7 +466,8 @@ class WindowService extends Service {
         const mainWin = BrowserWindow.fromId(mainId);
         if (view && !view.webContents.isDestroyed()) {
             const [width, height] = mainWin.getContentSize();
-            view.setBounds({ x: 291, y: 0, width: width - 289, height });
+            const xOffset = this.isShrunk ? 151 : 291;
+            view.setBounds({ x: xOffset, y: 0, width: width - xOffset + 2, height });
             mainWin.contentView.addChildView(view);
             mainWin.removeAllListeners('resize');
             mainWin.on('resize', () => this._resizeView(mainWin, view));
