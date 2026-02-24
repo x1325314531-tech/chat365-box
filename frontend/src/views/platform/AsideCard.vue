@@ -23,6 +23,7 @@ const importPanel = ref(false)
 const userPortraitPanel = ref(false)
 const userPortraitPanelData = ref({})
 const importPanelData = ref({})
+const openSidebar = ref(false)
 // 接收父组件传入的标题
 const props = defineProps({
   title: {
@@ -299,7 +300,10 @@ async function handleRefresh(card) {
     }
   })
 }
-
+// 处理打开/关闭侧边栏
+const handleShrink=() => {
+  openSidebar.value= !openSidebar.value
+}
 // 处理关闭按钮点击
 function handleClose(card) {
   card.loading = true;
@@ -324,51 +328,56 @@ function handleClose(card) {
 }
 </script>
 <template>
-  <div class="sidebar">
+  <div class="sidebar" :class="{'sidebar-shrink': openSidebar}">
     <!-- 顶部标题和按钮 -->
     <div class="header">
-      <el-row>
+      <div class="header-shrink">
+         <span v-if="!openSidebar"> {{ title }}</span>
+        <span class="shrink" @click="handleShrink" :class="{'is-active': openSidebar}">
+            <i class="iconfont icon-shrink"></i>
+          </span>
+      </div>
+      <el-row v-if="!openSidebar">
         <el-col :span="24">
           <p>{{ title + ` 会话数量:${conversations.length}` }}</p>
         </el-col>
       </el-row>
-      <el-row>
-        <el-col :span="12">
-          <el-button :loading="addLoading" size="default" @click="addConversation" type="primary">
-            新建会话
-            <el-icon class="el-icon--left"><Plus /></el-icon>
+      <el-row class="header-actions" :class="{'is-shrunk': openSidebar}">
+        <el-col :span="openSidebar ? 24 : 12">
+          <el-button :loading="addLoading" size="default" @click="addConversation" type="primary" :title="openSidebar ? '新建会话' : ''">
+            <el-icon><Plus /></el-icon>
+            <span v-if="!openSidebar">新建会话</span>
           </el-button>
         </el-col>
-        <el-col :span="12">
-          <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success">
-            一键启动
-            <el-icon class="el-icon--left"><SwitchButton/></el-icon>
+        <el-col :span="openSidebar ? 24 : 12">
+          <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success" :title="openSidebar ? '一键启动' : ''">
+            <el-icon><SwitchButton/></el-icon>
+            <span v-if="!openSidebar">一键启动</span>
           </el-button>
         </el-col>
       </el-row>
-
     </div>
     <!-- 会话列表 -->
     <div class="conversation-list">
       <el-card
-          :body-style="{ padding: '10px 10px 0', height: '80px' }"
+          :body-style="{ padding: openSidebar ? '10px 0 0' : '10px 10px 0', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'base-line' }"
           shadow="never"
           v-for="(card, index) in conversations"
           :key="card.card_id"
-          :class="{ 'selected-card': card.active_status === 'true', 'loading-card': card.loading }"
+          :class="{ 'selected-card': card.active_status === 'true', 'loading-card': card.loading, 'is-shrunk': openSidebar }"
           class="conversation-card"
           v-loading="card.loading ?? false"
           @click="!card.loading && selectCard(index, card)"
       >
         <!-- 状态和用户信息 -->
-        <div class="status">
+        <div class="status" v-if="!openSidebar">
           <!-- <span class="status-label" :class="{ 'online-status': card.online_status==='true' }">{{ card.online_status === 'true' ? '在线' : '未登录' }}</span> -->
-        <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }}</span>
+          <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }}</span>
         </div>
-        <div class="card-header">
+        <div class="card-header" :class="{'is-shrunk': openSidebar}">
           <!-- 根据 card.showBadge 控制徽标的显示 -->
           <el-badge
-              style="margin-right: 10px"
+              style="margin-right: 0"
               v-if="card.avatar_url && card.show_badge==='true'"
               is-dot
               type="danger"
@@ -381,19 +390,18 @@ function handleClose(card) {
               v-else-if="card.avatar_url"
               :src="card.avatar_url"
               class="avatar"
-              style="margin-right: 10px"
           />
 
           <!-- 当没有 avatar_url 时显示默认头像 -->
-          <el-avatar v-else style="margin-right: 10px" class="avatar">
+          <el-avatar v-else class="avatar">
             <el-icon><User /></el-icon>
           </el-avatar>
 
-          <h4 class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
+          <h4 v-if="!openSidebar" class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
          <!--- <span v-if="card.card_name" class="subtitle">({{ props.title }})</span>-->
         </div>
         <!-- 右上角的按钮 -->
-        <div class="action-buttons">
+        <div class="action-buttons" v-if="!openSidebar">
           <!-- <el-icon v-if="card.online_status==='true' && props.title==='WhatsApp'" :size="20" @click.stop="importContacts(card)">
             <img style="height: 20px;width: 20px" :src="importSvg" class="platform-svg" draggable="false">
           </el-icon> -->
@@ -440,6 +448,10 @@ function handleClose(card) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.3s ease;
+}
+.sidebar-shrink { 
+  width: 80px;
 }
 .conversation-card.loading-card {
   opacity: 0.6;
@@ -455,7 +467,15 @@ function handleClose(card) {
 .header {
   margin-bottom: 10px;
 }
-
+.header-shrink { 
+  display: flex;
+  justify-content: space-between;
+}
+.shrink { 
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
 .conversation-list {
   flex-grow: 1;
   overflow-y: auto;
@@ -510,11 +530,18 @@ function handleClose(card) {
   display: flex;
   align-items: center;
   margin-top: 30px; /* 为状态和操作按钮留出空间，避免重叠 */
+  transition: all 0.3s ease;
+}
+
+.card-header.is-shrunk {
+  margin-top: 10px;
+  justify-content: center;
 }
 
 .avatar {
   width: 40px;
   height: 40px;
+  transition: all 0.3s ease;
 }
 
 .title {
@@ -541,6 +568,35 @@ function handleClose(card) {
   right: 10px;
   display: flex;
   gap: 5px;
+}
+
+.header-actions.is-shrunk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-actions.is-shrunk .el-col {
+  display: flex;
+  justify-content: center;
+}
+
+.header-actions.is-shrunk .el-button {
+  padding: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shrink .iconfont {
+  transition: transform 0.3s ease;
+}
+
+.shrink.is-active .iconfont {
+  transform: rotate(180deg);
 }
 
 .conversation-list::-webkit-scrollbar {

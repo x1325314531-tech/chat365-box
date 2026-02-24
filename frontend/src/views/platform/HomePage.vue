@@ -3,7 +3,7 @@
     <!-- 顶部部分 -->
         <div class="header-top ">
           <el-row :gutter="12">
-            <el-col :span="8">
+            <el-col :span="4">
              <el-card>
              <div class="countdown">
           <el-icon><AlarmClock /></el-icon>
@@ -11,9 +11,16 @@
         </div>
           </el-card>
             </el-col>
-            <el-col :span="6">
+            <el-col :span="4">
               <el-card>
-                <div> 清除缓存</div>
+                <div>
+                  <i class="iconfont icon-qingchu"></i>
+                  清除缓存</div>
+              </el-card>
+            </el-col>
+            <el-col :span="2">
+                 <el-card>
+                <div class="select-language"><i class="iconfont icon-language  language"></i> 语言</div>
               </el-card>
             </el-col>
           </el-row>
@@ -250,7 +257,15 @@ const handleQuickAccess = (item) => {
   font-size: 20px;
   margin-bottom: 10px;
 }
-
+.select-language {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.language { 
+  font-size: 20px;
+}
 /* 用户信息区域样式 */
 .header-user-info {
   border-radius: 8px;
