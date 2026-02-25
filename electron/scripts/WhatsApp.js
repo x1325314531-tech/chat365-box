@@ -424,10 +424,15 @@ function syncAllImageLangSelects(type, value) {
     });
 }
 
+// 标志位：当程序内部调用 sendMsg() 时，跳过发送按钮的翻译拦截
+let _isSendingProgrammatically = false;
+
 function sendMsg() {
     let sendButton = document.querySelector('footer span[data-icon="wds-ic-send-filled"]')?.parentNode;
     if (sendButton) {
+        _isSendingProgrammatically = true;
         sendButton.click();
+        _isSendingProgrammatically = false;
         console.log('消息已发送');
     } else {
         console.log('发送按钮不存在！');
@@ -455,6 +460,89 @@ function startMonitor() {
         editableDiv.addEventListener('input', handleInput, true);
 
         console.log('✅ 事件监听器已添加');
+
+        // ====== 发送按钮点击拦截 ======
+        // 使用捕获阶段监听 footer 内的点击，判断是否点击了发送按钮
+        const footer = document.querySelector('footer');
+        if (footer && !footer.__sendBtnIntercepted) {
+            footer.__sendBtnIntercepted = true;
+            footer.addEventListener('click', async function handleSendButtonClick(e) {
+                // 检查点击目标是否是发送按钮或其子元素
+                const sendIcon = e.target.closest('span[data-icon="wds-ic-send-filled"]') ||
+                                 e.target.querySelector('[data-icon="wds-ic-send-filled"]');
+                if (!sendIcon) return; // 不是发送按钮，放行
+
+                // 如果是程序内部调用 sendMsg()，直接放行，不拦截
+                if (_isSendingProgrammatically) return;
+
+                const inputText = getInputContent();
+                if (!inputText || !inputText.trim()) return; // 空内容，放行
+
+                // --- 场景1: 发送自动翻译开启 - 翻译后发送 ---
+                if (globalConfig?.sendAutoTranslate) {
+                    console.log('🖱️ 点击发送按钮 - 场景1: 自动翻译后发送');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+
+                    let loadingNode = document.getElementById('editDivLoadingNode');
+                    if (loadingNode) {
+                        console.log('⏳ 已有处理中的请求,跳过');
+                        return;
+                    }
+
+                    // 翻译预览逻辑
+                    if (globalConfig?.translatePreview && lastPreviewedTranslation) {
+                        if (inputText.trim() === lastPreviewedTranslation.trim()) {
+                            console.log('✅ 预览已确认,发送消息');
+                            sendMsg();
+                            const original = lastPreviewedSource;
+                            const translated = lastPreviewedTranslation;
+                            setTimeout(() => {
+                                addOriginalTextToSentMessage(original, translated);
+                            }, 500);
+                            updatePreviewUI(null);
+                            lastPreviewedTranslation = '';
+                            lastPreviewedSource = '';
+                            return;
+                        }
+                    }
+
+                    executeTranslationFlow(inputText);
+                    return;
+                }
+
+                // --- 场景2: 发送原文,下方显示译文 ---
+                if (!globalConfig?.sendAutoTranslate && globalConfig?.sendAutoNotTranslate) {
+                    console.log('🖱️ 点击发送按钮 - 场景2: 发送原文,下方显示译文');
+                    const originalText = inputText;
+
+                    const sensitiveCheck = await checkSensitiveContent(inputText);
+                    if (sensitiveCheck.isSensitive) {
+                        console.warn('🚫 检测到敏感内容，阻止发送');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        window.electronAPI.showNotification({
+                            message: `⚠️ ${sensitiveCheck.reason}`,
+                            type: 'is-danger'
+                        });
+                        showSensitiveWarning(sensitiveCheck.reason);
+                        return;
+                    }
+
+                    // 不阻止点击，让消息正常发送，然后延迟翻译
+                    setTimeout(() => {
+                        translateAndDisplayBelowSentMessage(originalText);
+                    }, 500);
+                    return;
+                }
+
+                // --- 场景3: 直接发送,不翻译 ---
+                console.log('🖱️ 点击发送按钮 - 场景3: 直接发送');
+            }, true); // 捕获阶段
+            console.log('✅ 发送按钮点击拦截器已添加');
+        }
     } else {
         console.error('❌ 未找到输入框元素，2秒后重试');
         setTimeout(startMonitor, 2000);
