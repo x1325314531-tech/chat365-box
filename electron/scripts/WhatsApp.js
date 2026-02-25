@@ -473,9 +473,14 @@ function handleInput(event) {
     }
 }
 // 归一化文本，将所有空白字符（含换行、制表符、多个空格）统一处理为单个半角空格并修剪首尾
+// 同时移除一些常见的不可见字符和 WhatsApp 特有的控制字符
 function normalizeText(text) {
     if (!text) return '';
-    return text.trim().replace(/\s+/g, ' ');
+    return text.toString()
+        .replace(/[\u200B-\u200D\uFEFF]/g, '') // 移除零宽空格等不可见字符
+        .replace(/\u00A0/g, ' ') // 将不换行空格替换为普通空格
+        .replace(/\s+/g, ' ')    // 连续空白字符塌陷为单个空格
+        .trim();                 // 首尾修剪
 }
 
 // 处理空格 换行 
@@ -788,8 +793,10 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
         }
         
         // 保存原文到本地存储（IndexedDB）
-        await saveSentMessage(translatedText, originalText);
-        console.log('💾 原文已保存到本地:', originalText);
+        // 使用归一化后的译文作为键，提高恢复时的匹配率
+        const normalizedTranslated = normalizeText(translatedText);
+        await saveSentMessage(normalizedTranslated, originalText);
+        console.log('💾 原文已保存到本地 (Key:', normalizedTranslated.substring(0, 20), '):', originalText);
         
         // 创建原文显示节点（与接收消息翻译UI一致）
         // 使用 span + display:block 以避免块级元素嵌套在 span 内导致的渲染冲突
@@ -2336,23 +2343,32 @@ async function restoreSentMessageOriginals() {
                 continue;
             }
             
-            // 获取消息文本
-            const msgText = span.textContent.trim();
-            if (!msgText || msgText.length < 2) {
+            // 获取消息文本 (WhatsApp 消息节点可能包含时间戳子节点，需要小心提取)
+            // 我们尝试只获取直接的文本内容，或者递归获取并清理
+            let rawText = '';
+            
+            // 策略：尝试查找带有 dir 属性的直接文本 span，或者遍历子节点避开时间戳
+            // 通常 span[dir] 是直接容器，但如果是复合内容，子节点会有很多
+            // 这里我们使用 clone 节点并移除疑似时间戳的部分（通常在最后的 span 或 div 中）
+            const clone = span.cloneNode(true);
+            const timeNodes = clone.querySelectorAll('span, div[class*="time"], [class*="timestamp"]');
+            timeNodes.forEach(node => node.remove());
+            rawText = clone.innerText || clone.textContent;
+
+            const msgText = normalizeText(rawText);
+            if (!msgText || msgText.length < 1) {
                 continue;
             }
             
-            console.log('🔍 检查发送消息:', msgText.substring(0, 50));
+            console.log('🔍 检索发送消息原文 (Key:', msgText.substring(0, 30), ')');
             
             // 从本地存储获取原文
             const record = await getSentMessage(msgText);
-            console.log('📦 查询结果:', record);
             
             if (record && record.originalText) {
-                // 校验：如果原文与译文完全一致，则不显示原文节点
-                if (record.originalText.trim() === msgText.trim()) {
+                // 校验：如果原文与当前显示的译文完全一致，则不需要显示
+                if (normalizeText(record.originalText) === msgText) {
                     span.setAttribute('data-original-restored', 'true');
-                    console.log('ℹ️ 恢复出的原文与当前译文一致，跳过显示');
                     continue;
                 }
 
@@ -2370,10 +2386,10 @@ async function restoreSentMessageOriginals() {
                 `;
                 originalNode.textContent = record.originalText;
                 
-                span.appendChild(document.createElement('br')); // Added <br>
+                span.appendChild(document.createElement('br'));
                 span.appendChild(originalNode);
                 span.setAttribute('data-original-restored', 'true');
-                console.log('🔄 已恢复原文显示:', record.originalText);
+                console.log('🔄 已成功恢复原文显示:', record.originalText.substring(0, 30));
             } else {
                 // 移除模糊匹配逻辑，仅支持精确匹配。模糊匹配曾导致钱包地址碰撞（20位前缀相同导致误判）。
                 // 标记为已检查，避免重复查询
@@ -2462,10 +2478,13 @@ async function saveTranslationCache(originalText, translatedText, fromLang, toLa
         const transaction = db.transaction(['translationCache'], 'readwrite');
         const store = transaction.objectStore('translationCache');
         
-        const cacheKey = generateCacheKey(originalText, fromLang, toLang);
+        // 强化：在生成 Key 前进行归一化处理
+        const normalizedOriginal = normalizeText(originalText);
+        const cacheKey = generateCacheKey(normalizedOriginal, fromLang, toLang);
+        
         const cacheData = {
             cacheKey: cacheKey,
-            originalText: originalText,
+            originalText: normalizedOriginal,
             translatedText: translatedText,
             fromLang: fromLang,
             toLang: toLang,
@@ -2506,7 +2525,9 @@ async function getTranslationCache(originalText, fromLang, toLang) {
         const transaction = db.transaction(['translationCache'], 'readonly');
         const store = transaction.objectStore('translationCache');
         
-        const cacheKey = generateCacheKey(originalText, fromLang, toLang);
+        // 强化：在获取缓存前进行归一化处理
+        const normalizedOriginal = normalizeText(originalText);
+        const cacheKey = generateCacheKey(normalizedOriginal, fromLang, toLang);
         
         return new Promise((resolve, reject) => {
             const request = store.get(cacheKey);

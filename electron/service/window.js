@@ -250,11 +250,13 @@ class WindowService extends Service {
             const cardSession = session.fromPartition(partitionKey);
             
             try {
+                // 强化：为了保留翻译记录和历史原文，注销时不再清空 indexdb
+                // 只要清除了 cookies 和 localstorage，WhatsApp 就会强制重新登录
                 await cardSession.clearStorageData({
-                    storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage', 'serviceworkers', 'websql'],
+                    storages: ['cookies', 'localstorage', 'cachestorage', 'serviceworkers', 'websql'],
                     quotas: ['persistent', 'temporary', 'syncable']
                 });
-                Log.info(`已彻底注销分区数据: ${partitionKey}`);
+                Log.info(`已注销分区存储(保留IndexedDB): ${partitionKey}`);
             } catch (err) {
                 Log.error(`注销分区数据失败 ${partitionKey}:`, err);
             }
