@@ -120,6 +120,7 @@
                       </el-select>
                     </div>
                   </div>
+                  
                   <div class="form-item">
                     <div class="form-item-left">
                     <div class="form-label">翻译预览</div>
@@ -143,6 +144,43 @@
                     <div class="form-desc">当翻译结果包含中文时，禁止发送</div>
                     </div>
                     <el-switch v-model="config.blockChineseTranslation" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+                  </div>
+                    <div class="form-item form-none">                  
+                    <div class="form-item-left">
+                    <div class="form-label">  <span class="label-dot"></span>设置语音翻译发送消息</div>
+                    <div class="form-desc">语音消息下面显示译文</div>
+                    <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
+                    </div>
+                  </div> 
+                      <div class="form-row" >
+                    <div class="form-col" >
+                      <div class="form-label">翻译通道</div>
+                      <el-select v-model="config.sendVoiceChannel" disabled placeholder="请选择">
+                        <el-option label="百度" value="Baidu"  />
+                      </el-select>
+                    </div>
+                     <div class="form-col">
+                      <div class="form-label">语音来源语言</div>
+                      <el-select v-model="config.sendVoiceSourceLang" placeholder="请选择">
+                        <el-option
+                          v-for="lang in languageList"
+                          :key="lang.id"
+                          :label="lang.displayName"
+                          :value="lang.code"
+                        />
+                      </el-select>
+                    </div>
+                    <div class="form-col">
+                      <div class="form-label">语音目标语言</div>
+                      <el-select v-model="config.sendVoiceTargetLang" placeholder="请选择">
+                        <el-option
+                          v-for="lang in languageList"
+                          :key="lang.id"
+                          :label="lang.displayName"
+                          :value="lang.code"
+                        />
+                      </el-select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -186,7 +224,43 @@
                       </el-select>
                     </div>
                   </div>
-
+                     <div class="form-item form-none">                  
+                    <div class="form-item-left">
+                    <div class="form-label">  <span class="label-dot"></span>设置语音翻译接收消息</div>
+                    <div class="form-desc">语音消息下面显示译文</div>
+                    <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
+                    </div>
+                  </div> 
+                      <div class="form-row" >
+                    <div class="form-col" >
+                      <div class="form-label">翻译通道</div>
+                      <el-select v-model="config.receiveVoiceChannel" disabled placeholder="请选择">
+                        <el-option label="百度" value="Baidu"  />
+                      </el-select>
+                    </div>
+                     <div class="form-col">
+                      <div class="form-label">语音来源语言</div>
+                      <el-select v-model="config.receiveVoiceSourceLang" placeholder="请选择">
+                        <el-option
+                          v-for="lang in languageList"
+                          :key="lang.id"
+                          :label="lang.displayName"
+                          :value="lang.code"
+                        />
+                      </el-select>
+                    </div>
+                    <div class="form-col">
+                      <div class="form-label">语音目标语言</div>
+                      <el-select v-model="config.receiveVoiceTargetLang" placeholder="请选择">
+                        <el-option
+                          v-for="lang in languageList"
+                          :key="lang.id"
+                          :label="lang.displayName"
+                          :value="lang.code"
+                        />
+                      </el-select>
+                    </div>
+                  </div>
                   <!-- <div class="form-item">
                      <div  class="form-item-left">
                     <div class="form-label">手动翻译</div>
@@ -301,6 +375,12 @@ const config = reactive({
   sendAutoNotSourceLang:'en',
   sendAutoNotTargetLang:'zh',
   sendColoseChannel:'Baidu',
+  sendVoiceSourceLang:'zh',
+  sendVoiceTargetLang:'en',
+  sendVoiceChannel:'Baidu',
+  receiveVoiceSourceLang:'en',
+  receiveVoiceTargetLang:'zh',
+  receiveVoiceChannel:'Baidu',
   // manualTranslate: true,
   // 聊天列表
   showTranslateConfig: true,
@@ -566,7 +646,9 @@ const applyConfig = () => {
   border-bottom: 1px solid #f5f5f5;
   flex-wrap: wrap;
 }
-
+.form-none { 
+  border: none;
+}
 .form-item:last-child {
   border-bottom: none;
 }

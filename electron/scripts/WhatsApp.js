@@ -3321,11 +3321,15 @@ async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
          let  fromLang = null;
          let   toLang =null
         if(isOut) { 
-         fromLang = getLocalLanguage(); 
-         toLang =  getTargetLanguage();
+        //  fromLang = getLocalLanguage(); 
+        //  toLang =  getTargetLanguage();
+        fromLang =globalConfig?.sendVoiceSourceLang;
+        toLang = globalConfig?.sendVoiceTargetLang;
         }else { 
-          fromLang = getTargetLanguage(); 
-          toLang = getLocalLanguage();   
+        //   fromLang = getTargetLanguage(); 
+        //   toLang = getLocalLanguage();   
+        fromLang = globalConfig?.receiveVoiceSourceLang;
+        toLang =  globalConfig?.receiveVoiceTargetLang
         }
 
         console.log(`🌐 正在请求翻译: ${fromLang} -> ${toLang}`);
