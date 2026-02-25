@@ -15,12 +15,32 @@
               <el-card>
                 <div>
                   <i class="iconfont icon-qingchu"></i>
-                  清除缓存</div>
+                  {{ $t('home.clearCache') }}</div>
               </el-card>
             </el-col>
             <el-col :span="6">
                  <el-card>
-                <div class="select-language"><i class="iconfont icon-language  language"></i> 语言</div>
+                <div class="select-language">
+                  <el-dropdown trigger="click" @command="handleLangChange">
+                    <span class="lang-trigger">
+                      <i class="iconfont icon-language language"></i>
+                      {{ currentLangLabel }}
+                      <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                    </span>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item
+                          v-for="lang in langOptions"
+                          :key="lang.value"
+                          :command="lang.value"
+                          :class="{ 'is-active': locale === lang.value }"
+                        >
+                          {{ lang.flag }} {{ lang.label }}
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
               </el-card>
             </el-col>
           </el-row>
@@ -30,7 +50,7 @@
       
       <!-- 用户信息区域 -->
       <div class="header-user-info">
-        <div class="greeting">你好, {{ userInfo.name || '用户' }}。</div>
+        <div class="greeting">{{ $t('home.greeting', { name: userInfo.name || 'User' }) }}</div>
         <div class="info-cards-row">
           <!-- 账户类型 -->
           <div class="info-card-item">
@@ -43,8 +63,8 @@
               </svg>
             </div>
             <div class="info-text">
-              <span class="info-label">账户类型</span>
-              <span class="info-value">子账号</span>
+              <span class="info-label">{{ $t('home.accountType') }}</span>
+              <span class="info-value">{{ $t('home.accountValue') }}</span>
             </div>
           </div>
 
@@ -59,7 +79,7 @@
               </svg>
             </div>
             <div class="info-text">
-              <span class="info-label">可用字符</span>
+              <span class="info-label">{{ $t('home.availableChars') }}</span>
               <span class="info-value">43830 <el-icon><QuestionFilled /></el-icon></span>
             </div>
           </div>
@@ -76,7 +96,7 @@
               </svg>
             </div>
             <div class="info-text">
-              <span class="info-label">可用端口(已用/总数)</span>
+              <span class="info-label">{{ $t('home.availablePorts') }}</span>
               <span class="info-value">0/3</span>
             </div>
           </div>
@@ -84,7 +104,7 @@
       </div>
        <!-- 快捷入口-->
       <div class="quick-access">
-        <div class="quick-access-title">快捷入口</div>
+        <div class="quick-access-title">{{ $t('home.quickAccess') }}</div>
         <div class="quick-access-grid">
           <div 
             class="quick-item" 
@@ -93,11 +113,11 @@
             @click="handleQuickAccess(item)"
           >
             <div class="quick-icon">
-              <img :src="item.icon" :alt="item.title" width="36" height="36" />
+              <img :src="item.icon" :alt="item.titleKey" width="36" height="36" />
             </div>
             <div class="quick-text">
-              <span class="quick-title">{{ item.title }}</span>
-              <span class="quick-desc">{{ item.desc }}</span>
+              <span class="quick-title">{{ $t(item.titleKey) }}</span>
+              <span class="quick-desc">{{ $t(item.descKey) }}</span>
             </div>
           </div>
         </div>
@@ -115,9 +135,9 @@
       <el-card class="info-card" :style="{ height: '100%' }">
         <div class="info-content">
           <h3>------</h3>
-          <p>套餐剩余：<strong>----条</strong></p>
-          <p>会话端口：<strong>---</strong> <el-icon><i class="el-icon-chat-dot-square"></i></el-icon></p>
-          <el-button type="success" size="small">续费套餐</el-button>
+          <p>{{ $t('home.planRemaining') }}：<strong>----条</strong></p>
+          <p>{{ $t('home.sessionPorts') }}：<strong>---</strong> <el-icon><i class="el-icon-chat-dot-square"></i></el-icon></p>
+          <el-button type="success" size="small">{{ $t('home.renewPlan') }}</el-button>
         </div>
       </el-card>
     </el-header>
@@ -125,19 +145,42 @@
     <!-- 内容主体部分 -->
     <el-main style="overflow: auto;">
       <el-card>
-        <div class="title">数据统计</div>
+        <div class="title">{{ $t('home.dataStats') }}</div>
         <LineChart />
       </el-card>
     </el-main>
   </el-container>
+
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlarmClock, QuestionFilled } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import { AlarmClock, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import LineChart from '../components/LineChart.vue'
 import Notification from "@/utils/notification";
+
+// i18n
+const { t, locale } = useI18n()
+
+// 语言选项
+const langOptions = [
+  { value: 'zh', label: '中文', flag: '🇨🇳' },
+  { value: 'en', label: 'English', flag: '🇺🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' }
+]
+
+const currentLangLabel = computed(() => {
+  const found = langOptions.find(l => l.value === locale.value)
+  return found ? `${found.flag} ${found.label}` : '🇨🇳 中文'
+})
+
+const handleLangChange = (lang) => {
+  locale.value = lang
+  localStorage.setItem('app-locale', lang)
+}
+
 // 当前时间
 const currentTime = ref('00:00:00')
 let timer = null
@@ -193,19 +236,19 @@ import wsAiIcon from '@/assets/svgs/ws-ai.svg'
 import wsContactIcon from '@/assets/svgs/ws-contact.svg'
 import fansIcon from '@/assets/svgs/fans.svg'
 
-// 快捷入口数据
+// 快捷入口数据 (使用 i18n key 而非硬编码文案)
 const quickAccessList = ref([
-  { id: 'translate', icon: translateIcon, title: '翻译设置', desc: '为新会话设置默认配置' },
-  { id: 'aiReply', icon: aiReplyIcon, title: 'AI回复设置', desc: '配置AI自动回复功能的全局设置' },
-  { id: 'material', icon: materialIcon, title: '个人素材', desc: '自定义左侧显示的平台' },
-  { id: 'platform', icon: platformIcon, title: '平台设置', desc: '自定义左侧显示的平台' },
-  { id: 'wsGroup', icon: wsGroupIcon, title: 'WS多账号群发', desc: '跨账号群发群聊消息' },
-  { id: 'wsJoin', icon: wsJoinIcon, title: 'WS批量进群', desc: '支持批量加入多个群组' },
-  { id: 'wsLeave', icon: wsLeaveIcon, title: 'WS批量退群', desc: '支持多账号批量退群' },
-  { icon: wsImportIcon, title: 'WS导入式群发', desc: '轻松粘贴号码，批量发送消息' },
-  { icon: wsAiIcon, title: 'WS智能AI养号', desc: '托管式，全自动的AI智能养号' },
-  { icon: wsContactIcon, title: 'WS批量导入通讯录', desc: '批量导入已注册WS的通讯录号码' },
-  { icon: fansIcon, title: '粉丝列表', desc: '查看和管理粉丝数据' }
+  { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
+  { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
+  { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
+  { id: 'platform', icon: platformIcon, titleKey: 'quickItems.platform', descKey: 'quickItems.platformDesc' },
+  { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
+  { id: 'wsJoin', icon: wsJoinIcon, titleKey: 'quickItems.wsJoin', descKey: 'quickItems.wsJoinDesc' },
+  { id: 'wsLeave', icon: wsLeaveIcon, titleKey: 'quickItems.wsLeave', descKey: 'quickItems.wsLeaveDesc' },
+  { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
+  { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
+  { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' },
+  { icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
 ])
 
 const router = useRouter()
@@ -215,7 +258,7 @@ const handleQuickAccess = (item) => {
     router.push('/home/settings')
   }else  { 
      Notification.message({ 
-      message:'开发中',
+      message: t('home.developing'),
       type:'info'
      })
   }
@@ -263,9 +306,28 @@ const handleQuickAccess = (item) => {
   align-items: center;
   justify-content: center;
 }
+.lang-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+.lang-trigger:hover {
+  color: #1890ff;
+}
 .language { 
   font-size: 20px;
 }
+
+/* 下拉菜单激活项样式 */
+:deep(.el-dropdown-menu__item.is-active) {
+  color: #1890ff;
+  font-weight: 500;
+  background-color: #e6f7ff;
+}
+
 /* 用户信息区域样式 */
 .header-user-info {
   border-radius: 8px;

@@ -1,5 +1,6 @@
 <script setup>
 import {onMounted, onUnmounted, reactive, ref, watch} from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Refresh, Close,Delete,Setting ,Plus,User, Edit, SwitchButton,Select} from '@element-plus/icons-vue';
 import importSvg from '@/assets/svgs/import.svg';
 import userportrait from '@/assets/svgs/userportrait.svg';
@@ -10,6 +11,7 @@ import UserPortrait from '../components/UserPortrait.vue';
 import {post,get, del} from "@/utils/request";
 import Notification from "@/utils/notification";
 const addLoading = ref(false)
+const { t } = useI18n()
 const activeButtonLoading = ref(false)
 const jsCode = ref('')
 const executeCode = (card)=>{
@@ -315,7 +317,7 @@ function handleClose(card) {
     }
     del(`/app/session/${card.sessionId}`).then(res=> { 
       if(res.code==200) { 
-           Notification.message({ message: '删除回话成功', type: 'success' });
+           Notification.message({ message: t('aside.deleteSuccess'), type: 'success' });
             setActiveStatus(); 
             getAllSessions()
           
@@ -341,20 +343,20 @@ function handleClose(card) {
       </div>
       <el-row v-if="!openSidebar">
         <el-col :span="24">
-          <p>{{ title + ` 会话数量:${conversations.length}` }}</p>
+          <p>{{ title + ` ${t('aside.sessionCount', { count: conversations.length })}` }}</p>
         </el-col>
       </el-row>
       <el-row class="header-actions" :class="{'is-shrunk': openSidebar}">
         <el-col :span="openSidebar ? 24 : 12">
-          <el-button :loading="addLoading" size="default" @click="addConversation" type="primary" :title="openSidebar ? '新建会话' : ''">
+          <el-button :loading="addLoading" size="default" @click="addConversation" type="primary" :title="openSidebar ? t('aside.newSession') : ''">
             <el-icon><Plus /></el-icon>
-            <span v-if="!openSidebar">新建会话</span>
+            <span v-if="!openSidebar">{{ t('aside.newSession') }}</span>
           </el-button>
         </el-col>
         <el-col :span="openSidebar ? 24 : 12">
-          <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success" :title="openSidebar ? '一键启动' : ''">
+          <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success" :title="openSidebar ? t('aside.startAll') : ''">
             <el-icon><SwitchButton/></el-icon>
-            <span v-if="!openSidebar">一键启动</span>
+            <span v-if="!openSidebar">{{ t('aside.startAll') }}</span>
           </el-button>
         </el-col>
       </el-row>

@@ -2,7 +2,7 @@
   <div class="settings-page">
     <!-- 顶部标题 -->
     <div class="settings-header">
-      <span class="header-title">设置</span>
+      <span class="header-title">{{ $t('settings.title') }}</span>
     </div>
 
     <div class="settings-content">
@@ -25,14 +25,14 @@
         <!-- 翻译配置 -->
         <div v-if="activeMenu === 'translate'" class="translate-config">
           <div class="config-header">
-            <h3>翻译配置</h3>
-            <p class="config-desc">以下设置将作为全局翻译配置</p>
+            <h3>{{ $t('settings.translateConfig') }}</h3>
+            <p class="config-desc">{{ $t('settings.globalConfigDesc') }}</p>
           </div>
 
           <div class="config-body">
             <!-- 左侧平台列表 -->
             <div class="platform-list">
-              <div class="platform-title">翻译配置</div>
+              <div class="platform-title">{{ $t('settings.translateConfig') }}</div>
               <div 
                 class="platform-item active"
               >
@@ -46,31 +46,31 @@
               <!-- 发送翻译设置 -->
               <div class="config-section">
                 <div class="section-header" @click="toggleSection('send')">
-                  <span class="section-title">发送翻译设置</span>
-                  <span class="section-tag">{{ expandedSections.send ? '折叠' : '展开' }}</span>
+                  <span class="section-title">{{ $t('settings.sendSettings') }}</span>
+                  <span class="section-tag">{{ expandedSections.send ? $t('settings.collapse') : $t('settings.expand') }}</span>
                 </div>
                 <div class="section-content" v-show="expandedSections.send">
                   <div class="form-item">
                     <div class="form-item-left">
                     <div class="form-label">
                       <span class="label-dot"></span>
-                      <span>发送自动翻译</span>
+                      <span>{{ $t('settings.sendAutoTranslate') }}</span>
                     </div>
-                    <div class="form-desc">发送时是否自动翻译成目标语言</div>
+                    <div class="form-desc">{{ $t('settings.sendAutoTranslateDesc') }}</div>
                     </div>
                     <el-switch v-model="config.sendAutoTranslate"  @change="handleSendAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"  />
                   </div>
 
                   <div class="form-row" v-if="config.sendAutoTranslate ">
                     <div class="form-col" >
-                      <div class="form-label">翻译通道</div>
-                      <el-select v-model="config.sendChannel" disabled placeholder="请选择">
-                        <el-option label="百度" value="Baidu"  />
+                      <div class="form-label">{{ $t('settings.channel') }}</div>
+                      <el-select v-model="config.sendChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                        <el-option :label="$t('settings.baidu')" value="Baidu"  />
                       </el-select>
                     </div>
                     <div class="form-col">
-                      <div class="form-label">目标语言</div>
-                      <el-select v-model="config.sendTargetLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.targetLang') }}</div>
+                      <el-select v-model="config.sendTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -83,8 +83,8 @@
                   <div class="form-item" v-if="!config.sendAutoTranslate">
                    
                     <div class="form-item-left">
-                    <div class="form-label">设置发送消息</div>
-                    <div class="form-desc">发送自动翻译关闭，消息下面显示译文</div>
+                    <div class="form-label">{{ $t('settings.sendMsgSettings') }}</div>
+                    <div class="form-desc">{{ $t('settings.sendMsgSettingsDesc') }}</div>
                     <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
                     </div>
                     <el-switch v-model="config.sendAutoNotTranslate"  @change="handlesendAutoNotTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"/>
@@ -92,14 +92,14 @@
                   </div> 
                   <div class="form-row" v-if="!config.sendAutoTranslate ">
                     <div class="form-col" >
-                      <div class="form-label">翻译通道</div>
-                      <el-select v-model="config.sendColoseChannel" disabled placeholder="请选择">
-                        <el-option label="百度" value="Baidu"  />
+                      <div class="form-label">{{ $t('settings.channel') }}</div>
+                      <el-select v-model="config.sendColoseChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                        <el-option :label="$t('settings.baidu')" value="Baidu"  />
                       </el-select>
                     </div>
                      <div class="form-col">
-                      <div class="form-label">来源语言</div>
-                      <el-select v-model="config.sendAutoNotSourceLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.sourceLang') }}</div>
+                      <el-select v-model="config.sendAutoNotSourceLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -109,8 +109,8 @@
                       </el-select>
                     </div>
                     <div class="form-col">
-                      <div class="form-label">目标语言</div>
-                      <el-select v-model="config.sendAutoNotTargetlseLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.targetLang') }}</div>
+                      <el-select v-model="config.sendAutoNotTargetlseLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -123,8 +123,8 @@
                   
                   <div class="form-item">
                     <div class="form-item-left">
-                    <div class="form-label">翻译预览</div>
-                    <div class="form-desc">发送前在输入框上方显示译文</div>
+                    <div class="form-label">{{ $t('settings.translatePreview') }}</div>
+                    <div class="form-desc">{{ $t('settings.translatePreviewDesc') }}</div>
                     <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
                     </div>
                     <el-switch v-model="config.translatePreview"  @change="handleTranslatePreview" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"/>
@@ -132,36 +132,36 @@
 
                   <div class="form-item">
                     <div  class="form-item-left">
-                    <div class="form-label">禁止发送含中文的消息</div>
-                    <div class="form-desc">开启后禁止发送中文消息，禁止发送</div>
+                    <div class="form-label">{{ $t('settings.blockChinese') }}</div>
+                    <div class="form-desc">{{ $t('settings.blockChineseDesc') }}</div>
                     </div>
                     <el-switch v-model="config.blockChineseMessage" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
                   </div>
 
                   <div class="form-item">
                       <div  class="form-item-left">
-                    <div class="form-label">禁止发送含中文的翻译</div>
-                    <div class="form-desc">当翻译结果包含中文时，禁止发送</div>
+                    <div class="form-label">{{ $t('settings.blockChineseTrans') }}</div>
+                    <div class="form-desc">{{ $t('settings.blockChineseTransDesc') }}</div>
                     </div>
                     <el-switch v-model="config.blockChineseTranslation" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
                   </div>
                     <div class="form-item form-none">                  
                     <div class="form-item-left">
-                    <div class="form-label">  <span class="label-dot"></span>设置语音翻译发送消息</div>
-                    <div class="form-desc">语音消息下面显示译文</div>
+                    <div class="form-label">  <span class="label-dot"></span>{{ $t('settings.voiceSendSettings') }}</div>
+                    <div class="form-desc">{{ $t('settings.voiceTransDesc') }}</div>
                     <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
                     </div>
                   </div> 
                       <div class="form-row" >
                     <div class="form-col" >
-                      <div class="form-label">翻译通道</div>
-                      <el-select v-model="config.sendVoiceChannel" disabled placeholder="请选择">
-                        <el-option label="百度" value="Baidu"  />
+                      <div class="form-label">{{ $t('settings.channel') }}</div>
+                      <el-select v-model="config.sendVoiceChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                        <el-option :label="$t('settings.baidu')" value="Baidu"  />
                       </el-select>
                     </div>
                      <div class="form-col">
-                      <div class="form-label">语音来源语言</div>
-                      <el-select v-model="config.sendVoiceSourceLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.voiceSourceLang') }}</div>
+                      <el-select v-model="config.sendVoiceSourceLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -171,8 +171,8 @@
                       </el-select>
                     </div>
                     <div class="form-col">
-                      <div class="form-label">语音目标语言</div>
-                      <el-select v-model="config.sendVoiceTargetLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.voiceTargetLang') }}</div>
+                      <el-select v-model="config.sendVoiceTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -188,33 +188,33 @@
               <!-- 消息接收设置 -->
               <div class="config-section">
                 <div class="section-header" @click="toggleSection('receive')">
-                  <span class="section-title">消息接收设置</span>
-                  <span class="section-tag">{{ expandedSections.receive ? '折叠' : '展开' }}</span>
+                  <span class="section-title">{{ $t('settings.receiveSettings') }}</span>
+                  <span class="section-tag">{{ expandedSections.receive ? $t('settings.collapse') : $t('settings.expand') }}</span>
                 </div>
                 <div class="section-content" v-show="expandedSections.receive">
                   <div class="form-item">
                     <div  class="form-item-left">
                     <div class="form-label">
                       <span class="label-dot"></span>
-                      <span>接收自动翻译</span>
+                      <span>{{ $t('settings.receiveAutoTranslate') }}</span>
                     </div>
-                    <div class="form-desc">收到消息时自动翻译成目标语言</div>
+                    <div class="form-desc">{{ $t('settings.receiveAutoTranslateDesc') }}</div>
                     </div>
                     <el-switch v-model="config.receiveAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
                   </div>
 
                   <div class="form-row">
                     <div class="form-col">
-                      <div class="form-label">翻译通道</div>
-                      <el-select v-model="config.receiveChannel" disabled placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.channel') }}</div>
+                      <el-select v-model="config.receiveChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
                        
-                        <el-option label="百度" value="Baidu" />
+                        <el-option :label="$t('settings.baidu')" value="Baidu" />
 
                       </el-select>
                     </div>
                     <div class="form-col">
-                      <div class="form-label">目标语言</div>
-                      <el-select v-model="config.receiveTargetLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.targetLang') }}</div>
+                      <el-select v-model="config.receiveTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -226,21 +226,21 @@
                   </div>
                      <div class="form-item form-none">                  
                     <div class="form-item-left">
-                    <div class="form-label">  <span class="label-dot"></span>设置语音翻译接收消息</div>
-                    <div class="form-desc">语音消息下面显示译文</div>
+                    <div class="form-label">  <span class="label-dot"></span>{{ $t('settings.voiceReceiveSettings') }}</div>
+                    <div class="form-desc">{{ $t('settings.voiceTransDesc') }}</div>
                     <!-- <div class="form-desc">发送时是否输入区显示文案预览</div> -->
                     </div>
                   </div> 
                       <div class="form-row" >
                     <div class="form-col" >
-                      <div class="form-label">翻译通道</div>
-                      <el-select v-model="config.receiveVoiceChannel" disabled placeholder="请选择">
-                        <el-option label="百度" value="Baidu"  />
+                      <div class="form-label">{{ $t('settings.channel') }}</div>
+                      <el-select v-model="config.receiveVoiceChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                        <el-option :label="$t('settings.baidu')" value="Baidu"  />
                       </el-select>
                     </div>
                      <div class="form-col">
-                      <div class="form-label">语音来源语言</div>
-                      <el-select v-model="config.receiveVoiceSourceLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.voiceSourceLang') }}</div>
+                      <el-select v-model="config.receiveVoiceSourceLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -250,8 +250,8 @@
                       </el-select>
                     </div>
                     <div class="form-col">
-                      <div class="form-label">语音目标语言</div>
-                      <el-select v-model="config.receiveVoiceTargetLang" placeholder="请选择">
+                      <div class="form-label">{{ $t('settings.voiceTargetLang') }}</div>
+                      <el-select v-model="config.receiveVoiceTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"
@@ -274,14 +274,14 @@
               <!-- 聊天列表翻译 -->
               <div class="config-section">
                 <div class="section-header" @click="toggleSection('chatList')">
-                  <span class="section-title">聊天列表翻译</span>
-                  <span class="section-tag">{{ expandedSections.chatList ? '折叠' : '展开' }}</span>
+                  <span class="section-title">{{ $t('settings.chatListSettings') }}</span>
+                  <span class="section-tag">{{ expandedSections.chatList ? $t('settings.collapse') : $t('settings.expand') }}</span>
                 </div>
                 <div class="section-content" v-show="expandedSections.chatList">
                   <div class="form-item">
                       <div  class="form-item-left">
-                    <div class="form-label">会话列表显示翻译配置</div>
-                    <div class="form-desc">在聊天窗口上显示和切换翻译语言</div>
+                    <div class="form-label">{{ $t('settings.showTranslateConfig') }}</div>
+                    <div class="form-desc">{{ $t('settings.showTranslateConfigDesc') }}</div>
                     </div>
                     <el-switch v-model="config.showTranslateConfig" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
                   </div>
@@ -315,7 +315,7 @@
 
               <!-- 应用按钮 -->
               <div class="form-actions">
-                <el-button type="primary" class="apply-btn" @click="applyConfig">应用</el-button>
+                <el-button type="primary" class="apply-btn" @click="applyConfig">{{ $t('settings.apply') }}</el-button>
               </div>
             </div>
           </div>
@@ -327,6 +327,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Notification from "@/utils/notification";
 import { get } from "@/utils/request";
@@ -338,10 +339,11 @@ import materialIcon from '@/assets/svgs/material.svg'
 import platformIcon from '@/assets/svgs/platform.svg'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // 左侧导航菜单
 const sidebarMenus = ref([
-  { id: 'translate', title: '翻译设置', icon: translateIcon },
+  { id: 'translate', title: t('settings.translateSettings'), icon: translateIcon },
   // { id: 'aiReply', title: 'AI回复设置', icon: aiReplyIcon },
   // { id: 'material', title: '个人素材', icon: materialIcon },
   // { id: 'display', title: '显示设置', icon: platformIcon },
@@ -451,7 +453,7 @@ const applyConfig = () => {
     console.log('配置已同步到主进程:', res);
   });
  //更新成功提示
-  Notification.message({ message: '更新成功', type: 'success' });
+  Notification.message({ message: t('settings.updateSuccess'), type: 'success' });
   // 返回首页W
   // router.push('/home')
 }

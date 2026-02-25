@@ -1,5 +1,6 @@
 <script setup>
 import { reactive, onMounted, watch, ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Refresh } from '@element-plus/icons-vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post, put, get } from "@/utils/request";
@@ -22,6 +23,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['confirm', 'cancel']);
+const { t } = useI18n();
 
 
 const activeTab = ref('fingerprint');
@@ -30,7 +32,7 @@ const configForm = reactive({
   cardId: '',
   name: '',
   fingerprintSwitch: false,
-  browser: 'Chrome随机版本',
+  browser: t('session.config.browserChrome'),
   os: 'Windows',
   userAgent: '',
   webglMetadata: '自定义',
@@ -107,27 +109,27 @@ const selectedFontsInDialog = ref([]);
 const cpuCoresOptions= ref([
   { 
   value: '2',
-  label: '2核'
+  label: t('session.options.cores', { n: 2 })
 },
   { 
   value: '4',
-  label: '4核'
+  label: t('session.options.cores', { n: 4 })
 },
   { 
   value: '6',
-  label: '6核'
+  label: t('session.options.cores', { n: 6 })
 },
   { 
   value: '8',
-  label: '8核'
+  label: t('session.options.cores', { n: 8 })
 },
   { 
   value: '12',
-  label: '12核'
+  label: t('session.options.cores', { n: 12 })
 },
   { 
   value: '16',
-  label: '16核'
+  label: t('session.options.cores', { n: 16 })
 },
 
 ])
@@ -208,7 +210,7 @@ const initTimezoneList = () => {
   }
   
   const localItem = {
-    label: `UTC(${localOffsetLabel}) ${localName} (本地时区)`,
+    label: `UTC(${localOffsetLabel}) ${localName} (${t('session.config.timezoneReal')})`,
     value: localName,
     offset: localOffsetMinutes
   };
@@ -329,14 +331,14 @@ const getIPLanguage = async () => {
       const languages = res.data.languages || '';
       console.log('Fetch IP language (IPC) failed:', country, languages );
       return {
-        display: `基于 IP 匹配：${country} (${languages})`,
+        display: t('session.config.languageIP', { country, langs: languages }),
         list: languages.split(',').map(l => l.trim()).filter(l => l)
       };
     }
-    return { display: '未知 IP 语言', list: [] };
+    return { display: t('session.config.languageUnknown'), list: [] };
   } catch (e) {
     console.error('Fetch IP language (IPC) failed:', e);
-    return { display: '检测失败', list: [] };
+    return { display: t('session.config.languageFailed'), list: [] };
   }
 };
 
@@ -401,7 +403,7 @@ const fetchConfig = async () => {
           
           // 指纹配置
           configForm.fingerprintSwitch = moreOptions.fingerprintSwitch || false;
-          configForm.browser = moreOptions.browser || 'Chrome随机版本';
+          configForm.browser = moreOptions.browser || t('session.config.browserChrome');
           configForm.os = moreOptions.os || 'Windows';
           configForm.userAgent = moreOptions.userAgent || '';
           
@@ -500,11 +502,11 @@ const fetchConfig = async () => {
         
         console.log('会话详情加载成功:', configForm);
       } else {
-        ElMessage.error('获取会话详情失败');
+        ElMessage.error(t('session.messages.fetchDetailFailed'));
       }
     } catch (error) {
       console.error('获取会话详情出错:', error);
-      ElMessage.error('获取会话详情出错，请稍后重试');
+      ElMessage.error(t('session.messages.fetchDetailError'));
     }
   } else {
     // Reset form for new session
@@ -558,7 +560,7 @@ onMounted(() => {
 const generateFingerprint = () => {
     generateRandomUA();
     // Here we could add more randomization for other fingerprint items if needed
-    ElMessage.success('已生成新指纹');
+    ElMessage.success(t('session.messages.newFingerprint'));
 };
 
 watch(() => props.card, () => {
@@ -584,17 +586,17 @@ watch(() => configForm.webglMetadata, (val) => {
 
 watch(() => configForm.webgpu, async (val) => {
   if (val === '基于WebGL') {
-    configForm.webgpuCustom = '通过 WebGL 来模拟 WebGPU';
+    configForm.webgpuCustom = t('session.config.webgpuDescWebGL');
   } else if (val === '真实') {
     configForm.webgpuCustom = await getWebGPUInfo();
   } else if (val === '禁用') {
-    configForm.webgpuCustom = '不适用 WebGPU,网站将检测不到';
+    configForm.webgpuCustom = t('session.config.webgpuDescDisabled');
   }
 }, { immediate: true });
 
 watch(() => configForm.webglImage, (val) => {
   if (val === '噪音') {
-    configForm.webglImageCustom = '在同一网页上为每个浏览器实例生成不同的 WebGL 图像';
+    configForm.webglImageCustom = t('session.config.webglImageDescNoise');
   } else if (val === '真实') {
     const info = getWebGLInfo();
     configForm.webglImageCustom = `${info.vendor} ${info.renderer}`;
@@ -603,11 +605,11 @@ watch(() => configForm.webglImage, (val) => {
 
 watch(() => configForm.webrtc, async (val) => {
   if (val === '替换') {
-    configForm.webrtcCustom = '启用与代理IP匹配的 WebRTC IP';
+    configForm.webrtcCustom = t('session.config.webrtcDescReplace');
   } else if (val === '真实') {
     configForm.webrtcCustom = await getWebRTCIP();
   } else if (val === '禁用') {
-    configForm.webrtcCustom = '网站将无法获取您的 WebRTC 指纹信息';
+    configForm.webrtcCustom = t('session.config.webrtcDescDisabled');
   }
 }, { immediate: true });
 
@@ -628,7 +630,7 @@ watch(() => [configForm.geolocation, configForm.geolocationCustom], async ([geo,
 
 watch(() => configForm.language, async (val) => {
   if (val === '基于IP') {
-    configForm.languageCustom = '正在检测 IP 语言...';
+    configForm.languageCustom = t('session.config.languageDetecting');
     const result = await getIPLanguage();
     console.log('1000', result);
     
@@ -638,19 +640,19 @@ watch(() => configForm.language, async (val) => {
     }
   } else {
     configForm.languageCustom = '';
-    configForm.languages = ['英语']
+    configForm.languages = ['en-US']
   }
 }, { immediate: true });
 
 watch(() => configForm.timezone, async (val) => {
   if (val === '基于IP') {
-    configForm.timezoneCustom = '正在检测 IP 时区...';
+    configForm.timezoneCustom = t('session.status.detectingTimezone');
     configForm.timezoneCustom = await getIPTimezone();
   } else if (val === '真实') {
     const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const hourOffset = moment.tz(tzName).utcOffset() / 60;
     const sign = hourOffset >= 0 ? '+' : '';
-    configForm.timezoneCustom = `UTC(${sign}${hourOffset}) ${tzName}`;
+    configForm.timezoneCustom = tzName;
   }
 }, { immediate: true });
 
@@ -680,7 +682,7 @@ const handleRefreshFonts = (silent = false) => {
   }
   configForm.fontCustom = selected.join(', ');
   if (!silent) {
-    ElMessage.success('已生成新字体指纹');
+    ElMessage.success(t('session.messages.newFontFingerprint'));
   }
 };
 
@@ -711,12 +713,12 @@ const handleRefreshWebGlInfo = () => {
    const info = getWebGLInfo();
    configForm.webglVendor = info.vendor;
    configForm.webglRenderer = info.renderer;
-   ElMessage.success('已刷新 WebGL 信息');
+   ElMessage.success(t('session.messages.refreshWebGL'));
 }
 
 watch(() => configForm.canvas, (val) => {
   if (val === '噪音') {
-    configForm.canvasCustom = '同一浏览上为每个浏览器生成不同的 Canvas指纹信息';
+    configForm.canvasCustom = t('session.config.canvasDescNoise');
   } else if (val === '真实') {
     try {
       const canvas = document.createElement('canvas');
@@ -736,14 +738,14 @@ watch(() => configForm.canvas, (val) => {
       // configForm.canvasCustom = '即将使用当前电脑真实的 Canvas指纹信息 (Hash: ' + dataURL.substring(dataURL.length - 20) + ')'; 
        configForm.canvasCustom = dataURL; 
     } catch (e) {
-       configForm.canvasCustom = '真实 Canvas指纹信息获取失败';
+       configForm.canvasCustom = `${t('session.options.real')} Canvas ${t('session.status.failed')}`;
     }
   }
 }, { immediate: true });
 
 watch(() => configForm.audioContext, (val) => {
   if (val === '噪音') {
-    configForm.audioContextCustom = '同一浏览上为每个浏览器生成不同的 AudioContext指纹信息';
+    configForm.audioContextCustom = t('session.config.audioContextDescNoise');
   } else if (val === '真实') {
     try {
       const audioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
@@ -765,30 +767,30 @@ watch(() => configForm.audioContext, (val) => {
           configForm.audioContextCustom = 'Hash: ' + buffer.getChannelData(0).slice(0, 10).reduce((acc, val) => acc + val, 0);
       });
     } catch (e) {
-      configForm.audioContextCustom = '真实 AudioContext指纹信息获取失败';
+      configForm.audioContextCustom = `${t('session.options.real')} AudioContext ${t('session.status.failed')}`;
     }
   }
 }, { immediate: true });
 
 watch(() => configForm.mediaDevices, async (val) => {
   if (val === '噪音') {
-    configForm.mediaDevicesCustom = '采集指纹生成媒体设备在浏览器内代理多媒体设备指纹信息';
+    configForm.mediaDevicesCustom = t('session.config.mediaDevicesDescNoise');
   } else if (val === '真实') {
      try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoInputs = devices.filter(d => d.kind === 'videoinput').length;
       const audioInputs = devices.filter(d => d.kind === 'audioinput').length;
       const audioOutputs = devices.filter(d => d.kind === 'audiooutput').length;
-      configForm.mediaDevicesCustom = `将使用当前电脑真实的媒体设备信息指纹信息 (视频: ${videoInputs}, 音频输入: ${audioInputs}, 音频输出: ${audioOutputs})`;
+      configForm.mediaDevicesCustom = t('session.config.mediaDevicesDescReal', { v: videoInputs, ai: audioInputs, ao: audioOutputs });
     } catch (e) {
-      configForm.mediaDevicesCustom = '将使用当前电脑真实的媒体设备信息指纹信息 (获取失败)';
+      configForm.mediaDevicesCustom = t('session.config.mediaDevicesDescFailed');
     }
   }
 }, { immediate: true });
 
 watch(() => configForm.clientRects, (val) => {
   if (val === '噪音') {
-    configForm.clientRectsCustom = '同一浏览上为每个浏览器生成不同的 ClientRects指纹信息';
+    configForm.clientRectsCustom = t('session.config.clientRectsDescNoise');
   } else if (val === '真实') {
     try {
       const element = document.createElement('div');
@@ -812,24 +814,24 @@ watch(() => configForm.clientRects, (val) => {
         hash = ((hash << 5) - hash) + char;
         hash |= 0; // Convert to 32bit integer
       }
-      configForm.clientRectsCustom = `将使用当前电脑真实的 ClientRects指纹信息 (Hash: ${Math.abs(hash).toString(16)})`;
+      configForm.clientRectsCustom = t('session.config.clientRectsDescReal', { hash: Math.abs(hash).toString(16) });
     } catch (e) {
-      configForm.clientRectsCustom = '将使用当前电脑真实的 ClientRects指纹信息 (获取失败)';
+      configForm.clientRectsCustom = t('session.config.clientRectsDescFailed');
     }
   }
 }, { immediate: true });
 
 watch(() => configForm.speechVoices, (val) => {
   if (val === '隐私') {
-    configForm.speechVoicesCustom = '同一电脑上为每个浏览器生成不同的 SpeechVoices指纹信息';
+    configForm.speechVoicesCustom = t('session.config.speechVoicesDescPrivacy');
   } else if (val === '真实') {
     const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    configForm.speechVoicesCustom = `将使用当前电脑真实的 SpeechVoices指纹信息 (检测到 ${voices.length} 个语音包)`;
+    configForm.speechVoicesCustom = t('session.config.speechVoicesDescReal', { n: voices.length });
     if (voices.length === 0 && window.speechSynthesis) {
          window.speechSynthesis.onvoiceschanged = () => {
              const updatedVoices = window.speechSynthesis.getVoices();
              if (configForm.speechVoices === '真实') {
-                 configForm.speechVoicesCustom = `将使用当前电脑真实的 SpeechVoices指纹信息 (检测到 ${updatedVoices.length} 个语音包)`;
+                 configForm.speechVoicesCustom = t('session.config.speechVoicesDescReal', { n: updatedVoices.length });
              }
          };
     }
@@ -839,7 +841,7 @@ watch(() => configForm.speechVoices, (val) => {
 watch(() => configForm.cpuCores, (val) => {
   if (val === '真实') {
     const cores = navigator.hardwareConcurrency || 'Unknown';
-    configForm.cpuCoresCustom = `使用当前电脑真实的 CPU 内核数指纹信息 (Core: ${cores})`;
+    configForm.cpuCoresCustom = t('session.config.cpuCoresReal', { cores: cores });
   } else if (val === '自定义') {
     if (configForm.cpuCoresCustom && configForm.cpuCoresCustom.includes('使用当前电脑真实的')) {
       configForm.cpuCoresCustom = '2';
@@ -850,7 +852,7 @@ watch(() => configForm.cpuCores, (val) => {
 watch(() => configForm.memory, (val) => {
   if (val === '真实') {
     const memory = navigator.deviceMemory || 'Unknown';
-    configForm.memoryCustom = `使用当前电脑真实内存大小指纹信息 (Memory: ${memory}GB)`;
+    configForm.memoryCustom = t('session.config.memoryReal', { memory: memory });
   } else if (val === '自定义') {
     if (configForm.memoryCustom && configForm.memoryCustom.includes('使用当前电脑真实')) {
       configForm.memoryCustom = '2';
@@ -860,31 +862,31 @@ watch(() => configForm.memory, (val) => {
 
 watch(() => configForm.doNotTrack, (val) => {
   if (val === false) {
-    configForm.doNotTrackCustom = '获取当前设备设置愿意被站点追踪个人信息指纹';
+    configForm.doNotTrackCustom = t('session.config.doNotTrackDescOn');
   } else {
-    configForm.doNotTrackCustom = '获取当前设备设置不愿意被站点追踪个人信息指纹';
+    configForm.doNotTrackCustom = t('session.config.doNotTrackDescOff');
   }
 }, { immediate: true });
 
 watch(() => configForm.screen, (val) => {
   if (val === '噪音') {
-    configForm.screenCustom = '同一浏览上为每个浏览器生成不同的 Screen指纹信息';
+    configForm.screenCustom = t('session.config.screenDescNoise');
   } else if (val === '真实') {
     const { width, height, colorDepth, pixelDepth } = window.screen;
-    configForm.screenCustom = `将使用当前电脑真实窗口的属性和属性指纹信息 (Width: ${width}, Height: ${height}, ColorDepth: ${colorDepth})`;
+    configForm.screenCustom = t('session.config.screenDescReal', { w: width, h: height, d: colorDepth });
   }
 }, { immediate: true });
 
 const getBluetoothFingerprint = async () => {
   if (!navigator.bluetooth) {
-    return '浏览器不支持蓝牙 API';
+    return t('session.status.bluetoothNotSupported');
   }
 
   try {
     // 检查蓝牙可用性
     const available = await navigator.bluetooth.getAvailability();
     if (!available) {
-      return '蓝牙不可用 (硬件未启用或不存在)';
+      return t('session.status.bluetoothUnavailable');
     }
 
     // 构建蓝牙指纹信息
@@ -933,30 +935,17 @@ const getBluetoothFingerprint = async () => {
     const fingerprintHash = Math.abs(hash).toString(16).substring(0, 8);
 
     // 构建详细的指纹信息文本
-    let fingerprintText = `将使用当前电脑真实的蓝牙指纹信息 (可用: 是`;
-    
-    if (fingerprintData.devices.length > 0) {
-      fingerprintText += `, 已配对: ${fingerprintData.devices.length}个设备`;
-    }
-    
-    // 统计支持的特性
-    const supportedFeatures = Object.entries(fingerprintData.features)
-      .filter(([_, supported]) => supported).length;
-    
-    fingerprintText += `, API特性: ${supportedFeatures}/4`;
-    fingerprintText += `, 指纹: ${fingerprintHash})`;
-    
-    return fingerprintText;
+    return t('session.config.bluetoothDescReal', { available: t('session.options.on'), paired: fingerprintData.devices.length, features: supportedFeatures, hash: fingerprintHash });
 
   } catch (e) {
     console.error('蓝牙指纹检测失败:', e);
-    return `蓝牙检测失败: ${e.message || '未知错误'}`;
+    return `${t('session.status.failed')}: ${e.message || t('session.status.unknown')}`;
   }
 };
 
 const getBatteryFingerprint = async () => {
   if (!navigator.getBattery) {
-    return '浏览器不支持电池 API';
+    return t('session.status.batteryNotSupported');
   }
 
   try {
@@ -971,11 +960,11 @@ const getBatteryFingerprint = async () => {
     };
 
     // 判断设备类型
-    let deviceType = '未知设备';
+    let deviceType = t('session.config.deviceUnknown');
     if (fingerprintData.chargingTime === Infinity && fingerprintData.dischargingTime === Infinity) {
-      deviceType = '台式机/无电池设备';
+      deviceType = t('session.config.deviceDesktop');
     } else {
-      deviceType = '笔记本/移动设备';
+      deviceType = t('session.config.deviceMobile');
     }
 
     // 生成指纹哈希
@@ -995,47 +984,39 @@ const getBatteryFingerprint = async () => {
     const fingerprintHash = Math.abs(hash).toString(16).substring(0, 8);
 
     // 构建详细的指纹信息文本
-    let fingerprintText = `将使用当前电脑真实的电池指纹信息 (设备: ${deviceType}`;
-    
-    if (deviceType !== '台式机/无电池设备') {
-      const levelPercent = Math.round(fingerprintData.level * 100);
-      const chargingStatus = fingerprintData.charging ? '充电中' : '未充电';
-      fingerprintText += `, 电量: ${levelPercent}%, 状态: ${chargingStatus}`;
-    }
-    
-    fingerprintText += `, 指纹: ${fingerprintHash})`;
-    
-    return fingerprintText;
+    const levelPercent = Math.round(fingerprintData.level * 100);
+    const chargingStatus = fingerprintData.charging ? t('session.options.on') : t('session.options.off');
+    return t('session.config.batteryDescRealMsg', { type: deviceType, level: levelPercent, status: chargingStatus, hash: fingerprintHash });
 
   } catch (e) {
     console.error('电池指纹检测失败:', e);
-    return `电池检测失败: ${e.message || '未知错误'}`;
+    return `${t('session.status.failed')}: ${e.message || t('session.status.unknown')}`;
   }
 };
 
 watch(() => configForm.Bluetooth, async (val) => {
   if (val === '隐私') {
-    configForm.BluetoothCustom = '同一浏览上为每个浏览器生成不同的 Bluetooth指纹信息';
+    configForm.BluetoothCustom = t('session.config.bluetoothDescPrivacy');
   } else if (val === '真实') {
-    configForm.BluetoothCustom = '正在检测蓝牙指纹信息...';
+    configForm.BluetoothCustom = t('session.status.detectingBluetooth');
     configForm.BluetoothCustom = await getBluetoothFingerprint();
   }
 }, { immediate: true });
 
 watch(() => configForm.battery, async (val) => {
   if (val === '隐私') {
-    configForm.batteryCustom = '同一浏览上为每个浏览器生成不同的电池指纹信息';
+    configForm.batteryCustom = t('session.config.batteryDescPrivacy');
   } else if (val === '真实') {
-    configForm.batteryCustom = '正在检测电池指纹信息...';
+    configForm.batteryCustom = t('session.status.detectingBattery');
     configForm.batteryCustom = await getBatteryFingerprint();
   }
 }, { immediate: true });
 
 watch(() => configForm.portScanProtection, (val) => {
   if (val === true) {
-    configForm.portScanProtectionCustom = '已启用端口扫描保护，阻止脚本使用网站检测对本地网络内的端口和服务器，保护您的网络隐私安全';
+    configForm.portScanProtectionCustom = t('session.config.portScanDescOn');
   } else {
-    configForm.portScanProtectionCustom = '已关闭端口扫描保护，网站可以检测您使用了本地网络的哪些端口，可能存在隐私泄露风险';
+    configForm.portScanProtectionCustom = t('session.config.portScanDescOff');
   }
 }, { immediate: true });
 
@@ -1052,7 +1033,7 @@ const confirmEditFont = () => {
 const handleRefreshResolution = () => {
   const randomRes = resolutionOptions.value[Math.floor(Math.random() * resolutionOptions.value.length)];
   currentResolution.value = randomRes;
-  ElMessage.success('已随机切换分辨率');
+  ElMessage.success(t('session.messages.newResolution'));
 };
 const addLanguage = async () => {
   addLanguageVisible.value = true;
@@ -1183,14 +1164,14 @@ const confirmClick = async () => {
       // 无论新建还是编辑，都同步配置信息
       await ipc.invoke(ipcApiRoute.addConfigInfo, argsConfig);
       
-      ElMessage.success(props.isEdit ? '修改成功' : '添加成功');
+      ElMessage.success(props.isEdit ? t('session.messages.updateSuccess') : t('session.messages.addSuccess'));
       
       // 触发 confirm 事件，父组件（如 WhatsApp.vue）会监听到并调用 getAllSessions() 刷新列表
       emit('confirm');
     }
   } catch (error) {
     console.error('保存会话失败:', error);
-    ElMessage.error('保存失败，请检查网络或配置');
+    ElMessage.error(t('session.messages.saveCheckNetwork'));
   }
 };
 
@@ -1202,30 +1183,30 @@ const cancelClick = () => {
 <template>
   <div class="settings-container">
     <div class="settings-header">
-      <h3>{{ isEdit ? '修改会话' : '新建会话' }}</h3>
+      <h3 class="header-title">{{ isEdit ? $t('session.config.editTitle') : $t('session.config.newTitle') }}</h3>
     </div>
 
     <div class="settings-content">
       <!-- Left Column: Configuration Tabs -->
       <div class="config-section">
         <el-tabs v-model="activeTab" class="custom-tabs">
-          <el-tab-pane label="指纹配置" name="fingerprint">
+          <el-tab-pane :label="$t('session.tabs.fingerprint')" name="fingerprint">
             <div class="scroll-area">
               <el-form :model="configForm" label-width="120px" label-position="left">
-                <el-form-item label="会话昵称">
-                  <el-input v-model="configForm.name" placeholder="请输入名称"></el-input>
+                <el-form-item :label="$t('session.config.nickname')">
+                  <el-input v-model="configForm.name" :placeholder="$t('session.config.nicknamePlaceholder')"></el-input>
                 </el-form-item>
 
-                <el-form-item label="指纹开关">
+                <el-form-item :label="$t('session.config.fingerprintSwitch')">
                   <el-switch v-model="configForm.fingerprintSwitch" active-color="#13ce66"></el-switch>
                 </el-form-item>
                 
-                <el-form-item label="浏览器">
-                  <el-select v-model="configForm.browser" placeholder="智能匹配" style="width: 100%">
+                <el-form-item :label="$t('session.config.browser')">
+                  <el-select v-model="configForm.browser" :placeholder="$t('session.config.browserAuto')" style="width: 100%">
                     <template #prefix>
                         <i class="iconfont icon-chrome" style="color: #409EFF; margin-right: 4px;"></i>
                     </template>
-                    <el-option label="Chrome 智能匹配" value="Chrome随机版本"></el-option>
+                    <el-option :label="$t('session.config.browserChrome')" value="Chrome随机版本"></el-option>
                     <el-option label="130 " value="130"></el-option>
                     <el-option label="129" value="129"></el-option>
                     <el-option label="128" value="128"></el-option>
@@ -1234,7 +1215,7 @@ const cancelClick = () => {
                   </el-select>
                 </el-form-item>
 
-                <el-form-item label="操作系统">
+                <el-form-item :label="$t('session.config.os')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.os">
                     <el-radio-button label="Windows" :disabled="currentOS !== 'Windows'">
@@ -1244,11 +1225,11 @@ const cancelClick = () => {
                         <div class="radio-content"><i class="iconfont icon-mac" style="color: #666666; margin-right: 4px;"></i><span>macOS</span></div>
                     </el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip">默认使用当前电脑系统</div>
+                  <div class="form-sub-tip">{{ $t('session.config.osDefaultTip') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="User Agent">
+                <el-form-item :label="$t('session.config.userAgent')">
                   <div class="fex-row-textarea">
                   <el-input 
                     type="textarea" 
@@ -1258,94 +1239,94 @@ const cancelClick = () => {
                     placeholder="Mozilla/5.0..."
                   >
                     <template #append>
-                      <el-button :icon="Refresh" @click="generateRandomUA"> 自动生成 </el-button>
+                      <el-button :icon="Refresh" @click="generateRandomUA"> {{ $t('session.config.autoGenerate') }} </el-button>
                     </template>
                   </el-input>
                   <span class="refresh-btn"  @click="generateRandomUA"><i class="iconfont icon-refresh"></i> </span>
                  </div>
                 </el-form-item>
-                <el-form-item label="WebGL元数据">
+                <el-form-item :label="$t('session.config.webglMetadata')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.webglMetadata">
-                    <el-radio-button label="真实" value="真实">真实</el-radio-button>
-                    <el-radio-button label="关闭硬件加速" value="关闭硬件加速">关闭硬件加速</el-radio-button>
-                    <el-radio-button label="自定义" value="自定义">自定义</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="关闭硬件加速">{{ $t('session.config.webglCloseTip') }}</el-radio-button>
+                    <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.webglMetadata==='真实'">将会使用当前电脑的真实的 WebGL 元数据</div>
-                   <div class="form-sub-tip" v-if="configForm.webglMetadata==='关闭硬件加速'">通过关闭硬件加速网站就无法获取到真实的 WebGL 元数据</div>
-                    <div class="form-sub-tip" v-if="configForm.webglMetadata==='自定义'">设置合适的值代替真实的 WebGL 元数据</div>
+                  <div class="form-sub-tip" v-if="configForm.webglMetadata==='真实'">{{ $t('session.config.webglRealTip') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.webglMetadata==='关闭硬件加速'">{{ $t('session.config.webglCloseTip') }}</div>
+                    <div class="form-sub-tip" v-if="configForm.webglMetadata==='自定义'">{{ $t('session.config.webglCustomTip') }}</div>
                   </div>
                 </el-form-item>
                 <div class="form-box" v-if="configForm.webglMetadata==='自定义'">
                 <el-form-item label="" label-width="0px">
                   <div class="flex-row">
-                    <div class="item-label">厂商</div>
-                    <el-input v-model="configForm.webglVendor" disabled placeholder="请输入 WebGL Vendor"></el-input>
+                    <div class="item-label">{{ $t('session.config.vendor') }}</div>
+                    <el-input v-model="configForm.webglVendor" disabled :placeholder="$t('session.config.vendorPlaceholder')"></el-input>
                     <span class="refresh-icon" ></span>
                   </div>
                 </el-form-item>
                 
                 <el-form-item label="" label-width="0px">
                   <div class="flex-row">
-                    <div class="item-label">渲染器</div>
-                    <el-input v-model="configForm.webglRenderer" disabled style="width:100%" placeholder="请输入 WebGL Renderer"></el-input>
+                    <div class="item-label">{{ $t('session.config.renderer') }}</div>
+                    <el-input v-model="configForm.webglRenderer" disabled style="width:100%" :placeholder="$t('session.config.rendererPlaceholder')"></el-input>
                     <span class="refresh-icon" @click="handleRefreshWebGlInfo"><i class="iconfont icon-refresh"></i></span>
                   </div>
                 </el-form-item>
                 </div>
-                <el-form-item label="WebGPU">
+                <el-form-item :label="$t('session.config.webgpu')">
                     <div class="flex-column">
                       {{configForm.webgpuCustom}}
                   <el-radio-group v-model="configForm.webgpu">
-                    <el-radio-button label="基于WebGL">基于WebGL</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
-                    <el-radio-button label="禁用">禁用</el-radio-button>
+                    <el-radio-button label="基于WebGL">{{ $t('session.config.webgpuDescWebGL') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="禁用">{{ $t('session.options.disabled') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.webgpu==='基于WebGL'">通过 WebGL 来模拟 WebGPU</div>
-                   <div class="form-sub-tip" v-if="configForm.webgpu==='真实'">将使用当前电脑真实的 WebGPU</div>
-                    <div class="form-sub-tip" v-if="configForm.webgpu==='禁用'">不适用 WebGPU,网站将检测不到</div>
+                  <div class="form-sub-tip" v-if="configForm.webgpu==='基于WebGL'">{{ $t('session.config.webgpuDescWebGL') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.webgpu==='真实'">{{ $t('session.config.webgpuDescReal') }}</div>
+                    <div class="form-sub-tip" v-if="configForm.webgpu==='禁用'">{{ $t('session.config.webgpuDescDisabled') }}</div>
 
                   </div>
                 </el-form-item>
 
-                <el-form-item label="WebGL图像">
+                <el-form-item :label="$t('session.config.webglImage')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.webglImage">
-                    <el-radio-button label="噪音">噪音</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="噪音">{{ $t('session.options.noise') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
                    <div class="form-sub-tip" v-if="configForm.webglImage==='噪音'">
-                    在同一网页上为每个浏览器实例生成不同的 WebGL 图像。
+                    {{ $t('session.config.webglImageDescNoise') }}
                    </div>
-                    <div class="form-sub-tip" v-if="configForm.webglImage==='真实'">将使用当前电脑真实的 WebGL 图像信息</div>
+                    <div class="form-sub-tip" v-if="configForm.webglImage==='真实'">{{ $t('session.config.webglImageDescReal') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="WebRTC">
+                <el-form-item :label="$t('session.config.webrtc')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.webrtc">
-                    <el-radio-button label="替换">替换</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
-                    <el-radio-button label="禁用">禁用</el-radio-button>
+                    <el-radio-button label="替换">{{ $t('session.options.replace') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="禁用">{{ $t('session.options.disabled') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.webrtc==='替换'">启用与代理IP匹配的 WebRTC IP</div>
-                   <div class="form-sub-tip" v-if="configForm.webrtc==='真实'">使用当前电脑真实的 WebRTC IP。</div>
-                    <div class="form-sub-tip" v-if="configForm.webrtc==='禁用'">网站将无法获取您的 WebRTC 信息</div>
+                  <div class="form-sub-tip" v-if="configForm.webrtc==='替换'">{{ $t('session.config.webrtcDescReplace') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.webrtc==='真实'">{{ $t('session.config.webrtcDescReal') }}</div>
+                    <div class="form-sub-tip" v-if="configForm.webrtc==='禁用'">{{ $t('session.config.webrtcDescDisabled') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="时区">
+                <el-form-item :label="$t('session.config.timezone')">
                   <div class="flex-column">
                     {{ configForm.timezoneCustom }}
                   <el-radio-group v-model="configForm.timezone">
-                    <el-radio-button label="基于IP">基于IP</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
-                    <el-radio-button label="自定义">自定义</el-radio-button>
+                    <el-radio-button label="基于IP">{{ $t('session.options.basedOnIP') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.timezone==='基于IP'">基于 IP 匹配对应的时区</div>
-                   <div class="form-sub-tip" v-if="configForm.timezone==='真实'">使用当前电脑的时区：{{ configForm.timezoneCustom }}</div>
+                  <div class="form-sub-tip" v-if="configForm.timezone==='基于IP'">{{ $t('session.config.timezoneDescIP') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.timezone==='真实'">{{ $t('session.config.timezoneDescReal', { tz: configForm.timezoneCustom }) }}</div>
                     <div class="form-sub-input" v-if="configForm.timezone==='自定义'">
-                      <el-select  v-model="configForm.timezoneCustom" placeholder="请选择时区">
+                      <el-select  v-model="configForm.timezoneCustom" :placeholder="$t('session.config.timezonePlaceholder')">
                         <el-option v-for="item  in timezoneList" :key="item.value" :label="item.label" :value="item.value">
                           {{ item.label }}
                         </el-option>
@@ -1354,44 +1335,44 @@ const cancelClick = () => {
                   </div>
                 </el-form-item>
 
-                <el-form-item label="地理位置">
+                <el-form-item :label="$t('session.config.geolocation')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.geolocation">
-                    <el-radio-button label="询问">询问</el-radio-button>
-                    <el-radio-button label="禁止">禁止</el-radio-button>
+                    <el-radio-button label="询问">{{ $t('session.options.ask') }}</el-radio-button>
+                    <el-radio-button label="禁止">{{ $t('session.options.block') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.geolocation==='询问'">网站会显示获取当前位置的询问提示，您可以允许或禁止</div>
-                   <div class="form-sub-tip"  v-if="configForm.geolocation==='禁止'">无法获取地理位置信息</div>
+                  <div class="form-sub-tip" v-if="configForm.geolocation==='询问'">{{ $t('session.config.geolocationDescAsk') }}</div>
+                   <div class="form-sub-tip"  v-if="configForm.geolocation==='禁止'">{{ $t('session.config.geolocationDescDisabled') }}</div>
                   <div class="switch-inline" v-if="configForm.geolocation== '询问'  ">
                     <el-switch v-model="configForm.geolocationCustom"></el-switch>
-                    <span>基于IP生成对应的地理位置</span>
+                    <span>{{ $t('session.config.geolocationIP') }}</span>
                   </div>
 
                   <div class="form-sub-tip" v-if="configForm.geolocation === '询问' && configForm.geolocationCustom && configForm.geolocationLatitude">
-                    检测到位置：纬度 {{ configForm.geolocationLatitude }}, 经度 {{ configForm.geolocationLongitude }}
+                    {{ $t('session.config.geolocationDetected', { lat: configForm.geolocationLatitude, lng: configForm.geolocationLongitude }) }}
                   </div>
                   
                   <div class="geolocation-custom-container" v-if="configForm.geolocation === '询问' && !configForm.geolocationCustom">
                     <div class="geo-input-row">
-                      <span class="geo-label"><span class="required-star">*</span>经/纬度</span>
-                      <el-input v-model="configForm.geolocationLatitude" placeholder="纬度" style="width: 120px;"></el-input>
-                      <el-input v-model="configForm.geolocationLongitude" placeholder="精度" style="width: 120px; margin-left:12px"></el-input>
+                      <span class="geo-label"><span class="required-star">*</span>{{ $t('session.config.latLong') }}</span>
+                      <el-input v-model="configForm.geolocationLatitude" :placeholder="$t('session.config.latitude')" style="width: 120px;"></el-input>
+                      <el-input v-model="configForm.geolocationLongitude" :placeholder="$t('session.config.longitude')" style="width: 120px; margin-left:12px"></el-input>
                     </div>
                     <div class="geo-input-row" style="margin-top: 12px">
-                      <span class="geo-label">精度(米)</span>
-                      <el-input v-model="configForm.geolocationAccuracy" placeholder="精度(米)" style="width: 120px;"></el-input>
+                      <span class="geo-label">{{ $t('session.config.accuracy') }}</span>
+                      <el-input v-model="configForm.geolocationAccuracy" :placeholder="$t('session.config.accuracy')" style="width: 120px;"></el-input>
                     </div>
-                    <div class="geo-tip">范围10 ~ 5000</div>
+                    <div class="geo-tip">{{ $t('session.config.geoRangeTip') }}</div>
                   </div>
 
                   </div>
                 </el-form-item>
 
-                <el-form-item label="语言">
+                <el-form-item :label="$t('session.config.language')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.language">
-                    <el-radio-button label="基于IP">基于IP</el-radio-button>
-                    <el-radio-button label="自定义">自定义</el-radio-button>
+                    <el-radio-button label="基于IP">{{ $t('session.options.basedOnIP') }}</el-radio-button>
+                    <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                   </el-radio-group>
                   <div class="form-sub-tip" v-if="configForm.language === '基于IP' && configForm.languageCustom">{{ configForm.languageCustom }}</div>
                   <div class="form-sub-tip" v-else></div>
@@ -1405,34 +1386,34 @@ const cancelClick = () => {
                           </div>
                           <template #dropdown>
                             <el-dropdown-menu class="language-dropdown-menu">
-                              <el-dropdown-item command="top">移到顶点</el-dropdown-item>
-                              <el-dropdown-item command="up">上移</el-dropdown-item>
-                              <el-dropdown-item command="down">下移</el-dropdown-item>
-                              <el-dropdown-item command="delete" class="delete-item">删除</el-dropdown-item>
+                              <el-dropdown-item command="top">{{ $t('session.config.moveToTop') }}</el-dropdown-item>
+                              <el-dropdown-item command="up">{{ $t('session.config.moveUp') }}</el-dropdown-item>
+                              <el-dropdown-item command="down">{{ $t('session.config.moveDown') }}</el-dropdown-item>
+                              <el-dropdown-item command="delete" class="delete-item">{{ $t('session.config.delete') }}</el-dropdown-item>
                             </el-dropdown-menu>
                           </template>
                         </el-dropdown>
                       </div>
                     </div>
-                    <div class="add-language-btn" @click="addLanguage">添加语言</div>
+                    <div class="add-language-btn" @click="addLanguage">{{ $t('session.config.addLanguage') }}</div>
                   </div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="分辨率">
+                <el-form-item :label="$t('session.config.resolution')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.resolution" class="resolution-radio-group">
-                    <el-radio-button label="真实">真实</el-radio-button>
-                    <el-radio-button label="自定义">自定义</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                   </el-radio-group>
-                   <div class="form-sub-tip"  v-if="configForm.resolution==='真实'">将使用当前电脑的真实分辨率</div>
+                   <div class="form-sub-tip"  v-if="configForm.resolution==='真实'">{{ $t('session.config.resolutionReal') }}</div>
                   <div v-if="configForm.resolution === '自定义'" class="resolution-custom-row">
                     <el-select
                       v-model="currentResolution"
                       filterable
                       allow-create
                       default-first-option
-                      placeholder="请选择或输入分辨率"
+                      :placeholder="$t('session.config.resolutionPlaceholder')"
                       class="resolution-select"
                     >
                       <el-option
@@ -1449,209 +1430,208 @@ const cancelClick = () => {
                   </div>
                 </el-form-item>
 
-                <el-form-item label="字体">
+                <el-form-item :label="$t('session.config.font')">
                   <div class="flex-column">
                     <div class="flex-row-center">
                       <el-radio-group v-model="configForm.font">
-                        <el-radio-button label="真实">真实</el-radio-button>
-                        <el-radio-button label="自定义">自定义</el-radio-button>
+                        <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                        <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                       </el-radio-group>
                       <span class="refresh-icon-font" @click="handleRefreshFonts">
                         <i class="iconfont icon-refresh"></i>
                       </span>
                     </div>
-                    <div class="form-sub-tip" v-if="configForm.font==='真实'">将使用当前电脑的真实字体</div>
+                    <div class="form-sub-tip" v-if="configForm.font==='真实'">{{ $t('session.config.fontReal') }}</div>
                     
                     <div v-if="configForm.font === '自定义'" class="font-custom-wrapper">
                       <div class="font-display-box">
-                        {{ configForm.fontCustom || '未生成建议字体' }}
+                        {{ configForm.fontCustom || $t('session.config.fontEmptyTip') }}
                       </div>
-                      <div class="edit-font-link" @click="handleEditFonts">编辑字体</div>
+                      <div class="edit-font-link" @click="handleEditFonts">{{ $t('session.config.editFont') }}</div>
                     </div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="Canvas">
+                <el-form-item :label="$t('session.config.canvas')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.canvas">
-                    <el-radio-button label="噪音">噪音</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="噪音">{{ $t('session.options.noise') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.canvas==='噪音'" >同一浏览上为每个浏览器生成不同的 Canvas</div>
-                   <div class="form-sub-tip" v-if="configForm.canvas==='真实'">将使用当前电脑真实的 Canvas</div>
+                  <div class="form-sub-tip" v-if="configForm.canvas==='噪音'" >{{ $t('session.config.canvasDescNoise') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.canvas==='真实'">{{ $t('session.config.canvasDescReal') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="AudioContext">
+                <el-form-item :label="$t('session.config.audioContext')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.audioContext">
-                    <el-radio-button label="噪音">噪音</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="噪音">{{ $t('session.options.noise') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.audioContext==='噪音'">同一浏览上为每个浏览器生成不同的 AudioContext</div>
-                    <div class="form-sub-tip" v-if="configForm.audioContext==='真实'">将使用当前电脑真实的 AudioContext</div>
+                  <div class="form-sub-tip" v-if="configForm.audioContext==='噪音'">{{ $t('session.config.audioContextDescNoise') }}</div>
+                    <div class="form-sub-tip" v-if="configForm.audioContext==='真实'">{{ $t('session.config.audioContextDescReal') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="媒体设备">
+                <el-form-item :label="$t('session.config.mediaDevices')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.mediaDevices">
-                    <el-radio-button label="噪音">噪音</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="噪音">{{ $t('session.options.noise') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.mediaDevices==='噪音'">采集指纹生成媒体设备在浏览器内代理多媒体设备</div>
-                   <div class="form-sub-tip" v-if="configForm.mediaDevices==='真实'">将使用当前电脑真实的媒体设备信息</div>
+                  <div class="form-sub-tip" v-if="configForm.mediaDevices==='噪音'">{{ $t('session.config.mediaDevicesDescNoise') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.mediaDevices==='真实'">{{ $t('session.config.mediaDevicesDescReal') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="ClientRects">
+                <el-form-item :label="$t('session.config.clientRects')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.clientRects">
-                    <el-radio-button label="噪音">噪音</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="噪音">{{ $t('session.options.noise') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.clientRects==='噪音'">同一浏览上为每个浏览器生成不同的 ClientRects</div>
-                    <div class="form-sub-tip" v-if="configForm.clientRects==='真实'">将使用当前电脑真实的 ClientRects</div>
+                  <div class="form-sub-tip" v-if="configForm.clientRects==='噪音'">{{ $t('session.config.clientRectsDescNoise') }}</div>
+                    <div class="form-sub-tip" v-if="configForm.clientRects==='真实'">{{ $t('session.config.clientRectsDescReal') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="SpeechVoices">
+                <el-form-item :label="$t('session.config.speechVoices')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.speechVoices">
-                    <el-radio-button label="隐私">隐私</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="隐私">{{ $t('session.options.privacy') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.speechVoices==='隐私'" >同一电脑上为每个浏览器生成不同的 SpeechVoices</div>
-                   <div class="form-sub-tip" v-if="configForm.speechVoices==='真实'" >将使用当前电脑真实的 SpeechVoices</div>
+                  <div class="form-sub-tip" v-if="configForm.speechVoices==='隐私'" >{{ $t('session.config.speechVoicesDescPrivacy') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.speechVoices==='真实'" >{{ $t('session.config.speechVoicesDescReal') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="CPU内核数">
+                <el-form-item :label="$t('session.config.cpuCores')">
                   <div class="flex-column">
                   <el-radio-group v-model="configForm.cpuCores">
-                    <el-radio-button label="真实">真实</el-radio-button>
-                    <el-radio-button label="自定义">自定义</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.cpuCores==='真实'">使用当前电脑真实的 CPU 内核数</div>
-                  <div class="form-sub-tip"  v-if="configForm.cpuCores==='自定义'">可自定义 CPU 内核数用于指纹防护</div>
+                  <div class="form-sub-tip" v-if="configForm.cpuCores==='真实'">{{ $t('session.config.cpuCoresReal', { cores: $t('session.status.detecting') }) }}</div>
+                  <div class="form-sub-tip"  v-if="configForm.cpuCores==='自定义'">{{ $t('session.config.cpuCoresCustom') }}</div>
 
                   </div>
                 </el-form-item>
                 
                 <el-form-item label="" v-if="configForm.cpuCores === '自定义'">
-                  <el-select v-model="configForm.cpuCoresCustom" placeholder="请输入 CPU 内核数">
+                  <el-select v-model="configForm.cpuCoresCustom" :placeholder="$t('session.config.cpuCoresPlaceholder')">
                     <el-option v-for="item  in cpuCoresOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
                   </el-select>
                 </el-form-item>
 
-                <el-form-item label="内存">
+                <el-form-item :label="$t('session.config.memory')">
                   <div class="flex-column">
                    
                   <el-radio-group v-model="configForm.memory">
-                    <el-radio-button label="真实">真实</el-radio-button>
-                    <el-radio-button label="自定义">自定义</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
+                    <el-radio-button label="自定义">{{ $t('session.options.custom') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.memory==='真实'">使用当前电脑真实内存大小</div>
-                     <div class="form-sub-tip" v-if="configForm.memory==='自定义'">可自定义内存大小用于指纹防护</div>
+                  <div class="form-sub-tip" v-if="configForm.memory==='真实'">{{ $t('session.config.memoryReal', { memory: $t('session.status.detecting') }) }}</div>
+                     <div class="form-sub-tip" v-if="configForm.memory==='自定义'">{{ $t('session.config.memoryCustom') }}</div>
                   </div>
                 </el-form-item>
                 
-                <el-form-item label="内存大小" v-if="configForm.memory === '自定义'">
-                  <el-select v-model="configForm.memoryCustom" placeholder="请选择内存大小 (GB)">
+                <el-form-item :label="$t('session.config.memorySize')" v-if="configForm.memory === '自定义'">
+                  <el-select v-model="configForm.memoryCustom" :placeholder="$t('session.config.memoryPlaceholder')">
                     <el-option v-for="item in memoryOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
                   </el-select>
                 </el-form-item>
 
-                <el-form-item label="Do Not Track">
+                <el-form-item :label="$t('session.config.doNotTrack')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.doNotTrack">
-                    <el-radio-button :label="true">开启</el-radio-button>
-                    <el-radio-button :label="false">关闭</el-radio-button>
+                    <el-radio-button :label="true">{{ $t('session.options.on') }}</el-radio-button>
+                    <el-radio-button :label="false">{{ $t('session.options.off') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.doNotTrack===true">设置不联盟请求此浏览器个人信息</div>
-                   <div class="form-sub-tip" v-if="configForm.doNotTrack===false">设置愿意被站点追踪个人信息</div>
+                  <div class="form-sub-tip" v-if="configForm.doNotTrack===true">{{ $t('session.config.doNotTrackDescOn') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.doNotTrack===false">{{ $t('session.config.doNotTrackDescOff') }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="屏幕">
+                <el-form-item :label="$t('session.config.screen')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.screen">
-                    <el-radio-button label="噪音">噪音</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="噪音">{{ $t('session.options.noise') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip">使用指纹替换窗口的属性和属性</div>
+                  <div class="form-sub-tip">{{ $t('session.config.screenDesc') }}</div>
                   </div>
                 </el-form-item>
-                    <el-form-item label="蓝牙">
+                    <el-form-item :label="$t('session.config.bluetooth')">
                        <div class="flex-column">
                   <el-radio-group v-model="configForm.Bluetooth">
-                    <el-radio-button label="隐私">隐私</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="隐私">{{ $t('session.options.privacy') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.Bluetooth==='隐私'">使用相匹配的值代替您真实的蓝牙信息</div>
-                   <div class="form-sub-tip" v-if="configForm.Bluetooth==='真实'">将使用当前电脑真实的蓝牙</div>
+                  <div class="form-sub-tip" v-if="configForm.Bluetooth==='隐私'">{{ $t('session.config.bluetoothDescPrivacy') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.Bluetooth==='真实'">{{ configForm.BluetoothCustom }}</div>
                    </div>
                 </el-form-item>
-                <el-form-item label="电池">
+                <el-form-item :label="$t('session.config.battery')">
                    <div class="flex-column">
-                     {{ configForm.batteryCustom }}
                   <el-radio-group v-model="configForm.battery">
-                    <el-radio-button label="隐私">隐私</el-radio-button>
-                    <el-radio-button label="真实">真实</el-radio-button>
+                    <el-radio-button label="隐私">{{ $t('session.options.privacy') }}</el-radio-button>
+                    <el-radio-button label="真实">{{ $t('session.options.real') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.battery==='隐私'">使用相匹配的值代替您真实的电池信息</div>
-                   <div class="form-sub-tip" v-if="configForm.battery==='真实'">将使用当前电脑真实的电池</div>
+                  <div class="form-sub-tip" v-if="configForm.battery==='隐私'">{{ $t('session.config.batteryDescPrivacy') }}</div>
+                   <div class="form-sub-tip" v-if="configForm.battery==='真实'">{{ configForm.batteryCustom }}</div>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="端口扫描保护">
+                <el-form-item :label="$t('session.config.portScan')">
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.portScanProtection">
-                    <el-radio-button :label="true">开启</el-radio-button>
-                    <el-radio-button :label="false">关闭</el-radio-button>
+                    <el-radio-button :label="true">{{ $t('session.options.on') }}</el-radio-button>
+                    <el-radio-button :label="false">{{ $t('session.options.off') }}</el-radio-button>
                   </el-radio-group>
-                  <div class="form-sub-tip" v-if="configForm.portScanProtection">阻止脚本使用网站检测对本地网络内的端口和服务器</div>
-                   <div class="form-sub-tip" v-if="!configForm.portScanProtection">关闭后，将不会阻止网站检测您使用了本地网络的哪些端口</div>
-                    <el-input type="textarea" v-if="configForm.portScanProtection" :rows="3" v-model="configForm.cookie" placeholder="选填， 允许被连接的本地网络端口范围之间， 分隔多个逗号隔开 例：2000-3000， 3000-5000"></el-input>
+                  <div class="form-sub-tip" v-if="configForm.portScanProtection">{{ $t('session.config.portScanDescOn') }}</div>
+                   <div class="form-sub-tip" v-if="!configForm.portScanProtection">{{ $t('session.config.portScanDescOff') }}</div>
+                    <el-input type="textarea" v-if="configForm.portScanProtection" :rows="3" v-model="configForm.cookie" :placeholder="$t('session.config.portScanPlaceholder')"></el-input>
                   </div>
                 </el-form-item>
 
-                <el-form-item label="Cookie">
-                  <el-input type="textarea" :rows="3" v-model="configForm.cookie" placeholder="请输入 Cookie"></el-input>
+                <el-form-item :label="$t('session.config.cookie')">
+                  <el-input type="textarea" :rows="3" v-model="configForm.cookie" :placeholder="$t('session.config.cookiePlaceholder')"></el-input>
                 </el-form-item>
               </el-form>
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="代理配置" name="proxy">
+          <el-tab-pane :label="$t('session.tabs.proxy')" name="proxy">
             <div class="scroll-area">
               <el-form :model="configForm" label-width="120px" label-position="left">
-                <el-form-item label="代理开关">
+                <el-form-item :label="$t('session.config.proxySwitch')">
                   <el-switch
                     v-model="configForm.proxyStatus"
                     active-value="true"
                     inactive-value="false"
                   ></el-switch>
                 </el-form-item>
-                <el-form-item label="选择代理">
-                  <el-select v-model="configForm.proxy" placeholder="请选择代理" style="width: 100%">
+                <el-form-item :label="$t('session.config.selectProxy')">
+                  <el-select v-model="configForm.proxy" :placeholder="$t('session.config.selectProxyPlaceholder')" style="width: 100%">
                     <el-option label="No Proxy" value="noProxy"></el-option>
                     <el-option label="HTTP" value="http"></el-option>
                     <el-option label="HTTPS" value="https"></el-option>
                     <el-option label="SOCKS5" value="socks5"></el-option>
                   </el-select>
                 </el-form-item>
-                <el-form-item label="主机">
-                  <el-input v-model="configForm.host" placeholder="请输入主机"></el-input>
+                <el-form-item :label="$t('session.config.host')">
+                  <el-input v-model="configForm.host" :placeholder="$t('session.config.hostPlaceholder')"></el-input>
                 </el-form-item>
-                <el-form-item label="端口">
-                  <el-input v-model="configForm.port" placeholder="请输入端口"></el-input>
+                <el-form-item :label="$t('session.config.port')">
+                  <el-input v-model="configForm.port" :placeholder="$t('session.config.portPlaceholder')"></el-input>
                 </el-form-item>
-                <el-form-item label="用户名">
-                  <el-input v-model="configForm.username" placeholder="请输入用户名"></el-input>
+                <el-form-item :label="$t('session.config.username')">
+                  <el-input v-model="configForm.username" :placeholder="$t('session.config.usernamePlaceholder')"></el-input>
                 </el-form-item>
-                <el-form-item label="密码">
-                  <el-input type="password" v-model="configForm.password" placeholder="请输入密码" show-password></el-input>
+                <el-form-item :label="$t('session.config.password')">
+                  <el-input type="password" v-model="configForm.password" :placeholder="$t('session.config.passwordPlaceholder')" show-password></el-input>
                 </el-form-item>
               </el-form>
             </div>
@@ -1668,132 +1648,132 @@ const cancelClick = () => {
       <!-- Right Column: Fingerprint Overview -->
       <div class="overview-section">
         <div class="overview-header">
-           <span class="overview-title">指纹概览</span>
+           <span class="overview-title">{{ $t('session.config.overviewTitle') }}</span>
            <el-button type="success" class="generate-btn" @click="generateFingerprint" size="small" round> 
             <i class="iconfont icon-fingerprint" style="margin-right: 15px;"></i>
-            <span>生成新指纹</span>
+            <span>{{ $t('session.config.generateBtn') }}</span>
             </el-button>
         </div>
         <div class="overview-list">
           <div class="overview-item">
-            <span class="label">浏览器</span>
-            <span class="value">{{ configForm.browser }} (Chrome内核)</span>
+            <span class="label">{{ $t('session.config.browser') }}</span>
+            <span class="value">{{ configForm.browser }} ({{ $t('session.config.browserCore') }})</span>
           </div>
           <div class="overview-item">
-            <span class="label">User Agent</span>
+            <span class="label">{{ $t('session.config.userAgent') }}</span>
             <div class="value ua-value">{{ configForm.userAgent }}</div>
           </div>
           <div class="overview-item">
-            <span class="label">操作系统</span>
+            <span class="label">{{ $t('session.config.os') }}</span>
             <span class="value">{{ configForm.os }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">WebGL元数据</span>
-            <span class="value text-success" v-if="configForm.webglMetadata === '真实'">真实</span>
-            <span class="value text-warning" v-else-if="configForm.webglMetadata === '关闭硬件加速'">关闭硬件加速</span>
-            <span class="value text-primary" v-else-if="configForm.webglMetadata === '自定义'">自定义</span>
+            <span class="label">{{ $t('session.config.webglMetadata') }}</span>
+            <span class="value text-success" v-if="configForm.webglMetadata === '真实'">{{ $t('session.options.real') }}</span>
+            <span class="value text-warning" v-else-if="configForm.webglMetadata === '关闭硬件加速'">{{ $t('session.config.webglClose') }}</span>
+            <span class="value text-primary" v-else-if="configForm.webglMetadata === '自定义'">{{ $t('session.options.custom') }}</span>
           </div>
           <div class="overview-item" v-if="configForm.webglMetadata === '自定义'">
-            <span class="label">WebGL厂商</span>
+            <span class="label">{{ $t('session.config.webglVendor') }}</span>
             <span class="value text-primary">{{ configForm.webglVendor }}</span>
           </div>
           <div class="overview-item" v-if="configForm.webglMetadata === '自定义'">
-            <span class="label">WebGL渲染</span>
+            <span class="label">{{ $t('session.config.webglRenderer') }}</span>
             <span class="value text-primary">{{ configForm.webglRenderer }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">WebGL图像</span>
-            <span class="value text-success">{{configForm.webglImage}}</span>
+            <span class="label">{{ $t('session.config.webglImage') }}</span>
+            <span class="value text-success">{{configForm.webglImage==='真实' ? $t('session.options.real') : $t('session.options.noise')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">WebGPU</span>
-            <span class="value text-success">{{configForm.webgpu}}</span>
+            <span class="label">{{ $t('session.config.webgpu') }}</span>
+            <span class="value text-success">{{configForm.webgpu === '真实' ? $t('session.options.real') : (configForm.webgpu === '禁用' ? $t('session.options.disabled') : $t('session.config.webgpuDescWebGL'))}}</span>
           </div>
           <div class="overview-item" v-if="configForm.webgpu === '真实' && configForm.webgpuCustom">
-            <span class="label">WebGPU 详情</span>
+            <span class="label">{{ $t('session.config.webgpuDetail') }}</span>
             <span class="value text-primary">{{ configForm.webgpuCustom }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">WebRTC</span>
-            <span class="value text-success">{{configForm.webrtc }}</span>
+            <span class="label">{{ $t('session.config.webrtc') }}</span>
+            <span class="value text-success">{{configForm.webrtc === '真实' ? $t('session.options.real') : (configForm.webrtc === '禁用' ? $t('session.options.disabled') : $t('session.options.replace')) }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">时区</span>
-            <span class="value text-success">{{configForm.timezone==='自定义' ? '替换': configForm.timezone }}</span>
+            <span class="label">{{ $t('session.config.timezone') }}</span>
+            <span class="value text-success">{{configForm.timezone==='自定义' ? $t('session.options.replace'): (configForm.timezone==='基于IP' ? $t('session.options.basedOnIP') : $t('session.options.real')) }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">地理位置</span>
-            <span class="value text-success">基于 IP ({{configForm.geolocation}})</span>
+            <span class="label">{{ $t('session.config.geolocation') }}</span>
+            <span class="value text-success">{{ $t('session.config.geolocationIPShort', { val: configForm.geolocation==='询问' ? $t('session.options.ask') : $t('session.options.block') }) }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">语言</span>
-            <span class="value text-success">{{configForm.language==='自定义' ? '替换': configForm.language }}</span>
+            <span class="label">{{ $t('session.config.language') }}</span>
+            <span class="value text-success">{{configForm.language==='自定义' ? $t('session.options.replace'): $t('session.options.basedOnIP') }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">分辨率</span>
-            <span class="value text-success">{{configForm.resolution==='真实' ?configForm.resolution : currentResolution }}</span>
+            <span class="label">{{ $t('session.config.resolution') }}</span>
+            <span class="value text-success">{{configForm.resolution==='真实' ? $t('session.options.real') : currentResolution }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">字体</span>
-            <span class="value text-success">{{configForm.font==='自定义' ? '替换': configForm.font }}</span>
+            <span class="label">{{ $t('session.config.font') }}</span>
+            <span class="value text-success">{{configForm.font==='自定义' ? $t('session.options.replace'): $t('session.options.real') }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">Canvas</span>
-            <span class="value text-success">{{configForm.canvas}}</span>
+            <span class="label">{{ $t('session.config.canvas') }}</span>
+            <span class="value text-success">{{configForm.canvas === '真实' ? $t('session.options.real') : $t('session.options.noise')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">AudioContext</span>
-            <span class="value text-success">{{configForm.audioContext}}</span>
+            <span class="label">{{ $t('session.config.audioContext') }}</span>
+            <span class="value text-success">{{configForm.audioContext === '真实' ? $t('session.options.real') : $t('session.options.noise')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">媒体设备</span>
-            <span class="value text-success">{{configForm.mediaDevices}}</span>
+            <span class="label">{{ $t('session.config.mediaDevices') }}</span>
+            <span class="value text-success">{{configForm.mediaDevices === '真实' ? $t('session.options.real') : $t('session.options.noise')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">ClientRects</span>
-            <span class="value text-success">{{configForm.clientRects}}</span>
+            <span class="label">{{ $t('session.config.clientRects') }}</span>
+            <span class="value text-success">{{configForm.clientRects === '真实' ? $t('session.options.real') : $t('session.options.noise')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">SpeechVoices</span>
-            <span class="value text-success">{{configForm.speechVoices}}</span>
+            <span class="label">{{ $t('session.config.speechVoices') }}</span>
+            <span class="value text-success">{{configForm.speechVoices === '真实' ? $t('session.options.real') : $t('session.options.privacy')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">CPU内核数</span>
-            <span class="value text-primary">{{configForm.cpuCores==='真实' ?configForm.cpuCores : configForm.cpuCoresCustom }} {{configForm.cpuCores==='真实' ?'' : '核'}}</span>
+            <span class="label">{{ $t('session.config.cpuCores') }}</span>
+            <span class="value text-primary">{{configForm.cpuCores==='真实' ? $t('session.options.real') : configForm.cpuCoresCustom + ' ' + $t('session.options.coresShort') }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">内存</span>
-            <span class="value text-primary">{{configForm.memory==='真实' ?configForm.memory : configForm.memoryCustom }} {{configForm.memory==='真实' ?' ' : 'GB'}}</span>
+            <span class="label">{{ $t('session.config.memory') }}</span>
+            <span class="value text-primary">{{configForm.memory==='真实' ? $t('session.options.real') : configForm.memoryCustom + ' GB' }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">Do Not Track</span>
-            <span class="value">{{configForm.doNotTrack ? '启用' : '关闭' }}</span>
+            <span class="label">{{ $t('session.config.doNotTrack') }}</span>
+            <span class="value">{{configForm.doNotTrack ? $t('session.options.on') : $t('session.options.off') }}</span>
           </div>
           <div class="overview-item">
-            <span class="label">蓝牙</span>
-            <span class="value text-success">{{configForm.Bluetooth==='真实' ? configForm.Bluetooth : '替换'}}</span>
+            <span class="label">{{ $t('session.config.bluetooth') }}</span>
+            <span class="value text-success">{{configForm.Bluetooth==='真实' ? $t('session.options.real') : $t('session.options.privacy')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">电池</span>
-            <span class="value text-success">{{configForm.battery==='真实' ? configForm.battery : '替换'}}</span>
+            <span class="label">{{ $t('session.config.battery') }}</span>
+            <span class="value text-success">{{configForm.battery==='真实' ? $t('session.options.real') : $t('session.options.privacy')}}</span>
           </div>
           <div class="overview-item">
-            <span class="label">跨门保护</span>
-            <span class="value">{{configForm.portScanProtection ? '启用' : '关闭' }}</span>
+            <span class="label">{{ $t('session.config.portScan') }}</span>
+            <span class="value">{{configForm.portScanProtection ? $t('session.options.on') : $t('session.options.off') }}</span>
           </div>
         </div>
       </div>
     </div>
 
     <div class="settings-footer">
-      <el-button @click="cancelClick">取消</el-button>
-      <el-button type="success" class="launch-btn" @click="confirmClick">确定启动</el-button>
+      <el-button @click="cancelClick">{{ $t('session.buttons.cancel') }}</el-button>
+      <el-button type="success" class="launch-btn" @click="confirmClick">{{ $t('session.buttons.confirmLaunch') }}</el-button>
     </div>
 
     <!-- 添加语言弹窗 -->
     <el-dialog
       v-model="addLanguageVisible"
-      title="添加语言"
+      :title="$t('session.config.addLanguage')"
       width="500px"
       class="custom-language-dialog"
       :show-close="true"
@@ -1802,7 +1782,7 @@ const cancelClick = () => {
       <div class="dialog-content">
         <el-input
           v-model="languageSearchQuery"
-          placeholder="搜索关键词"
+          :placeholder="$t('session.config.searchPlaceholder')"
           class="language-search"
           clearable
         >
@@ -1820,8 +1800,8 @@ const cancelClick = () => {
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="addLanguageVisible = false">取消</el-button>
-          <el-button type="success" class="confirm-btn" @click="confirmAddLanguage">确定</el-button>
+          <el-button @click="addLanguageVisible = false">{{ $t('session.buttons.cancel') }}</el-button>
+          <el-button type="success" class="confirm-btn" @click="confirmAddLanguage">{{ $t('session.buttons.confirm') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -1829,7 +1809,7 @@ const cancelClick = () => {
     <!-- 编辑字体弹窗 -->
     <el-dialog
       v-model="fontDialogVisible"
-      title="编辑字体"
+      :title="$t('session.config.editFont')"
       width="500px"
       class="custom-language-dialog"
       :show-close="true"
@@ -1838,7 +1818,7 @@ const cancelClick = () => {
       <div class="dialog-content">
         <el-input
           v-model="fontSearchQuery"
-          placeholder="搜索关键词"
+          :placeholder="$t('session.config.searchPlaceholder')"
           class="language-search"
           clearable
         >
@@ -1856,8 +1836,8 @@ const cancelClick = () => {
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="fontDialogVisible = false">取消</el-button>
-          <el-button type="success" class="confirm-btn" @click="confirmEditFont">确定</el-button>
+          <el-button @click="fontDialogVisible = false">{{ $t('session.buttons.cancel') }}</el-button>
+          <el-button type="success" class="confirm-btn" @click="confirmEditFont">{{ $t('session.buttons.confirm') }}</el-button>
         </div>
       </template>
     </el-dialog>
