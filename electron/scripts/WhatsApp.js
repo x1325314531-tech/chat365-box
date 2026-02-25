@@ -3258,7 +3258,42 @@ async function getVoiceAudioBuffer(voiceContainer, playIcon) {
 
 // 翻译语音消息
 async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
+    // 查找翻译按钮以便显示加载状态
+    const translateBtn = voiceContainer.querySelector('.voice-translate-btn span');
+    const originalBtnHTML = translateBtn ? translateBtn.innerHTML : null;
+
     try {
+        if (translateBtn) {
+            translateBtn.style.opacity = '0.7';
+            translateBtn.style.pointerEvents = 'none';
+            translateBtn.innerHTML = `
+                <svg class="loading-spinner" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; animation: rotate 1s linear infinite;">
+                    <line x1="12" y1="2" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="22"></line>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                    <line x1="2" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="22" y2="12"></line>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                </svg>
+                翻译中...
+            `;
+            
+            // 如果样式表中没有动画，动态添加
+            if (!document.getElementById('voice-loading-style')) {
+                const style = document.createElement('style');
+                style.id = 'voice-loading-style';
+                style.textContent = `
+                    @keyframes rotate {
+                        from { transform: rotate(0deg); }
+                        to { transform: rotate(360deg); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
         console.log('🌐 发起语音翻译 (V12: State-Aware)');
         
         const containerKey = getCanonicalVoiceContainer(voiceContainer);
@@ -3354,6 +3389,13 @@ async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
             message: `语音翻译失败: ${error.message}`,
             type: 'is-danger'
         });
+    } finally {
+        // 恢复按钮状态
+        if (translateBtn && originalBtnHTML) {
+            translateBtn.style.opacity = '1';
+            translateBtn.style.pointerEvents = 'auto';
+            translateBtn.innerHTML = originalBtnHTML;
+        }
     }
 }
 
