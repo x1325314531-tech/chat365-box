@@ -270,5 +270,9 @@
       "confirmLaunch": "Confirm & Launch",
       "confirm": "Confirm"
     }
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "noSessions": "No sessions opened"
   }
 }

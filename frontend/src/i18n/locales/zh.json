@@ -270,5 +270,9 @@
       "confirmLaunch": "确定启动",
       "confirm": "确定"
     }
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "noSessions": "没有打开任何会话"
   }
 }

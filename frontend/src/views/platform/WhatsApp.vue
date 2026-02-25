@@ -3,7 +3,7 @@
     <div class="left-div">
       <AsideCard 
         ref="asideCardRef"
-        title="WhatsApp" 
+        :title="$t('whatsapp.title')" 
         @open-settings="handleOpenSettings"
       ></AsideCard>
     </div>
@@ -12,19 +12,22 @@
         v-if="showSettings"
         :is-edit="isEditSettings"
         :card="currentSettingCard"
-        platform="WhatsApp"
+        :platform="$t('whatsapp.title')"
         @confirm="handleSettingsConfirm"
         @cancel="handleSettingsCancel"
       />
-      <el-empty v-else description="没有打开任何会话" />
+      <el-empty v-else :description="$t('whatsapp.noSessions')" />
     </div>
   </div>
 </template>
 <script setup>
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import AsideCard from "@/views/platform/AsideCard.vue";
 import SessionSettings from "@/views/components/SessionSettings.vue";
 import { ipc } from '@/utils/ipcRenderer';
+
+const { t } = useI18n();
 
 const asideCardRef = ref(null);
 const showSettings = ref(false);
@@ -65,7 +68,7 @@ const ipcApiRoute = {
   addSession: 'controller.window.addSession',
 }
 const receiveCardId = (card)=> {
-  const args = {cardId:card.cardId,title:card.title,online:card.online,platform:'WhatsApp',activeStatus:true}
+  const args = {cardId:card.cardId,title:card.title,online:card.online,platform:t('whatsapp.title'),activeStatus:true}
   //初始化机器码
   ipc.invoke(ipcApiRoute.addSession, args).then(res => {
     // console.log('收到数据：',res)
