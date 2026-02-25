@@ -47,6 +47,7 @@ const route = useRoute();
 const ipcApiRoute = {
   hideWindow: 'controller.window.hideWindow',
   logout: 'controller.window.logout',
+  changeSidebarWidth: 'controller.window.changeSidebarWidth',
 };
 
 // 菜单项配置
@@ -82,6 +83,7 @@ onMounted(() => {
 function handleMenuSelect(id) {
   if (activeMenu.value === id) return;
   ipc.invoke(ipcApiRoute.hideWindow, { platform: id });
+  ipc.invoke(ipcApiRoute.changeSidebarWidth, { isShrunk: false });
   const item = menuItems.find(item => item.id === id);
   if (item) {
     router.push(item.path);
