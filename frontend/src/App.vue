@@ -13,19 +13,34 @@ export default {
     
     const router = useRouter();
     
+    const ipcApiRoute = {
+      saveAuthToken: 'controller.login.saveAuthToken',
+      logout: 'controller.window.logout',
+    };
+
     // 监听登录过期事件
     const handleAuthExpired = (event, data) => {
       console.warn('收到登录过期通知:', data);
-       ipc.invoke(ipcApiRoute.logout,{}).then(()=>{
-    localStorage.removeItem('box-token');
-    localStorage.removeItem('userInfo');
-     // 跳转到登录页
-      router.push('/login');
-    })
-    
+      ipc.invoke(ipcApiRoute.logout, {}).then(() => {
+        localStorage.removeItem('box-token');
+        localStorage.removeItem('userInfo');
+        // 跳转到登录页
+        router.push('/login');
+      })
     };
     
     onMounted(() => {
+      // 启动时同步 Token 到主进程 (方案 A)
+      const token = localStorage.getItem('box-token');
+      if (token) {
+        console.log('检测到本地存储的 Token，正在同步到主进程...');
+        ipc.invoke(ipcApiRoute.saveAuthToken, { token }).then(() => {
+          console.log('Token 同步成功');
+        }).catch(err => {
+          console.error('Token 同步失败:', err);
+        });
+      }
+
       // 添加 IPC 监听器
       if (window.ipcRenderer) {
         window.ipcRenderer.on('auth-expired', handleAuthExpired);

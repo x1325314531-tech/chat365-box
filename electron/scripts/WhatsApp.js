@@ -792,9 +792,11 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
         console.log('💾 原文已保存到本地:', originalText);
         
         // 创建原文显示节点（与接收消息翻译UI一致）
-        let originalNode = document.createElement('div');
+        // 使用 span + display:block 以避免块级元素嵌套在 span 内导致的渲染冲突
+        let originalNode = document.createElement('span');
         originalNode.className = 'original-text-result';
         originalNode.style.cssText = `
+            display: block;
             font-size: 13px;
             color: #25D366;
             border-top: 1px dashed #ccc;
@@ -926,9 +928,10 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
                 if (res && res.success) {
                     // 如果还没有翻译结果节点，则创建一个
                     if (!translationNode) {
-                        translationNode = document.createElement('div');
+                        translationNode = document.createElement('span');
                         translationNode.className = 'translation-result';
                         translationNode.style.cssText = `
+                            display: block;
                             font-size: 13px;
                             color: #25D366;
                             border-top: 1px dashed #ccc;
@@ -955,15 +958,15 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
         };
         
         // 3.5 创建并显示加载状态指示器
-        loadingNode = document.createElement('div');
+        loadingNode = document.createElement('span');
         loadingNode.className = 'translation-loading';
         loadingNode.style.cssText = `
+            display: flex;
             font-size: 12px;
             color: #8696a0;
             border-top: 1px dashed #ccc;
             padding-top: 5px;
             margin-top: 5px;
-            display: flex;
             align-items: center;
             gap: 6px;
         `;
@@ -1014,9 +1017,10 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
         if (translatedText && normalizeText(translatedText) !== normalizeText(originalText)) {
             // 如果翻译结果节点不存在，则创建
             if (!translationNode) {
-                translationNode = document.createElement('div');
+                translationNode = document.createElement('span');
                 translationNode.className = 'translation-result';
                 translationNode.style.cssText = `
+                    display: block;
                     font-size: 13px;
                     color: #25D366;
                     border-top: 1px dashed #ccc;
@@ -1395,9 +1399,10 @@ function monitorMainNode() {
                 span.setAttribute('data-translate-status', 'translated');
 
                 // 创建翻译结果显示节点
-                let translationNode = document.createElement('div');
+                let translationNode = document.createElement('span'); // Changed from div to span
                 translationNode.className = 'translation-result';
                 translationNode.style.cssText = `
+                    display: block; /* Added display: block */
                     font-size: 13px;
                     color: #25D366;
                     border-top: 1px dashed #ccc;
@@ -1407,6 +1412,7 @@ function monitorMainNode() {
                 `;
                 translationNode.textContent = '' + result.data;
 
+                span.appendChild(document.createElement('br')); // Added <br>
                 span.appendChild(translationNode);
                 console.log('✅ 翻译结果已显示');
             } else if (result && result.success && result.data && result.data.trim() === msg.trim()) {
@@ -2351,9 +2357,10 @@ async function restoreSentMessageOriginals() {
                 }
 
                 // 创建原文显示节点
-                let originalNode = document.createElement('div');
+                let originalNode = document.createElement('span');
                 originalNode.className = 'original-text-result';
                 originalNode.style.cssText = `
+                    display: block;
                     font-size: 13px;
                     color: #25D366;
                     border-top: 1px dashed #ccc;
@@ -2363,6 +2370,7 @@ async function restoreSentMessageOriginals() {
                 `;
                 originalNode.textContent = record.originalText;
                 
+                span.appendChild(document.createElement('br')); // Added <br>
                 span.appendChild(originalNode);
                 span.setAttribute('data-original-restored', 'true');
                 console.log('🔄 已恢复原文显示:', record.originalText);
@@ -2620,9 +2628,10 @@ async function restoreSentMessageTranslations() {
                             // 查找或创建译文节点
                             let translationNode = span.querySelector('.translation-result');
                             if (!translationNode) {
-                                translationNode = document.createElement('div');
+                                translationNode = document.createElement('span');
                                 translationNode.className = 'translation-result';
                                 translationNode.style.cssText = `
+                                    display: block;
                                     font-size: 13px;
                                     color: #25D366;
                                     border-top: 1px dashed #ccc;
@@ -2630,6 +2639,7 @@ async function restoreSentMessageTranslations() {
                                     margin-top: 5px;
                                     font-style: italic;
                                 `;
+                                span.appendChild(document.createElement('br')); // Added <br>
                                 span.appendChild(translationNode);
                             }
                             
@@ -2671,9 +2681,10 @@ async function restoreSentMessageTranslations() {
                 }
 
                 if (cachedTrans) {
-                    const translationNode = document.createElement('div');
+                    const translationNode = document.createElement('span');
                     translationNode.className = 'translation-result';
                     translationNode.style.cssText = `
+                        display: block;
                         font-size: 13px;
                         color: #25D366;
                         border-top: 1px dashed #ccc;
@@ -2681,9 +2692,10 @@ async function restoreSentMessageTranslations() {
                         margin-top: 5px;
                         font-style: italic;
                     `;
+                    span.appendChild(document.createElement('br')); // Added <br>
+                    span.appendChild(translationNode);
                     translationNode.textContent = cachedTrans;
                     
-                    span.appendChild(translationNode);
                     span.setAttribute('data-translation-restored', 'true');
                     console.log('🔄 已从缓存恢复发送消息译文:', msgText.substring(0, 20));
                 }
@@ -3268,9 +3280,10 @@ function displayVoiceTranslation(voiceContainer, translationData) {
     const isOut = !!voiceContainer.closest('.message-out');
     
     // 创建翻译结果显示节点
-    const resultNode = document.createElement('div');
+    const resultNode = document.createElement('span'); // Changed from div to span
     resultNode.className = 'voice-translation-result';
     resultNode.style.cssText = `
+        display: block; /* Added display: block */
         font-size: 13px;
         color: #25D366;
         background: rgba(37, 211, 102, 0.1);
