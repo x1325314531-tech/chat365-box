@@ -80,7 +80,37 @@
             </div>
             <div class="info-text">
               <span class="info-label">{{ $t('home.availableChars') }}</span>
-              <span class="info-value">{{ availableChars }} <el-icon><QuestionFilled /></el-icon></span>
+              <span class="info-value">
+                {{ availableChars }}
+                <el-popover
+                  placement="bottom-start"
+                  :width="280"
+                  trigger="hover"
+                  popper-class="char-details-popover"
+                >
+                  <template #reference>
+                    <el-icon class="info-question"><QuestionFilled /></el-icon>
+                  </template>
+                  <div class="popover-content">
+                    <div class="popover-header">
+                      <span class="popover-title">字符列表</span>
+                      <el-icon class="refresh-icon" @click="getCurrentCharUsage"><Refresh /></el-icon>
+                    </div>
+                    <div class="char-table">
+                      <div class="char-table-header">
+                        <div class="col">翻译通道</div>
+                        <div class="col">已用</div>
+                        <div class="col">可用</div>
+                      </div>
+                      <div class="char-table-row">
+                        <div class="col">free</div>
+                        <div class="col">{{ charInfo.usedChar }}</div>
+                        <div class="col">{{ availableChars }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </el-popover>
+              </span>
             </div>
           </div>
 
@@ -157,7 +187,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { AlarmClock, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
+import { AlarmClock, QuestionFilled, ArrowDown, Refresh } from '@element-plus/icons-vue'
 import LineChart from '../components/LineChart.vue'
 import Notification from "@/utils/notification";
 import { get } from '@/utils/request'
@@ -412,10 +442,80 @@ const handleQuickAccess = (item) => {
   gap: 4px;
 }
 
-.info-value .el-icon {
+.info-value .info-question {
   font-size: 14px;
   color: #bfbfbf;
   cursor: pointer;
+  margin-left: 4px;
+}
+
+.info-value .info-question:hover {
+  color: #1890ff;
+}
+
+/* Popover 内容样式 */
+:deep(.char-details-popover) {
+  padding: 16px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+}
+
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.popover-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.refresh-icon {
+  font-size: 18px;
+  color: #666;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.refresh-icon:hover {
+  color: #1890ff;
+}
+
+.char-table {
+  width: 100%;
+}
+
+.char-table-header {
+  display: flex;
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+
+.char-table-row {
+  display: flex;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.col {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+}
+
+.char-table-header .col {
+  font-weight: 500;
+  color: #333;
+}
+
+.char-table-row .col {
+  font-family: monospace;
 }
 
 /* 快捷入口样式 */
