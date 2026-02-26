@@ -1,5 +1,5 @@
 <template>
-  <el-container style="height: 100%; padding: 20px; box-sizing: border-box;">
+  <el-container direction="vertical" style="height: 100%; padding: 20px; box-sizing: border-box; overflow-y: auto;">
     <!-- 顶部部分 -->
         <div class="header-top ">
           <el-row :gutter="12">
@@ -143,7 +143,7 @@
     </el-header>
 
     <!-- 内容主体部分 -->
-    <el-main style="overflow: auto;">
+    <el-main style="flex: none; overflow: visible;" v-if="chartShow">
       <el-card>
         <div class="title">{{ $t('home.dataStats') }}</div>
         <LineChart />
@@ -188,6 +188,7 @@ let timer = null
 
 // 获取用户信息
 const userInfo = ref({})
+const  chartShow= ref(false)
 const loadUserInfo = () => {
   const info = localStorage.getItem('userInfo')
   if (info) {
@@ -485,5 +486,24 @@ const handleQuickAccess = (item) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 自定义滚动条样式 */
+.el-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.el-container::-webkit-scrollbar-thumb {
+  background: #dbdbdb;
+  border-radius: 10px;
+}
+
+.el-container::-webkit-scrollbar-thumb:hover {
+  background: #c1c1c1;
+}
+
+.el-container::-webkit-scrollbar-track {
+  background: transparent;
 }
 </style>
