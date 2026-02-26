@@ -3832,7 +3832,7 @@ function displayVoiceTranslation(voiceContainer, translationData) {
         text-align: ${isOut ? 'right' : 'left'};
         align-self: ${isOut ? 'flex-end' : 'flex-start'};
         max-width:80%;
-        margin-left: ${isOut ? '10px' : '132px'};
+        margin-left: ${isOut ? '10px' : '64px'};
         margin-right: ${isOut ? '0' : '10px'};
 
     `;
