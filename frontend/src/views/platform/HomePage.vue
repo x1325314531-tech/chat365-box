@@ -99,12 +99,14 @@
                     <div class="char-table">
                       <div class="char-table-header">
                         <div class="col">翻译通道</div>
+                        <div class="col">今日已用</div>
                         <div class="col">已用</div>
                         <div class="col">可用</div>
                       </div>
                       <div class="char-table-row">
                         <div class="col">free</div>
-                        <div class="col">{{ charInfo.usedChar }}</div>
+                        <div class="col">{{ charInfo.accountUsed?.todayUsed || 0 }}</div>
+                        <div class="col">{{ charInfo.usedChar }}</div>     
                         <div class="col">{{ availableChars }}</div>
                       </div>
                     </div>
@@ -229,7 +231,10 @@ const loadUserInfo = () => {
 // 字符使用情况
 const charInfo = ref({
   totalChar: 0,
-  usedChar: 0
+  usedChar: 0,
+  accountUsed: {
+    todayUsed: 0
+  }
 })
 
 const availableChars = computed(() => {
