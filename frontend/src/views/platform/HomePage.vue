@@ -80,7 +80,7 @@
             </div>
             <div class="info-text">
               <span class="info-label">{{ $t('home.availableChars') }}</span>
-              <span class="info-value">43830 <el-icon><QuestionFilled /></el-icon></span>
+              <span class="info-value">{{ availableChars }} <el-icon><QuestionFilled /></el-icon></span>
             </div>
           </div>
 
@@ -160,6 +160,7 @@ import { useI18n } from 'vue-i18n'
 import { AlarmClock, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import LineChart from '../components/LineChart.vue'
 import Notification from "@/utils/notification";
+import { get } from '@/utils/request'
 
 // i18n
 const { t, locale } = useI18n()
@@ -194,6 +195,27 @@ const loadUserInfo = () => {
   }
 }
 
+// 字符使用情况
+const charInfo = ref({
+  totalChar: 0,
+  usedChar: 0
+})
+
+const availableChars = computed(() => {
+  return charInfo.value.totalChar - charInfo.value.usedChar
+})
+
+async function getCurrentCharUsage() {
+  try {
+    const res = await get('/app/tenantWallet/getCurrent')
+    if (res.code === 200 && res.data) {
+      charInfo.value = res.data
+    }
+  } catch (error) {
+    console.error('获取字符使用情况失败:', error)
+  }
+}
+
 // 更新时间函数
 const updateTime = () => {
   const now = new Date()
@@ -209,6 +231,7 @@ const updateTime = () => {
 // 组件挂载时启动定时器
 onMounted(() => {
   loadUserInfo() // 加载用户信息
+  getCurrentCharUsage()
   updateTime() // 立即更新一次
   timer = setInterval(updateTime, 1000) // 每秒更新
 })
@@ -263,6 +286,8 @@ const handleQuickAccess = (item) => {
      })
   }
 }
+
+
 </script>
 
 <style scoped>
