@@ -144,8 +144,11 @@ function getCanonicalVoiceContainer(element) {
     // 1. 优先寻找带有 data-id 的消息根容器 (最稳定)
     const messageNode = element.closest('[data-id]');
     if (messageNode) {
-        // 返回 data-id 字符串作为 Key，确保在 UI 重新渲染后依然能对应
-        return messageNode.getAttribute('data-id') || messageNode;
+        const id = messageNode.getAttribute('data-id');
+        if (id) {
+            console.log('🎯 [ID] 成功从 data-id 提取 ID:', id);
+            return id; 
+        }
     }
     
     // 2. 其次寻找语音特定的按钮容器或气泡
@@ -155,6 +158,15 @@ function getCanonicalVoiceContainer(element) {
                       element.closest('.x1n2onr6') || 
                       element.closest('div[role="row"]');
     
+    // 3. 兜底尝试从 container 获取 data-id
+    const containerId = container?.getAttribute?.('data-id');
+    if (containerId) {
+        console.log('🎯 [ID] 从容器属性中提取 ID:', containerId);
+        return containerId;
+    }
+
+    // 如果最终没找到字符串 ID，记录警告并返回元素（这会导致存入数据库失败）
+    console.warn('🎯 [ID] 警告：无法为元素提取稳定的字符串 ID', element);
     return container || element;
 }
 
@@ -175,6 +187,124 @@ function bufferToBase64(buffer) {
         binary += String.fromCharCode(bytes[i]);
     }
     return window.btoa(binary);
+}
+
+// 生成 UUID
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// ==================== 语音缓存 IndexedDB ====================
+
+let voiceCacheDBInstance = null;
+// 打开语音缓存数据库
+function openVoiceCacheDB() {
+    if (voiceCacheDBInstance) return Promise.resolve(voiceCacheDBInstance);
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('WhatsAppVoiceCacheDB', 1);
+        
+        request.onupgradeneeded = function(event) {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('voiceCache')) {
+                // msgId 为主键 (对应 containerKey)
+                const store = db.createObjectStore('voiceCache', { keyPath: 'msgId' });
+                store.createIndex('uuid', 'uuid', { unique: true });
+                store.createIndex('timestamp', 'timestamp', { unique: false });
+            }
+        };
+        
+        request.onsuccess = function(event) {
+            console.log('📦 [DB] 语音缓存数据库打开成功');
+            voiceCacheDBInstance = event.target.result;
+            resolve(voiceCacheDBInstance);
+        };
+        
+        request.onerror = function(event) {
+            console.error('❌ [DB] 语音缓存数据库打开失败:', event.target.errorCode);
+            reject(`语音缓存数据库打开失败: ${event.target.errorCode}`);
+        };
+    });
+}
+
+// 保存语音到缓存
+async function saveVoiceCache(msgId, data) {
+    console.log('📦 [DB] saveVoiceCache 被调用. msgId:', msgId, 'type:', typeof msgId);
+    if (typeof msgId !== 'string') {
+        console.warn('📦 [DB] ERROR: msgId 不是字符串，无法存入 IndexedDB. 当前值:', msgId);
+        return;
+    }
+    
+    try {
+        // 关键：在开启写入事务之前，先完成异步读取操作
+        // 这样可以避免在事务生命周期内使用 await 导致事务自动提交
+        const existing = await getVoiceCache(msgId);
+        
+        const record = {
+            msgId: msgId,
+            uuid: existing?.uuid || generateUUID(),
+            path: data.path || existing?.path,
+            sourceText: data.sourceText || existing?.sourceText,
+            translationText: data.translationText || existing?.translationText,
+            timestamp: Date.now()
+        };
+        
+        console.log('📦 [DB] 准备写入数据库的完整记录:', record);
+        
+        const db = await openVoiceCacheDB();
+        const transaction = db.transaction(['voiceCache'], 'readwrite');
+        const store = transaction.objectStore('voiceCache');
+        
+        return new Promise((resolve, reject) => {
+            const request = store.put(record);
+            request.onsuccess = () => {
+                console.log('✅ [DB] 语音缓存保存成功! Key:', record.msgId);
+                resolve(record);
+            };
+            request.onerror = (event) => {
+                console.error('❌ [DB] 语音缓存写入失败! Error:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    } catch (error) {
+        console.error('❌ [DB] 保存语音缓存过程中发生异常:', error);
+    }
+}
+
+// 获取语音缓存
+async function getVoiceCache(msgId) {
+    if (typeof msgId !== 'string') {
+        // console.log('📦 [DB] getVoiceCache 跳过，因为不是字符串 ID:', msgId);
+        return null;
+    }
+    console.log('📦 [DB] 正在尝试读取缓存. msgId:', msgId);
+    try {
+        const db = await openVoiceCacheDB();
+        const transaction = db.transaction(['voiceCache'], 'readonly');
+        const store = transaction.objectStore('voiceCache');
+        
+        return new Promise((resolve, reject) => {
+            const request = store.get(msgId);
+            request.onsuccess = (event) => {
+                const result = event.target.result;
+                if (result) {
+                    console.log('📦 [DB] 成功读取到缓存记录:', result);
+                } else {
+                    console.log('📦 [DB] 未找到缓存记录:', msgId);
+                }
+                resolve(result);
+            };
+            request.onerror = (event) => {
+                console.error('❌ [DB] 读取缓存失败:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    } catch (error) {
+        console.error('❌ [DB] 读取语音缓存异常:', error);
+        return null;
+    }
 }
 
 // 自动捕获核心逻辑
@@ -220,6 +350,9 @@ async function autoCaptureVoice(audioElement) {
             });
             recordingStateMap.set(containerKey, 'done');
             console.log('✅ [Capture] 音频已自动保存至本地:', res.path, 'Key:', containerKey);
+            
+            // 存入持久化缓存
+            await saveVoiceCache(containerKey, { path: res.path });
         } else {
             recordingStateMap.delete(containerKey);
         }
@@ -2847,7 +2980,8 @@ function processVoiceMessageList() {
         // 检测消息方向 (发送 vs 接收)
         // message-out 是发送的消息，message-in 是接收的消息
         const isOut = !!playIcon.closest('.message-out') || (messageNode && messageNode.classList.contains('message-out'));
-        console.log(`✅ 为语音消息添加翻译按钮 [${isOut ? '发送' : '接收'}], 索引:`, index);
+        const containerKey = getCanonicalVoiceContainer(voiceContainer);
+        console.log(`✅ 为语音消息添加翻译按钮 [${isOut ? '发送' : '接收'}], 索引:`, index, 'Key:', containerKey);
         
         // 创建容器包裹按钮，便于对齐
         const btnWrapper = document.createElement('div');
@@ -2905,6 +3039,18 @@ function processVoiceMessageList() {
         
         btnWrapper.appendChild(translateBtn);
         voiceContainer.appendChild(btnWrapper);
+
+        // 异步检查并恢复持久化译文显示
+        (async () => {
+            const cache = await getVoiceCache(containerKey);
+            if (cache && cache.translationText) {
+                console.log('📦 [Restore] 自动恢复语音译文:', containerKey);
+                displayVoiceTranslation(voiceContainer, {
+                    translation: cache.translationText,
+                    source: cache.sourceText
+                });
+            }
+        })();
     });
 }
 
@@ -3049,6 +3195,9 @@ async function saveRecordingToCache(audioElement, blob) {
             });
             recordingStateMap.set(containerKey, 'done');
             console.log('✅ [Save] 录制音频已保存至本地:', res.path, 'Key:', containerKey);
+            
+            // 存入持久化缓存
+            await saveVoiceCache(containerKey, { path: res.path });
             voiceRecordingData = null
             voiceRecordingData =  { 
                  path: res.path,
@@ -3299,7 +3448,18 @@ async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
         const containerKey = getCanonicalVoiceContainer(voiceContainer);
         console.log('🔍 [Translate] Container Key:', containerKey);
 
-        // 1. 检查是否正在录制或处理中 (解决竞态问题)
+        // 1. 检查持久化缓存 (UUID, Path, Translation)
+        const persistentCache = await getVoiceCache(containerKey);
+        if (persistentCache && persistentCache.translationText) {
+            console.log('✅ [Translate] 命中持久化翻译缓存:', persistentCache.translationText);
+            displayVoiceTranslation(voiceContainer, {
+                translation: persistentCache.translationText,
+                source: persistentCache.sourceText
+            });
+            return;
+        }
+
+        // 2. 检查是否正在录制或处理中 (解决竞态问题)
         let state = recordingStateMap.get(containerKey);
         if (state === 'recording' || state === 'processing') {
             console.log(`⏳ [Translate] 正在${state === 'recording' ? '录制' : '处理'}中，请稍候...`);
@@ -3310,10 +3470,10 @@ async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
             return;
         }
 
-        // 2. 检查是否有本地缓存
-        let cached = audioCacheMap.get(containerKey);
+        // 3. 确定音频路径 (内存缓存 -> 持久化缓存 -> 实时抓取)
+        let cached = audioCacheMap.get(containerKey) || { path: persistentCache?.path };
         
-        // 3. 如果没有缓存，尝试寻找 audio 元素并执行“静默抓取”
+        // 4. 如果没有路径，尝试寻找 audio 元素并执行“静默抓取”
         if (!cached || !cached.path) {
             console.log('🔍 [Translate] 未找到录音缓存，尝试直接从 DOM 抓取...');
             
@@ -3332,11 +3492,12 @@ async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
                 });
                 
                 await autoCaptureVoice(audioElement);
-                cached = audioCacheMap.get(containerKey) || voiceRecordingData;
+                // 重新获取抓取后的缓存
+                cached = audioCacheMap.get(containerKey) || (await getVoiceCache(containerKey)) || voiceRecordingData;
             }
         }
 
-        // 4. 最终检查结果
+        // 5. 最终检查路径结果
         let audioSourceInfo = null;
         if ((cached && cached.path) || voiceRecordingData?.path ) {
             const finalPath = cached?.path || voiceRecordingData?.path;
@@ -3494,13 +3655,23 @@ function displayVoiceTranslation(voiceContainer, translationData) {
     `;
     
     // 确保我们是在消息气泡容器上进行操作
+    const containerKey = getCanonicalVoiceContainer(voiceContainer);
+    
     if (voiceContainer.tagName === 'AUDIO') {
-        const betterContainer = getCanonicalVoiceContainer(voiceContainer);
-        if (betterContainer && betterContainer.tagName !== 'AUDIO') {
+        const betterContainer = document.querySelector(`[data-id="${containerKey}"]`);
+        if (betterContainer) {
             voiceContainer = betterContainer;
         } else if (voiceContainer.parentElement) {
             voiceContainer = voiceContainer.parentElement;
         }
+    }
+
+    // 存入持久化缓存 (保存翻译内容)
+    if (containerKey) {
+        saveVoiceCache(containerKey, {
+            sourceText: sourceTextra,
+            translationText: translationText
+        });
     }
 
     // 插入到容器中
