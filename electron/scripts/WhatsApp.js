@@ -1145,6 +1145,43 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
             iconContainer.style.transition = 'transform 0.5s ease';
             iconContainer.style.transform = 'rotate(360deg)';
             
+            // 创建并显示加载状态指示器
+            let localLoadingNode = document.createElement('span');
+            localLoadingNode.className = 'translation-loading';
+            localLoadingNode.style.cssText = `
+                display: flex;
+                font-size: 12px;
+                color: #8696a0;
+                border-top: 1px dashed #ccc;
+                padding-top: 5px;
+                margin-top: 5px;
+                align-items: center;
+                gap: 6px;
+            `;
+            localLoadingNode.innerHTML = `
+                <span>翻译中</span>
+                <div style="display: flex; gap: 3px;">
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite;"></div>
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.2s;"></div>
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.4s;"></div>
+                </div>
+            `;
+            
+            // 确保动画样式存在
+            if (!document.getElementById('translation-loading-animation')) {
+                const style = document.createElement('style');
+                style.id = 'translation-loading-animation';
+                style.textContent = `
+                    @keyframes bounce {
+                        0%, 80%, 100% { transform: scale(0); }
+                        40% { transform: scale(1); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            textSpan.appendChild(localLoadingNode);
+            
             // 获取当前语言配置
             const currentFrom = globalConfig?.sendAutoNotSourceLang || 'en';
             const currentTo = globalConfig?.sendAutoNotTargetLang || 'zh';
@@ -1176,6 +1213,11 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
                 }
             } catch (error) {
                 console.error('❌ 重新翻译失败:', error);
+            } finally {
+                // 移除负载指示器
+                if (localLoadingNode && localLoadingNode.parentNode) {
+                    localLoadingNode.remove();
+                }
             }
             
             // 重置动画
@@ -2857,13 +2899,49 @@ async function restoreSentMessageTranslations() {
                     iconContainer.style.transition = 'transform 0.5s ease';
                     iconContainer.style.transform = 'rotate(360deg)';
                     
+                    // 创建并显示加载状态指示器
+                    let localLoadingNode = document.createElement('span');
+                    localLoadingNode.className = 'translation-loading';
+                    localLoadingNode.style.cssText = `
+                        display: flex;
+                        font-size: 12px;
+                        color: #8696a0;
+                        border-top: 1px dashed #ccc;
+                        padding-top: 5px;
+                        margin-top: 5px;
+                        align-items: center;
+                        gap: 6px;
+                    `;
+                    localLoadingNode.innerHTML = `
+                        <span>翻译中</span>
+                        <div style="display: flex; gap: 3px;">
+                            <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite;"></div>
+                            <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.2s;"></div>
+                            <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.4s;"></div>
+                        </div>
+                    `;
+                    
+                    // 确保动画样式存在
+                    if (!document.getElementById('translation-loading-animation')) {
+                        const style = document.createElement('style');
+                        style.id = 'translation-loading-animation';
+                        style.textContent = `
+                            @keyframes bounce {
+                                0%, 80%, 100% { transform: scale(0); }
+                                40% { transform: scale(1); }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    
+                    span.appendChild(localLoadingNode);
+                    
                     // 获取当前语言配置
                     const currentFrom = globalConfig?.sendAutoNotSourceLang || 'en';
                     const currentTo = globalConfig?.sendAutoNotTargetLang || 'zh';
                     
                     try {
                         console.log('🔄 用户点击图标，开始重新翻译(恢复消息):', msgText.substring(0, 20));
-                        // 注意：这里使用 msgText (原始文本) 进行重译
                         const res = await translateTextAPI(msgText, currentFrom, currentTo);
                         
                         if (res && res.success) {
@@ -2881,17 +2959,22 @@ async function restoreSentMessageTranslations() {
                                     margin-top: 5px;
                                     font-style: italic;
                                 `;
-                                span.appendChild(document.createElement('br')); // Added <br>
+                                span.appendChild(document.createElement('br'));
                                 span.appendChild(translationNode);
                             }
                             
                             translationNode.textContent = res.data;
-                            // 更新缓存 (使用归一化文本，确保下次 restore 能找到)
+                            // 更新缓存 (使用归一化文本)
                             await saveTranslationCache(normalizeText(msgText), res.data, currentFrom, currentTo);
                             console.log('✅ 重新翻译成功并更新显示');
                         }
                     } catch (error) {
                         console.error('❌ 重新翻译失败:', error);
+                    } finally {
+                        // 移除负载指示器
+                        if (localLoadingNode && localLoadingNode.parentNode) {
+                            localLoadingNode.remove();
+                        }
                     }
                     
                     // 重置动画
