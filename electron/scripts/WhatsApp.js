@@ -1596,7 +1596,7 @@ function monitorMainNode() {
         // 恢复发送消息的译文显示（从翻译缓存）
         await restoreSentMessageTranslations();
         
-        // 检查全局接收自动翻译开关
+        // 全局接收自动翻译开关的提前返回，以便即使关闭自动翻译也能添加手动翻译图标
         if (!globalConfig?.receiveAutoTranslate) {
             return;
         }
@@ -1660,19 +1660,37 @@ function monitorMainNode() {
             // 从目标语言（英文）翻译到本地语言（中文）
             const fromLang = getTargetLanguage(); // 英文
             const toLang = getLocalLanguage(); // 中文
-            console.log('🌐 调用翻译API:', fromLang, '->', toLang);
             
-            const result = await translateTextAPI(msg, fromLang, toLang);
-            console.log('✅ 翻译结果:', result);
+            // 1. 尝试从缓存获取
+            let translatedText = await getTranslationCache(msg, fromLang, toLang);
+            let isFromCache = false;
 
-            if (result && result.success && result.data && result.data.trim() !== msg.trim()) {
-                span.setAttribute('data-translate-status', 'translated');
+            if (translatedText) {
+                isFromCache = true;
+                console.log('✅ 接收消息翻译命中缓存:', msg.substring(0, 30));
+            } else if (globalConfig?.receiveAutoTranslate) {
+                // 仅在开启自动翻译时调用 API
+                console.log('🌐 缓存未命中，调用翻译API:', fromLang, '->', toLang);
+                const result = await translateTextAPI(msg, fromLang, toLang);
+                
+                if (result && result.success && result.data) {
+                    translatedText = result.data;
+                    // 保存到缓存
+                    await saveTranslationCache(msg, translatedText, fromLang, toLang);
+                } else if (result && !result.success) {
+                    console.warn('❌ 消息自动翻译失败:', result.msg);
+                    // 自动翻译失败，后续会添加手动图标
+                }
+            }
+
+            if (translatedText && normalizeText(translatedText) !== normalizeText(msg)) {
+                span.setAttribute('data-translate-status', isFromCache ? 'cached' : 'translated');
 
                 // 创建翻译结果显示节点
-                let translationNode = document.createElement('span'); // Changed from div to span
+                let translationNode = document.createElement('span');
                 translationNode.className = 'translation-result';
                 translationNode.style.cssText = `
-                    display: block; /* Added display: block */
+                    display: block;
                     font-size: 13px;
                     color: #25D366;
                     border-top: 1px dashed #ccc;
@@ -1680,27 +1698,147 @@ function monitorMainNode() {
                     margin-top: 5px;
                     font-style: italic;
                 `;
-                translationNode.textContent = '' + result.data;
+                translationNode.textContent = '' + translatedText;
 
-                span.appendChild(document.createElement('br')); // Added <br>
+                span.appendChild(document.createElement('br'));
                 span.appendChild(translationNode);
-                console.log('✅ 翻译结果已显示');
-            } else if (result && result.success && result.data && result.data.trim() === msg.trim()) {
-                span.setAttribute('data-translate-status', 'same');
-                console.log('ℹ️ 译文与原文一致，跳过显示');
-            } else if (result && !result.success) {
-                span.setAttribute('data-translate-status', 'failed');
-                console.warn('❌ 消息翻译失败 (业务):', result.msg);
+                console.log(isFromCache ? '✅ 缓存译文已显示' : '✅ 翻译结果已显示');
             } else {
-                span.setAttribute('data-translate-status', 'same');
+                // 如果没有译文（因开关关闭、缓存缺失或 API 失败），则添加手动翻译图标
+                span.setAttribute('data-translate-status', 'manual-available');
+                addManualTranslateIconToReceivedMessage(span, msg);
+                console.log('ℹ️ 消息未自动翻译，已添加手动翻译图标');
             }
         } catch (error) {
             span.setAttribute('data-translate-status', 'failed');
-            console.error('❌ 消息翻译失败:', error);
+            console.error('❌ 消息翻译处理异常:', error);
+            // 异常情况下也尝试添加手动图标
+            addManualTranslateIconToReceivedMessage(span, msg);
         } finally {
             // 处理完成后从Set中移除
             processingMessages.delete(msgKey);
         }
+    }
+
+    /**
+     * 为接收到的消息添加手动翻译图标
+     * @param {HTMLElement} span - 消息文本 span
+     * @param {string} originalText - 原始文本
+     */
+    function addManualTranslateIconToReceivedMessage(span, originalText) {
+        if (span.querySelector('.translate-icon-btn')) return;
+
+        const iconContainer = document.createElement('span');
+        iconContainer.className = 'translate-icon-btn';
+        iconContainer.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            margin-left: 5px;
+            vertical-align: middle;
+            cursor: pointer;
+            color: #25D366;
+            position: relative;
+            z-index: 10;
+        `;
+        iconContainer.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 8l6 6"></path>
+            <path d="M4 14l6-6 2-3"></path>
+            <path d="M2 5h12"></path>
+            <path d="M7 2h1"></path>
+            <path d="M22 22l-5-10-5 10"></path>
+            <path d="M14 18h6"></path>
+        </svg>`;
+
+        iconContainer.onclick = async (e) => {
+            e.stopPropagation();
+            
+            // 旋转动画
+            iconContainer.style.transition = 'transform 0.5s ease';
+            iconContainer.style.transform = 'rotate(360deg)';
+            
+            // 加载指示器
+            let localLoadingNode = document.createElement('span');
+            localLoadingNode.className = 'translation-loading';
+            localLoadingNode.style.cssText = `
+                display: flex;
+                font-size: 12px;
+                color: #8696a0;
+                border-top: 1px dashed #ccc;
+                padding-top: 5px;
+                margin-top: 5px;
+                align-items: center;
+                gap: 6px;
+            `;
+            localLoadingNode.innerHTML = `
+                <span>翻译中</span>
+                <div style="display: flex; gap: 3px;">
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite;"></div>
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.2s;"></div>
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #8696a0; animation: bounce 1.4s infinite 0.4s;"></div>
+                </div>
+            `;
+            
+            // 确保动画样式存在
+            if (!document.getElementById('translation-loading-animation')) {
+                const style = document.createElement('style');
+                style.id = 'translation-loading-animation';
+                style.textContent = `
+                    @keyframes bounce {
+                        0%, 80%, 100% { transform: scale(0); }
+                        40% { transform: scale(1); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            span.appendChild(localLoadingNode);
+            
+            const fromLang = getTargetLanguage();
+            const toLang = getLocalLanguage();
+            
+            try {
+                console.log('🔄 手动翻译接收消息:', originalText.substring(0, 20));
+                const res = await translateTextAPI(originalText, fromLang, toLang);
+                
+                if (res && res.success && res.data) {
+                    let translationNode = span.querySelector('.translation-result');
+                    if (!translationNode) {
+                        translationNode = document.createElement('span');
+                        translationNode.className = 'translation-result';
+                        translationNode.style.cssText = `
+                            display: block;
+                            font-size: 13px;
+                            color: #25D366;
+                            border-top: 1px dashed #ccc;
+                            padding-top: 5px;
+                            margin-top: 5px;
+                            font-style: italic;
+                        `;
+                        span.appendChild(document.createElement('br'));
+                        span.appendChild(translationNode);
+                    }
+                    translationNode.textContent = res.data;
+                    span.setAttribute('data-translate-status', 'translated');
+                    await saveTranslationCache(originalText, res.data, fromLang, toLang);
+                    console.log('✅ 手动翻译成功');
+                    
+                    // 翻译成功后可以移除图标，或者保留
+                    // iconContainer.remove(); 
+                }
+            } catch (error) {
+                console.error('❌ 手动翻译失败:', error);
+            } finally {
+                if (localLoadingNode && localLoadingNode.parentNode) {
+                    localLoadingNode.remove();
+                }
+                setTimeout(() => {
+                    iconContainer.style.transition = 'none';
+                    iconContainer.style.transform = 'rotate(0deg)';
+                }, 500);
+            }
+        };
+
+        span.appendChild(iconContainer);
     }
 }
 
@@ -3072,9 +3210,8 @@ function processVoiceMessageList() {
         btnWrapper.style.cssText = `
             margin-top: 5px; 
             display: flex; 
-            width: 100%;
             justify-content: ${isOut ? 'flex-end' : 'flex-start'};
-            ${isOut ? 'padding-right: 0;' : 'padding-left: 63px;'}
+            ${isOut ? 'padding-right: 44px;' : 'padding-left: 63px;'}
         `;
 
         // 创建按钮主体
@@ -3695,7 +3832,7 @@ function displayVoiceTranslation(voiceContainer, translationData) {
         text-align: ${isOut ? 'right' : 'left'};
         align-self: ${isOut ? 'flex-end' : 'flex-start'};
         max-width:80%;
-        margin-left: ${isOut ? '10px' : '63px'};
+        margin-left: ${isOut ? '10px' : '132px'};
         margin-right: ${isOut ? '0' : '10px'};
 
     `;
