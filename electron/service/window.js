@@ -25,6 +25,7 @@ class WindowService extends Service {
         super(ctx);
         app.platforms = app.platforms || platforms;
         this.isShrunk = false; // 记录侧边栏是否收缩
+        this.isPlacedTop = false; // 记录侧边栏是否置顶
     }
 
     async addCard(args, event) {
@@ -293,6 +294,23 @@ class WindowService extends Service {
         return { status: true };
     }
 
+    async changeSidebarLayout(isPlacedTop) {
+        this.isPlacedTop = isPlacedTop;
+        Log.info('侧边栏布局变更:', isPlacedTop ? '顶部' : '侧边');
+        
+        // 获取当前活跃的 view
+        const activeCard = await app.sdb.selectOne('cards', { active_status: 'true' });
+        if (activeCard) {
+            const view = app.viewsMap.get(activeCard.card_id);
+            const mainId = Addon.get('window').getMWCid();
+            const mainWin = BrowserWindow.fromId(mainId);
+            if (view && mainWin) {
+                this._resizeView(mainWin, view);
+            }
+        }
+        return { status: true };
+    }
+
     async filterNumber(args, event) {
         const { platform, cardId, phoneNumber } = args;
         //查询手机号码是否存在检测记录
@@ -384,9 +402,16 @@ class WindowService extends Service {
     _resizeView(mainWin, view) {
         if (mainWin && view) {
             const [width, height] = mainWin.getContentSize();
-            // 左侧导航(50) + AsideCard(240/100) + border(1)
-            const xOffset = this.isShrunk ? 151 : 291;
-            view.setBounds({ x: xOffset, y: 0, width: width - xOffset + 2, height });
+            if (this.isPlacedTop) {
+                // 顶部模式：左侧导航栏(50) + 顶部栏高度(60)
+                const xOffset = 51;
+                const yOffset = 80;
+                view.setBounds({ x: xOffset, y: yOffset, width: width - xOffset + 2, height: height - yOffset });
+            } else {
+                // 侧边模式：左侧导航(50) + AsideCard(240/100) + border(1)
+                const xOffset = this.isShrunk ? 151 : 291;
+                view.setBounds({ x: xOffset, y: 0, width: width - xOffset + 2, height });
+            }
         }
     }
     async _applyProxySettings(webContents, config) {
@@ -467,9 +492,7 @@ class WindowService extends Service {
         const mainId = Addon.get('window').getMWCid();
         const mainWin = BrowserWindow.fromId(mainId);
         if (view && !view.webContents.isDestroyed()) {
-            const [width, height] = mainWin.getContentSize();
-            const xOffset = this.isShrunk ? 151 : 291;
-            view.setBounds({ x: xOffset, y: 0, width: width - xOffset + 2, height });
+            this._resizeView(mainWin, view);
             mainWin.contentView.addChildView(view);
             mainWin.removeAllListeners('resize');
             mainWin.on('resize', () => this._resizeView(mainWin, view));

@@ -1,10 +1,11 @@
 <template>
-  <div class="container">
+  <div class="container" :class="{ 'is-placed-top': isPlacedTop }">
     <div class="left-div">
       <AsideCard 
         ref="asideCardRef"
         title="Telegram"
         @open-settings="handleOpenSettings"
+        @layout-change="handleLayoutChange"
       ></AsideCard>
     </div>
     <div class="right-div">
@@ -30,6 +31,11 @@ const asideCardRef = ref(null);
 const showSettings = ref(false);
 const isEditSettings = ref(false);
 const currentSettingCard = ref(null);
+const isPlacedTop = ref(false);
+
+const handleLayoutChange = (val) => {
+  isPlacedTop.value = val;
+};
 
 const handleOpenSettings = (data) => {
   if (data) {
@@ -80,8 +86,18 @@ const receiveCardId = (card)=> {
   height: 100vh; /* 高度占满视口 */
 }
 
+.container.is-placed-top {
+  flex-direction: column;
+}
+
 .left-div {
   border-right: 1px solid #e0e0e0;
+}
+
+.is-placed-top .left-div {
+  width: 100% !important;
+  border-right: none;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .right-div {

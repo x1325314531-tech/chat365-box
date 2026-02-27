@@ -166,6 +166,16 @@ class WindowController extends Controller {
         }
     }
 
+    async changeSidebarLayout(args, event) {
+        const { isPlacedTop } = args;
+        try {
+            return await Services.get('window').changeSidebarLayout(isPlacedTop);
+        } catch (error) {
+            Log.error('更改侧边栏布局时出错:', error);
+            return { status: false, message: '同步侧边栏布局失败' };
+        }
+    }
+
     async filterNumber(args, event) {
         // 解构参数
         const { platform, cardId, phoneNumber } = args;

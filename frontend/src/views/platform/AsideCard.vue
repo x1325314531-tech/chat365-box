@@ -1,7 +1,7 @@
 <script setup>
-import {onMounted, onUnmounted, reactive, ref, watch} from 'vue';
+import {onMounted, onUnmounted, reactive, ref, watch, nextTick} from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Refresh, Close,Delete,Setting ,Plus,User, Edit, SwitchButton,Select} from '@element-plus/icons-vue';
+import { Refresh, Close,Delete,Setting ,Plus,User, Edit, SwitchButton,Select, VideoPlay, Moon} from '@element-plus/icons-vue';
 import importSvg from '@/assets/svgs/import.svg';
 import userportrait from '@/assets/svgs/userportrait.svg';
 import { nanoid } from 'nanoid'; // 用于生成唯一 ID
@@ -20,12 +20,14 @@ const executeCode = (card)=>{
     console.log(res)
   })
 }
-const emits = defineEmits(['open-settings', 'refresh']);
+const emits = defineEmits(['open-settings', 'refresh', 'layout-change']);
 const importPanel = ref(false)
 const userPortraitPanel = ref(false)
 const userPortraitPanelData = ref({})
 const importPanelData = ref({})
 const openSidebar = ref(false)
+const conversationListRef = ref(null)
+const isPlacedTop = ref(false)
 // 接收父组件传入的标题
 const props = defineProps({
   title: {
@@ -50,6 +52,7 @@ const ipcApiRoute = {
   executeJavaScript: 'controller.window.executeJavaScript',
   hideWindow: 'controller.window.hideWindow',
   changeSidebarWidth: 'controller.window.changeSidebarWidth',
+  changeSidebarLayout: 'controller.window.changeSidebarLayout',
 };
 
 
@@ -330,9 +333,39 @@ function handleClose(card) {
     // ipc.send('receive-notify', { type: 'success', message: '删除成功!' });
   });
 }
+// 会话置于顶部
+function sessionPlacedTop() {
+  const activeIndex = conversations.findIndex(c => c.active_status === 'true');
+  if (activeIndex !== -1) {
+    const activeCard = conversations[activeIndex];
+    // 从当前位置移除
+    conversations.splice(activeIndex, 1);
+    // 插入到最前面
+    conversations.unshift(activeCard);
+    // 更新选中索引
+    selectedCardIndex.value = 0;
+    
+    // 滚动容器到顶部
+    nextTick(() => {
+      if (conversationListRef.value) {
+        conversationListRef.value.scrollTop = 0;
+      }
+    });
+  }
+  isPlacedTop.value = true;
+  ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: true });
+  emits('layout-change', true);
+}
+
+// 置于左侧
+function placedLeft() {
+  isPlacedTop.value = false;
+  ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
+  emits('layout-change', false);
+}
 </script>
 <template>
-  <div class="sidebar" :class="{'sidebar-shrink': openSidebar}">
+  <div v-if="!isPlacedTop" class="sidebar" :class="{'sidebar-shrink': openSidebar}">
     <!-- 顶部标题和按钮 -->
     <div class="header">
       <div class="header-shrink">
@@ -362,7 +395,7 @@ function handleClose(card) {
       </el-row>
     </div>
     <!-- 会话列表 -->
-    <div class="conversation-list">
+    <div class="conversation-list" ref="conversationListRef">
       <el-card
           :body-style="{ padding: openSidebar ? '10px 0 0' : '10px 10px 0', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'base-line' }"
           shadow="never"
@@ -440,6 +473,55 @@ function handleClose(card) {
         v-model:visible="userPortraitPanel"
         :card-data="userPortraitPanelData"
     />
+    <div class="footer" :class="{'footer-shrink': openSidebar }">
+      <div @click="sessionPlacedTop" class="place-top-btn">
+         <i class="iconfont btn-icon icon-top-bar"></i>
+        <span v-if="!openSidebar">会话置于顶部</span>
+      </div>
+    </div>
+  </div>
+
+  <div v-else class="sidebar-top">
+    <div class="left-actions">
+      <el-button :loading="addLoading" size="default" @click="addConversation" type="primary" class="new-session-btn">
+        <el-icon><Plus /></el-icon>
+        <span>{{ t('aside.newSession') }}</span>
+      </el-button>
+      <div class="mini-icons">
+           <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success" :title="openSidebar ? t('aside.startAll') : ''">
+            <el-icon><SwitchButton/></el-icon>
+            <span v-if="!openSidebar">{{ t('aside.startAll') }}</span>
+          </el-button>
+      </div>
+    </div>
+
+    <div class="conversation-list-horizontal" ref="conversationListRef">
+      <div 
+        v-for="(card, index) in conversations" 
+        :key="card.card_id"
+        class="horizontal-card"
+        :class="{ 'selected-card': card.active_status === 'true' }"
+        @click="!card.loading && selectCard(index, card)"
+      >
+        <el-badge
+          v-if="card.avatar_url && card.show_badge==='true'"
+          is-dot
+          type="danger"
+        >
+          <el-avatar :size="32" :src="card.avatar_url" />
+        </el-badge>
+        <el-avatar v-else-if="card.avatar_url" :size="32" :src="card.avatar_url" />
+        <el-avatar v-else :size="32">
+          <el-icon><User /></el-icon>
+        </el-avatar>
+        <span class="horizontal-title">{{ card.card_name || props.title }}</span>
+      </div>
+    </div>
+
+    <div class="right-actions">
+      <el-button size="small" @click="placedLeft">置于左侧</el-button>
+      <el-button size="small" @click="openAll">展开全部</el-button>
+    </div>
   </div>
 </template>
 <style scoped>
@@ -453,6 +535,8 @@ function handleClose(card) {
   flex-direction: column;
   overflow: hidden;
   transition: width 0.3s ease;
+  position: relative;
+  height: 100vh;
 }
 .sidebar-shrink { 
   width: 80px;
@@ -609,5 +693,134 @@ function handleClose(card) {
 
 .el-drawer__body::-webkit-scrollbar {
   width: 0;
+}
+.footer { 
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding-bottom: 20px;
+  background: white;
+}
+/* 顶部布局样式 */
+.sidebar-top {
+  width: 100%;
+  height: 80px;
+  background-color: #fff;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  box-sizing: border-box;
+}
+
+.left-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-right: 15px;
+}
+
+.new-session-btn {
+  color: #fff;
+  height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.mini-icons {
+  display: flex;
+  gap: 10px;
+  padding-left: 4px;
+}
+
+.mini-icon {
+  font-size: 14px;
+  color: #999;
+  cursor: pointer;
+}
+
+.conversation-list-horizontal {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 5px 0;
+  height: 50px;
+  align-items: center;
+}
+
+.conversation-list-horizontal::-webkit-scrollbar {
+  height: 2px;
+}
+
+.conversation-list-horizontal::-webkit-scrollbar-thumb {
+  background-color: #eee;
+}
+
+.horizontal-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+  cursor: pointer;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.horizontal-card:hover {
+  background-color: #f5f7fa;
+}
+
+.horizontal-card.selected-card {
+  border-color: #2ecc71;
+  background-color: #e8f5e9;
+}
+
+.horizontal-title {
+  font-size: 10px;
+  color: #666;
+  max-width: 50px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.right-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-left: 15px;
+}
+
+.right-actions .el-button--small {
+    padding: 4px 8px;
+    font-size: 10px;
+    height: 22px;
+}
+.right-actions .el-button+.el-button { 
+  margin-left: 0;
+}
+.place-top-btn {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  border:1px solid #2ecc71;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: #2ecc71;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 </style>

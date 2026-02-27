@@ -48,6 +48,7 @@ const ipcApiRoute = {
   hideWindow: 'controller.window.hideWindow',
   logout: 'controller.window.logout',
   changeSidebarWidth: 'controller.window.changeSidebarWidth',
+  changeSidebarLayout: 'controller.window.changeSidebarLayout',
 };
 
 // 菜单项配置
@@ -77,6 +78,7 @@ watch(() => route.path, () => {
 
 onMounted(() => {
   updateActiveMenu();
+  ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
 });
 
 // 处理菜单点击
@@ -84,6 +86,7 @@ function handleMenuSelect(id) {
   if (activeMenu.value === id) return;
   ipc.invoke(ipcApiRoute.hideWindow, { platform: id });
   ipc.invoke(ipcApiRoute.changeSidebarWidth, { isShrunk: false });
+  ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
   const item = menuItems.find(item => item.id === id);
   if (item) {
     router.push(item.path);
