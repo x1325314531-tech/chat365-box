@@ -457,7 +457,9 @@ class Index extends Application {
       try {
         // 获取发送该消息的渲染进程的 webContents
         const senderWebContents = event.sender;
-        const fileName = platforms.find(item => item.url === url)?.platform;
+        // 先精确匹配，再前缀匹配（兼容子路径 / 哈希路由），按 URL 长度从长到短优先
+        const sortedPlatforms = [...platforms].sort((a, b) => b.url.length - a.url.length);
+        const fileName = sortedPlatforms.find(item => url === item.url || url.startsWith(item.url))?.platform;
         Log.info('fileName:', fileName,' url:',url);
         if (fileName) {
           // 获取要执行的 JavaScript 文件内容

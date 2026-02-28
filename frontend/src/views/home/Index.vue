@@ -35,6 +35,7 @@ import { useRouter, useRoute } from 'vue-router';
 // 导入图标文件
 import homeIcon from '@/assets/svgs/index.svg';
 import whatsappIcon from '@/assets/svgs/whatsapp.svg';
+import zaloIcon from '@/assets/svgs/zalo.svg';
 import telegramIcon from '@/assets/svgs/telegram.svg';
 import telegramKIcon from '@/assets/svgs/telegramK.svg';
 import { ipc } from '@/utils/ipcRenderer';
@@ -55,6 +56,7 @@ const ipcApiRoute = {
 const menuItems = [
   { id: 'home', icon: homeIcon, path: '/home' },
   { id: 'whatsApp', icon: whatsappIcon, path: '/home/whatsapp' },
+  {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
   // { id: 'telegram', icon: telegramIcon, path: '/home/telegram' },
   // { id: 'telegramK', icon: telegramKIcon, path: '/home/telegramK' },
 ];
@@ -66,6 +68,7 @@ const updateActiveMenu = () => {
   const path = route.path;
   if (path === '/home' || path === '/home/') activeMenu.value = 'home';
   else if (path.includes('whatsapp')) activeMenu.value = 'whatsApp';
+  else if(path.includes('zalo')) activeMenu.value = 'zalo';
   else if (path.includes('telegramK')) activeMenu.value = 'telegramK';
   else if (path.includes('telegram')) activeMenu.value = 'telegram';
   else activeMenu.value = '';

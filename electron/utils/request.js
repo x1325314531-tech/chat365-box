@@ -21,7 +21,7 @@ axiosInstance.interceptors.request.use(
     (config) => {
         // 在这里可以添加请求头或其他自定义逻辑
         const { app } = require('electron'); // 获取 app 对象
-        Log.info('获取 app 对象', app)
+        // Log.info('获取 app 对象', app)
         if (app.boxToken) {
             config.headers['box-token'] = app.boxToken;
         }
