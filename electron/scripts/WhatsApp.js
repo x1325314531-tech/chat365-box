@@ -715,11 +715,19 @@ function handleInput(event) {
     }
 }
 // 归一化文本，将所有空白字符（含换行、制表符、多个空格）统一处理为单个半角空格并修剪首尾
-// 同时移除一些常见的不可见字符和 WhatsApp 特有的控制字符
+// 同时移除不可见字符和 WhatsApp 特有的控制字符（包括双向控制符如 LRM/RLM）
 function normalizeText(text) {
     if (!text) return '';
     return text.toString()
-        .replace(/[\u200B-\u200D\uFEFF]/g, '') // 移除零宽空格等不可见字符
+        .normalize('NFC') // 统一 Unicode 编码形式
+        // 处理 HTML 常见转义字符，防止 DOM innerText 差异
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;|&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        // 移除零宽空格、双向控制字符（LRM \u200E, RLM \u200F 等）
+        .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '') 
         .replace(/\u00A0/g, ' ') // 将不换行空格替换为普通空格
         .replace(/\s+/g, ' ')    // 连续空白字符塌陷为单个空格
         .trim();                 // 首尾修剪
@@ -923,6 +931,8 @@ async function executeTranslationFlow(inputText) {
 
         if (result && result.success) {
             finalInput = result.data;
+            // 将自动翻译结果存入本地翻译缓存，以便刷新后能恢复历史译文
+            await saveTranslationCache(inputText, finalInput, getLocalLanguage(), getTargetLanguage());
         } else {
             console.warn('⚠️ 翻译失败:', result?.msg);
             // 显示通知告诉用户为什么翻译失败
@@ -994,54 +1004,80 @@ async function executeTranslationFlow(inputText) {
 }
 
 // 将原文添加到已发送的消息上
-async function addOriginalTextToSentMessage(originalText, translatedText) {
+async function addOriginalTextToSentMessage(originalText, translatedText, retryCount = 0) {
+    const MAX_RETRIES = 5;
     try {
-        // 查找最新发送的消息（message-out 是发送的消息）
-        const sentMessages = document.querySelectorAll('.message-out');
+        // 第一步：预先存入 IndexedDB（仅在首次调用时执行）
+        // 这样即使因网速稍慢或发送频繁导致 DOM 未及时更新，刷新页面后仍然能靠轮询恢复
+        if (retryCount === 0) {
+            const normalizedTranslated = normalizeText(translatedText);
+            if (originalText.trim() !== translatedText.trim()) {
+                await saveSentMessage(normalizedTranslated, originalText);
+                console.log('💾 原文已预先保存到本地 (Key:', normalizedTranslated.substring(0, 20), '...):', originalText);
+            } else {
+                console.log('ℹ️ 原文与译文一致，跳过显示与保存原文');
+                return;
+            }
+        }
+
+        console.log(`🌐 [Attempt ${retryCount + 1}] 开始查找发出的消息:`, translatedText.substring(0, 30));
+
+        // 查找发送的消息（message-out 是发送的消息）
+        const sentMessages = Array.from(document.querySelectorAll('.message-out'));
         if (sentMessages.length === 0) {
-            console.log('❌ 未找到发送的消息');
+            if (retryCount < MAX_RETRIES) {
+                console.log('⏳ 未找到发送消息节点，500ms 后重试...');
+                setTimeout(() => addOriginalTextToSentMessage(originalText, translatedText, retryCount + 1), 500);
+            } else {
+                console.log('❌ 达到最大重试次数，放弃在 DOM 中添加原文节点（但已存入缓存）。');
+            }
             return;
         }
         
-        // 获取最后一条发送的消息
-        const lastSentMessage = sentMessages[sentMessages.length - 1];
+        // 倒序遍历最后几条发送的消息，防止由于快速发送导致目标消息不是数组最后一个
+        const searchRange = Math.min(sentMessages.length, 5);
+        let textSpan = null;
+        let normTranslated = normalizeText(translatedText);
+        let searchKey = normTranslated.substring(0, 30); // 截取前30个字符作为比较依据
         
-        // 查找消息文本的span
-        const textSpan = lastSentMessage.querySelector('span[dir="ltr"], span[dir="rtl"]');
+        for (let i = 1; i <= searchRange; i++) {
+            const msgNode = sentMessages[sentMessages.length - i];
+            const span = msgNode.querySelector('span[dir="ltr"], span[dir="rtl"]');
+            
+            if (!span) continue;
+            
+            // 提取纯文本，排除时间戳等子节点以便精确匹配
+            let clone = span.cloneNode(true);
+            const timeNodes = clone.querySelectorAll('span, div[class*="time"], [class*="timestamp"]');
+            timeNodes.forEach(node => node.remove());
+            
+            const rawText = clone.innerText || clone.textContent;
+            const normContent = normalizeText(rawText);
+            
+            // 匹配条件：只要DOM消息内容包含译文前缀，或者整体译文包含DOM内容
+            if (normContent.includes(searchKey) || normTranslated.includes(normContent)) {
+                textSpan = span;
+                break; // 找到离底部最近的匹配项，跳出循环
+            }
+        }
+        
         if (!textSpan) {
-            console.log('❌ 未找到消息文本span');
+            if (retryCount < MAX_RETRIES) {
+                console.log('⚠️ 未找到内容匹配的发送消息元素，500ms 后重试...');
+                setTimeout(() => addOriginalTextToSentMessage(originalText, translatedText, retryCount + 1), 500);
+            } else {
+                console.log('❌ 达到最大重试次数，放弃在 DOM 中添加原文节点（但已存入缓存）。');
+            }
             return;
         }
         
-        // 检查是否已经添加过原文
+        // 检查是否已经添加过原文避免重复渲染
         if (textSpan.querySelector('.original-text-result')) {
-            console.log('⏳ 原文已显示，跳过');
-            return;
-        }
-        
-        // 验证是翻译后的消息
-        const msgContent = textSpan.textContent.trim();
-        if (!msgContent.includes(translatedText.substring(0, 20))) {
-            console.log('⚠️ 消息内容不匹配，跳过');
+            console.log('⏳ 原文已在 DOM 中显示，跳过');
             return;
         }
 
-        // 校验：如果原文与译文完全一致，则不显示原文节点
-        if (originalText.trim() === translatedText.trim()) {
-            console.log('ℹ️ 原文与译文一致，跳过显示原文');
-            // 仍然保存到数据库，以便后续恢复状态
-            await saveSentMessage(translatedText, originalText);
-            return;
-        }
-        
-        // 保存原文到本地存储（IndexedDB）
-        // 使用归一化后的译文作为键，提高恢复时的匹配率
-        const normalizedTranslated = normalizeText(translatedText);
-        await saveSentMessage(normalizedTranslated, originalText);
-        console.log('💾 原文已保存到本地 (Key:', normalizedTranslated.substring(0, 20), '):', originalText);
-        
-        // 创建原文显示节点（与接收消息翻译UI一致）
-        // 使用 span + display:block 以避免块级元素嵌套在 span 内导致的渲染冲突
+        // 创建原文显示节点
         let originalNode = document.createElement('span');
         originalNode.className = 'original-text-result';
         originalNode.style.cssText = `
@@ -1055,8 +1091,10 @@ async function addOriginalTextToSentMessage(originalText, translatedText) {
         `;
         originalNode.textContent = originalText;
         
+        textSpan.appendChild(document.createElement('br'));
         textSpan.appendChild(originalNode);
-        console.log('✅ 原文已显示:', originalText);
+        textSpan.setAttribute('data-original-restored', 'true');
+        console.log('✅ 原文已成功显示在 DOM:', originalText);
         
     } catch (error) {
         console.error('❌ 添加原文失败:', error);
@@ -2766,18 +2804,28 @@ async function restoreSentMessageOriginals() {
             }
             
             // 获取消息文本 (WhatsApp 消息节点可能包含时间戳子节点，需要小心提取)
-            // 我们尝试只获取直接的文本内容，或者递归获取并清理
-            let rawText = '';
-            
-            // 策略：尝试查找带有 dir 属性的直接文本 span，或者遍历子节点避开时间戳
-            // 通常 span[dir] 是直接容器，但如果是复合内容，子节点会有很多
-            // 这里我们使用 clone 节点并移除疑似时间戳的部分（通常在最后的 span 或 div 中）
+            // 策略：克隆节点并移除所有非文字类子元素，以防干扰匹配
             const clone = span.cloneNode(true);
-            const timeNodes = clone.querySelectorAll('span, div[class*="time"], [class*="timestamp"]');
-            timeNodes.forEach(node => node.remove());
-            rawText = clone.innerText || clone.textContent;
+            
+            // 移除时间戳、已读状态图标、翻译按钮/结果等所有干扰节点
+            const excludeSelectors = [
+                'span.translation-result', 
+                'span.original-text-result', 
+                'span.translate-icon-btn',
+                'span.translation-loading',
+                '[class*="time"]', 
+                '[class*="timestamp"]',
+                'span[data-icon*="check"]', // 状态图标
+                'div[style*="position: absolute"]' // 可能是浮动层
+            ];
+            excludeSelectors.forEach(sel => {
+                clone.querySelectorAll(sel).forEach(node => node.remove());
+            });
 
+            // 获取清理后的文本
+            const rawText = clone.innerText || clone.textContent;
             const msgText = normalizeText(rawText);
+            
             if (!msgText || msgText.length < 1) {
                 continue;
             }
@@ -2813,9 +2861,36 @@ async function restoreSentMessageOriginals() {
                 span.setAttribute('data-original-restored', 'true');
                 console.log('🔄 已成功恢复原文显示:', record.originalText.substring(0, 30));
             } else {
-                // 移除模糊匹配逻辑，仅支持精确匹配。模糊匹配曾导致钱包地址碰撞（20位前缀相同导致误判）。
-                // 标记为已检查，避免重复查询
-                span.setAttribute('data-original-restored', 'checked');
+                // 兜底逻辑：如果精确匹配失败，尝试进行极致简化的“纯字符”匹配
+                // 移除所有空格、标点和特殊符号，只保留字母、数字和中文字符
+                const simplify = (t) => t.replace(/[^\w\u4e00-\u9fa5]/g, '').toLowerCase();
+                const simpleMsgText = simplify(msgText);
+                
+                if (simpleMsgText.length > 5) {
+                    const allRecords = await getAllSentMessages();
+                    const fuzzyMatch = allRecords.find(r => simplify(r.translatedText) === simpleMsgText);
+                    
+                    if (fuzzyMatch) {
+                        console.log('🔍 [Fuzzy Match] 命中简化文本缓存:', fuzzyMatch.originalText.substring(0, 30));
+                        let originalNode = document.createElement('span');
+                        originalNode.className = 'original-text-result';
+                        originalNode.style.cssText = `
+                            display: block;
+                            font-size: 13px;
+                            color: #25D366;
+                            border-top: 1px dashed #ccc;
+                            padding-top: 5px;
+                            margin-top: 5px;
+                            font-style: italic;
+                        `;
+                        originalNode.textContent = fuzzyMatch.originalText;
+                        span.appendChild(document.createElement('br'));
+                        span.appendChild(originalNode);
+                        span.setAttribute('data-original-restored', 'true');
+                        continue;
+                    }
+                }
+                // 如果仍然匹配失败，暂时不打标记，等待下轮扫描
             }
         }
     } catch (error) {
@@ -3148,8 +3223,8 @@ async function restoreSentMessageTranslations() {
             }
 
             // 2. 检查并恢复缓存的译文 (如果不存在)
-            // 只有开启"发送消息显示译文" (sendAutoNotTranslate) 时，才自动恢复和显示下方的关联译文
-            if (globalConfig?.sendAutoNotTranslate && !span.querySelector('.translation-result')) {
+            // 开启"发送消息显示译文" (sendAutoNotTranslate) 或 "自动翻译" (sendAutoTranslate) 时，自动恢复和显示下方的关联译文
+            if ((globalConfig?.sendAutoNotTranslate || globalConfig?.sendAutoTranslate) && !span.querySelector('.translation-result')) {
                 // 尝试从缓存获取
                 const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
                 const toLang = globalConfig?.sendAutoNotTargetLang || 'en';
