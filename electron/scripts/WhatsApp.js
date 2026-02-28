@@ -2991,8 +2991,8 @@ async function getTranslationByOriginalText(originalText) {
 // 恢复发送消息的译文显示（针对 sendAutoTranslate: false 场景）
 // 恢复发送消息的译文显示（针对 sendAutoTranslate: false 场景）
 async function restoreSentMessageTranslations() {
-    // 只有在开启“发送消息显示译文”时才执行
-    if (!globalConfig?.sendAutoNotTranslate) return;
+    // 允许始终添加"重新翻译"的手动翻译按钮，但只有在开启“发送消息显示译文”时才自动恢复缓存译文
+    // 移除全局的 early return 限制
 
     try {
         // 查找所有发送的消息
@@ -3127,7 +3127,8 @@ async function restoreSentMessageTranslations() {
             }
 
             // 2. 检查并恢复缓存的译文 (如果不存在)
-            if (!span.querySelector('.translation-result')) {
+            // 只有开启"发送消息显示译文" (sendAutoNotTranslate) 时，才自动恢复和显示下方的关联译文
+            if (globalConfig?.sendAutoNotTranslate && !span.querySelector('.translation-result')) {
                 // 尝试从缓存获取
                 const fromLang = globalConfig?.sendAutoNotSourceLang || 'en';
                 const toLang = globalConfig?.sendAutoNotTargetLang || 'en';

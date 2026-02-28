@@ -56,7 +56,7 @@ const ipcApiRoute = {
 const menuItems = [
   { id: 'home', icon: homeIcon, path: '/home' },
   { id: 'whatsApp', icon: whatsappIcon, path: '/home/whatsapp' },
-  {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
+  // {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
   // { id: 'telegram', icon: telegramIcon, path: '/home/telegram' },
   // { id: 'telegramK', icon: telegramKIcon, path: '/home/telegramK' },
 ];

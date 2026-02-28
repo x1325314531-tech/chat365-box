@@ -267,7 +267,7 @@ const updateTime = () => {
 // 组件挂载时启动定时器
 onMounted(() => {
   loadUserInfo() // 加载用户信息
-  getCurrentCharUsage()
+  // getCurrentCharUsage()
   updateTime() // 立即更新一次
   timer = setInterval(updateTime, 1000) // 每秒更新
 })
