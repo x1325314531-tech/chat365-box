@@ -8,7 +8,22 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
     
     // 记录最后一次用户交互时间，用于判断播放是否由用户触发
     window._wp_last_user_touch = 0;
-    const updateTouch = () => { window._wp_last_user_touch = Date.now(); };
+    window._wp_last_voice_key = null;
+    window._wp_last_voice_key_time = 0;
+
+    const updateTouch = (e) => { 
+        window._wp_last_user_touch = Date.now(); 
+        if (e && e.type === 'mousedown' && typeof getCanonicalVoiceContainer === 'function') {
+            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"]') : null;
+            if (playIcon) {
+                const key = getCanonicalVoiceContainer(playIcon);
+                if (typeof key === 'string') {
+                    window._wp_last_voice_key = key;
+                    window._wp_last_voice_key_time = Date.now();
+                }
+            }
+        }
+    };
     document.addEventListener('mousedown', updateTouch, true);
     document.addEventListener('keydown', updateTouch, true);
 
@@ -141,6 +156,12 @@ const audioCacheMap = new Map(); // 使用 Map 支持字符串(ID)或元素键
 function getCanonicalVoiceContainer(element) {
     if (!element) return null;
     
+    if (element._wp_canonical_key) {
+        return element._wp_canonical_key;
+    }
+
+    if (typeof element.closest !== 'function') return element;
+
     // 1. 优先寻找带有 data-id 的消息根容器 (最稳定)
     const messageNode = element.closest('[data-id]');
     if (messageNode) {
@@ -3177,6 +3198,21 @@ async function restoreSentMessageTranslations() {
 
 // ===================== 语音翻译模块 (使用自动化捕获) =====================
 
+// 设置语音翻译按钮状态
+function setVoiceTranslateBtnState(containerKey, isEnabled) {
+    if (!containerKey) return;
+    const voiceContainer = (typeof containerKey === 'string') ? 
+        document.querySelector(`[data-id="${containerKey}"]`) : 
+        containerKey;
+    if (voiceContainer) {
+        const translateBtn = voiceContainer.querySelector('.voice-translate-btn span');
+        if (translateBtn) {
+            translateBtn.style.opacity = isEnabled ? '1' : '0.5';
+            translateBtn.style.pointerEvents = isEnabled ? 'auto' : 'none';
+        }
+    }
+}
+
 // 处理语音消息列表，添加翻译按钮
 function processVoiceMessageList() {
     // 查找所有语音消息 - 使用更通用的选择器
@@ -3260,6 +3296,12 @@ function processVoiceMessageList() {
         
         btnWrapper.appendChild(translateBtn);
         voiceContainer.appendChild(btnWrapper);
+        
+        // 增加对正在录制状态的初始判断
+        const state = recordingStateMap.get(containerKey);
+        if (state === 'recording' || state === 'processing') {
+            setVoiceTranslateBtnState(containerKey, false);
+        }
 
         // 异步检查并恢复持久化译文显示
         (async () => {
@@ -3286,8 +3328,15 @@ function startVoiceMessageMonitor() {
 // 开始录制音频 (使用浏览器原生 MediaRecorder 并转换为 WAV)
 async function startAudioRecording(audioElement) {
     try {
-        const containerKey = getCanonicalVoiceContainer(audioElement);
+        let containerKey = getCanonicalVoiceContainer(audioElement);
         
+        // 如果 audioElement 脱离 DOM，尝试使用最近点击获取的 Key
+        if (typeof containerKey !== 'string' && window._wp_last_voice_key && (Date.now() - window._wp_last_voice_key_time < 2000)) {
+            console.log('🔗 [Capture] 将脱离 DOM 的音频关联至最近点击的 Key:', window._wp_last_voice_key);
+            containerKey = window._wp_last_voice_key;
+            audioElement._wp_canonical_key = containerKey;
+        }
+
         // 如果已经有录制在进行，先停止它
         if (currentRecorder && currentRecorder.state !== 'inactive') {
             stopAudioRecording();
@@ -3295,7 +3344,10 @@ async function startAudioRecording(audioElement) {
 
         console.log('🔴 开始录制音频 (原生 MediaRecorder), Key:', containerKey);
         currentAudioElement = audioElement;
-        if (containerKey) recordingStateMap.set(containerKey, 'recording');
+        if (containerKey) {
+            recordingStateMap.set(containerKey, 'recording');
+            setVoiceTranslateBtnState(containerKey, false);
+        }
         
         // 检查是否已经为this audio element创建了source
         let cached = audioSourceMap.get(audioElement);
@@ -3430,6 +3482,7 @@ async function saveRecordingToCache(audioElement, blob) {
                 containerKey;
             
             if (voiceContainer) {
+                setVoiceTranslateBtnState(containerKey, true);
                 console.log('🚀 [Auto-Translate] 录制完成，正在启动自动翻译...');
                 translateVoiceMessage(voiceContainer).catch(err => {
                     console.error('❌ [Auto-Translate] 自动翻译启动失败:', err);
@@ -3437,11 +3490,15 @@ async function saveRecordingToCache(audioElement, blob) {
             }
         } else {
             recordingStateMap.delete(containerKey);
+            setVoiceTranslateBtnState(containerKey, true);
         }
     } catch (e) {
         console.error('❌ [Save] 保存录音失败:', e);
         const key = getCanonicalVoiceContainer(audioElement);
-        if (key) recordingStateMap.delete(key);
+        if (key) {
+            recordingStateMap.delete(key);
+            setVoiceTranslateBtnState(key, true);
+        }
     }
 }
 
