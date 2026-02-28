@@ -1091,8 +1091,16 @@ async function addOriginalTextToSentMessage(originalText, translatedText, retryC
         `;
         originalNode.textContent = originalText;
         
-        textSpan.appendChild(document.createElement('br'));
+        // 修正：图标应跟随在黑色译文后面，与其保持在同一行 (textSpan 的主体内容末尾)
+        const iconBtn = textSpan.querySelector('.translate-icon-btn');
+        if (iconBtn) {
+            textSpan.appendChild(iconBtn); // 确保图标在主体行
+        }
+        
+        const brNode = document.createElement('br');
+        textSpan.appendChild(brNode);
         textSpan.appendChild(originalNode);
+
         textSpan.setAttribute('data-original-restored', 'true');
         console.log('✅ 原文已成功显示在 DOM:', originalText);
         
@@ -1176,11 +1184,12 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
             iconContainer.style.cssText = `
                 display: inline-flex;
                 align-items: center;
-                margin-left: 5px;
+                margin-left: 4px;
                 vertical-align: middle;
                 cursor: pointer;
                 color: #25D366;
                 position: relative;
+                top: -1px;
                 z-index: 10;
             `;
             iconContainer.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1192,8 +1201,13 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
                 <path d="M14 18h6"></path>
             </svg>`;
             
-            // 先追加图标到原文后面
-            textSpan.appendChild(iconContainer);
+            // 优先追加图标到已有的译文或原文结果节点末尾，否则追加到 textSpan
+            const resultNode = textSpan.querySelector('.translation-result, .original-text-result');
+            if (resultNode) {
+                resultNode.appendChild(iconContainer);
+            } else {
+                textSpan.appendChild(iconContainer);
+            }
         }
 
         // 定义点击事件
@@ -1264,8 +1278,18 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
                             font-style: italic;
                         `;
                         textSpan.appendChild(translationNode);
+                        
+                        // 将图标移动到译文节点末尾
+                        if (iconContainer) {
+                            translationNode.appendChild(iconContainer);
+                        }
                     }
                     translationNode.textContent = res.data;
+                    
+                    // 再次确保图标留在主体行末尾 (而不是跟入译文节点)
+                    if (iconContainer) {
+                        textSpan.appendChild(iconContainer);
+                    }
                     // 更新缓存 (使用归一化文本)
                     await saveTranslationCache(normalizeText(originalText), res.data, currentFrom, currentTo);
                     console.log('✅ 重新翻译成功并更新显示');
@@ -1897,7 +1921,13 @@ function monitorMainNode() {
             }
         };
 
-        span.appendChild(iconContainer);
+        // 优先追加图标到已有的译文结果节点末尾，否则追加到 span
+        const translationNode = span.querySelector('.translation-result');
+        if (translationNode) {
+            translationNode.appendChild(iconContainer);
+        } else {
+            span.appendChild(iconContainer);
+        }
     }
 }
 
@@ -2856,8 +2886,16 @@ async function restoreSentMessageOriginals() {
                 `;
                 originalNode.textContent = record.originalText;
                 
-                span.appendChild(document.createElement('br'));
+                // 修正：图标应跟随在黑色译文后面，与其保持在同一行 (span 的主体内容末尾)
+                const iconBtn = span.querySelector('.translate-icon-btn');
+                if (iconBtn) {
+                    span.appendChild(iconBtn); // 确保图标在主体行
+                }
+                
+                const brNode = document.createElement('br');
+                span.appendChild(brNode);
                 span.appendChild(originalNode);
+
                 span.setAttribute('data-original-restored', 'true');
                 console.log('🔄 已成功恢复原文显示:', record.originalText.substring(0, 30));
             } else {
@@ -3198,6 +3236,13 @@ async function restoreSentMessageTranslations() {
                             }
                             
                             translationNode.textContent = res.data;
+                            
+                            // 再次确保图标留在主体行末尾 (而不是跟入译文节点)
+                            const iconBtn = span.querySelector('.translate-icon-btn');
+                            if (iconBtn) {
+                                span.appendChild(iconBtn);
+                            }
+
                             // 更新缓存 (使用归一化文本)
                             await saveTranslationCache(normalizeText(msgText), res.data, currentFrom, currentTo);
                             console.log('✅ 重新翻译成功并更新显示');
@@ -3218,8 +3263,14 @@ async function restoreSentMessageTranslations() {
                     }, 500);
                 };
 
-                // 追加图标到原文后面
-                span.appendChild(iconContainer);
+                // 始终将图标追加到 span 的主体内容末尾 (黑色正文行)
+                // 即使存在译文或原文结果节点，图标也应在第一行的末尾
+                const brNode = span.querySelector('br');
+                if (brNode) {
+                    span.insertBefore(iconContainer, brNode);
+                } else {
+                    span.appendChild(iconContainer);
+                }
             }
 
             // 2. 检查并恢复缓存的译文 (如果不存在)
