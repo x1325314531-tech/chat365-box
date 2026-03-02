@@ -263,7 +263,8 @@
       "newResolution": "Resolution randomized",
       "refreshWebGL": "WebGL info refreshed",
       "fetchDetailFailed": "Failed to fetch session details",
-      "fetchDetailError": "Error fetching session details, please try again later"
+      "fetchDetailError": "Error fetching session details, please try again later",
+      "nicknameRequired": "Please enter session nickname"
     },
     "buttons": {
       "cancel": "Cancel",

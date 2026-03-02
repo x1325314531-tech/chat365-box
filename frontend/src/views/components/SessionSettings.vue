@@ -1076,6 +1076,10 @@ const handleLanguageCommand = (command, index) => {
   }
 };
 const confirmClick = async () => {
+  if (!configForm.name) {
+    ElMessage.warning(t('session.messages.nicknameRequired'));
+    return;
+  }
   const moreOptions = JSON.stringify(configForm);
   const data = {
     sessionId: configForm.sessionId,
@@ -1193,7 +1197,7 @@ const cancelClick = () => {
           <el-tab-pane :label="$t('session.tabs.fingerprint')" name="fingerprint">
             <div class="scroll-area">
               <el-form :model="configForm" label-width="120px" label-position="left">
-                <el-form-item :label="$t('session.config.nickname')">
+                <el-form-item :label="$t('session.config.nickname')" required>
                   <el-input v-model="configForm.name" :placeholder="$t('session.config.nicknamePlaceholder')"></el-input>
                 </el-form-item>
 

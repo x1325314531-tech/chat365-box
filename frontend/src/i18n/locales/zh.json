@@ -263,7 +263,8 @@
       "newResolution": "已随机切换分辨率",
       "refreshWebGL": "已刷新 WebGL 信息",
       "fetchDetailFailed": "获取会话详情失败",
-      "fetchDetailError": "获取会话详情出错，请稍后重试"
+      "fetchDetailError": "获取会话详情出错，请稍后重试",
+      "nicknameRequired": "请输入会话昵称"
     },
     "buttons": {
       "cancel": "取消",
