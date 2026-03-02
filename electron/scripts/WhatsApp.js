@@ -720,7 +720,6 @@ function normalizeText(text) {
     if (!text) return '';
     return text.toString()
         .normalize('NFC') // 统一 Unicode 编码形式
-        // 处理 HTML 常见转义字符，防止 DOM innerText 差异
         .replace(/&quot;/g, '"')
         .replace(/&apos;|&#39;/g, "'")
         .replace(/&lt;/g, '<')
@@ -728,9 +727,63 @@ function normalizeText(text) {
         .replace(/&amp;/g, '&')
         // 移除零宽空格、双向控制字符（LRM \u200E, RLM \u200F 等）
         .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '') 
-        .replace(/\u00A0/g, ' ') // 将不换行空格替换为普通空格
-        .replace(/\s+/g, ' ')    // 连续空白字符塌陷为单个空格
-        .trim();                 // 首尾修剪
+        .replace(/\u00A0/g, ' ') 
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * 核心渲染函数：在消息下方显示对照原文
+ * [Layout Fix] 引入 ComputedStyle 深度解封，确保长消息原文 100% 可见
+ */
+function renderOriginalBelowSpan(span, originalText) {
+    if (!span || !originalText) return;
+    if (span.querySelector('.original-text-result')) return;
+
+    // 创建原文节点
+    const node = document.createElement('span');
+    node.className = 'original-text-result';
+    node.style.cssText = `
+        display: block;
+        font-size: 13px;
+        color: #25D366;
+        border-top: 1px dashed rgba(0,0,0,0.12);
+        padding-top: 5px;
+        margin-top: 5px;
+        font-style: italic;
+        white-space: pre-wrap;
+        word-break: break-word;
+    `;
+    node.textContent = originalText;
+
+    // 确保图标在主体行末尾
+    const iconBtn = span.querySelector('.translate-icon-btn');
+    if (iconBtn) {
+        span.appendChild(iconBtn);
+    }
+
+    span.appendChild(document.createElement('br'));
+    span.appendChild(node);
+    span.setAttribute('data-original-restored', 'true');
+
+    // 强力解封 CSS：递归检查父容器，清除所有 maxHeight/overflow 限制
+    try {
+        let el = span.parentElement;
+        let depth = 0;
+        while (el && depth < 10) {
+            const cs = window.getComputedStyle(el);
+            if ((cs.maxHeight && cs.maxHeight !== 'none') || cs.overflow === 'hidden' || cs.display === 'flex') {
+                el.style.setProperty('max-height', 'none', 'important');
+                el.style.setProperty('overflow', 'visible', 'important');
+                el.style.setProperty('height', 'auto', 'important');
+                el.style.setProperty('-webkit-line-clamp', 'unset', 'important');
+                // el.style.setProperty('display', 'block', 'important');
+            }
+            if (el.classList.contains('message-out') || el.classList.contains('message-in')) break;
+            el = el.parentElement;
+            depth++;
+        }
+    } catch (_) {}
 }
 
 // 处理空格 换行 
@@ -1077,31 +1130,7 @@ async function addOriginalTextToSentMessage(originalText, translatedText, retryC
             return;
         }
 
-        // 创建原文显示节点
-        let originalNode = document.createElement('span');
-        originalNode.className = 'original-text-result';
-        originalNode.style.cssText = `
-            display: block;
-            font-size: 13px;
-            color: #25D366;
-            border-top: 1px dashed #ccc;
-            padding-top: 5px;
-            margin-top: 5px;
-            font-style: italic;
-        `;
-        originalNode.textContent = originalText;
-        
-        // 修正：图标应跟随在黑色译文后面，与其保持在同一行 (textSpan 的主体内容末尾)
-        const iconBtn = textSpan.querySelector('.translate-icon-btn');
-        if (iconBtn) {
-            textSpan.appendChild(iconBtn); // 确保图标在主体行
-        }
-        
-        const brNode = document.createElement('br');
-        textSpan.appendChild(brNode);
-        textSpan.appendChild(originalNode);
-
-        textSpan.setAttribute('data-original-restored', 'true');
+        renderOriginalBelowSpan(textSpan, originalText);
         console.log('✅ 原文已成功显示在 DOM:', originalText);
         
     } catch (error) {
@@ -1368,22 +1397,7 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
         if (loadingNode && loadingNode.parentNode) loadingNode.remove();
 
         if (translatedText && normalizeText(translatedText) !== normalizeText(originalText)) {
-            // 如果翻译结果节点不存在，则创建
-            if (!translationNode) {
-                translationNode = document.createElement('span');
-                translationNode.className = 'translation-result';
-                translationNode.style.cssText = `
-                    display: block;
-                    font-size: 13px;
-                    color: #25D366;
-                    border-top: 1px dashed #ccc;
-                    padding-top: 5px;
-                    margin-top: 5px;
-                    font-style: italic;
-                `;
-                textSpan.appendChild(translationNode);
-            }
-            translationNode.textContent = translatedText;
+            renderOriginalBelowSpan(textSpan, translatedText);
             console.log('✅ 译文已追加');
         }
         
@@ -2817,122 +2831,55 @@ async function getSentMessage(translatedText) {
 }
 
 // 恢复发送消息的原文显示
+// 恢复发送消息的原文显示 (核心：IDB 匹配 + API 自动还原兜底)
 async function restoreSentMessageOriginals() {
     try {
-        // 查找所有发送的消息
-        const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"]:not([data-original-restored]), .message-out span[dir="rtl"]:not([data-original-restored])');
-        
-        if (sentMessages.length > 0) {
-            console.log('🔍 扫描发送消息，找到数量:', sentMessages.length);
-        }
+        const sentMessages = document.querySelectorAll('.message-out span[dir]:not([data-original-restored])');
         
         for (let span of sentMessages) {
-            // 跳过已经有原文显示的
-            if (span.querySelector('.original-text-result')) {
-                span.setAttribute('data-original-restored', 'true');
-                continue;
-            }
-            
-            // 获取消息文本 (WhatsApp 消息节点可能包含时间戳子节点，需要小心提取)
-            // 策略：克隆节点并移除所有非文字类子元素，以防干扰匹配
             const clone = span.cloneNode(true);
-            
-            // 移除时间戳、已读状态图标、翻译按钮/结果等所有干扰节点
-            const excludeSelectors = [
-                'span.translation-result', 
-                'span.original-text-result', 
-                'span.translate-icon-btn',
-                'span.translation-loading',
-                '[class*="time"]', 
-                '[class*="timestamp"]',
-                'span[data-icon*="check"]', // 状态图标
-                'div[style*="position: absolute"]' // 可能是浮动层
-            ];
-            excludeSelectors.forEach(sel => {
-                clone.querySelectorAll(sel).forEach(node => node.remove());
-            });
+            const excludeSelectors = ['.translation-result', '.original-text-result', '.translate-icon-btn', '.translation-loading', '[class*="time"]', '[class*="timestamp"]'];
+            excludeSelectors.forEach(sel => clone.querySelectorAll(sel).forEach(n => n.remove()));
 
-            // 获取清理后的文本
-            const rawText = clone.innerText || clone.textContent;
-            const msgText = normalizeText(rawText);
+            const msgText = normalizeText(clone.textContent);
+            if (!msgText || msgText.length < 1) continue;
             
-            if (!msgText || msgText.length < 1) {
-                continue;
-            }
-            
-            console.log('🔍 检索发送消息原文 (Key:', msgText.substring(0, 30), ')');
-            
-            // 从本地存储获取原文
+            // 步骤1：尝试从本地 IDB 检索 (针对 A 机)
             const record = await getSentMessage(msgText);
-            
             if (record && record.originalText) {
-                // 校验：如果原文与当前显示的译文完全一致，则不需要显示
                 if (normalizeText(record.originalText) === msgText) {
                     span.setAttribute('data-original-restored', 'true');
                     continue;
                 }
+                renderOriginalBelowSpan(span, record.originalText);
+                continue;
+            }
 
-                // 创建原文显示节点
-                let originalNode = document.createElement('span');
-                originalNode.className = 'original-text-result';
-                originalNode.style.cssText = `
-                    display: block;
-                    font-size: 13px;
-                    color: #25D366;
-                    border-top: 1px dashed #ccc;
-                    padding-top: 5px;
-                    margin-top: 5px;
-                    font-style: italic;
-                `;
-                originalNode.textContent = record.originalText;
-                
-                // 修正：图标应跟随在黑色译文后面，与其保持在同一行 (span 的主体内容末尾)
-                const iconBtn = span.querySelector('.translate-icon-btn');
-                if (iconBtn) {
-                    span.appendChild(iconBtn); // 确保图标在主体行
-                }
-                
-                const brNode = document.createElement('br');
-                span.appendChild(brNode);
-                span.appendChild(originalNode);
-
-                span.setAttribute('data-original-restored', 'true');
-                console.log('🔄 已成功恢复原文显示:', record.originalText.substring(0, 30));
-            } else {
-                // 兜底逻辑：如果精确匹配失败，尝试进行极致简化的“纯字符”匹配
-                // 移除所有空格、标点和特殊符号，只保留字母、数字和中文字符
-                const simplify = (t) => t.replace(/[^\w\u4e00-\u9fa5]/g, '').toLowerCase();
-                const simpleMsgText = simplify(msgText);
-                
-                if (simpleMsgText.length > 5) {
-                    const allRecords = await getAllSentMessages();
-                    const fuzzyMatch = allRecords.find(r => simplify(r.translatedText) === simpleMsgText);
-                    
-                    if (fuzzyMatch) {
-                        console.log('🔍 [Fuzzy Match] 命中简化文本缓存:', fuzzyMatch.originalText.substring(0, 30));
-                        let originalNode = document.createElement('span');
-                        originalNode.className = 'original-text-result';
-                        originalNode.style.cssText = `
-                            display: block;
-                            font-size: 13px;
-                            color: #25D366;
-                            border-top: 1px dashed #ccc;
-                            padding-top: 5px;
-                            margin-top: 5px;
-                            font-style: italic;
-                        `;
-                        originalNode.textContent = fuzzyMatch.originalText;
-                        span.appendChild(document.createElement('br'));
-                        span.appendChild(originalNode);
+            // 步骤2：API 自动补全 (针对 B 机同步场景)
+            // 如果本地没找到记录，说明这条消息可能是其他端发送的。
+            // 我们主动调用 API 将这条“译文”还原为“原文”。
+            const fromLang = getTargetLanguage(); // 译文语言 (例如英文)
+            const toLang = getLocalLanguage();    // 原文语言 (例如中文)
+            
+            console.log('🔄 B端探测到缺失原文的历史消息，启动 API 自动补偿:', msgText.substring(0, 20));
+            try {
+                const res = await translateTextAPI(msgText, fromLang, toLang);
+                if (res && res.success && res.data) {
+                    // 校验：如果还原结果与译文本身高度相似，说明可能是直接发送的原文，不渲染
+                    if (normalizeText(res.data) !== msgText) {
+                        renderOriginalBelowSpan(span, res.data);
+                        // 补入缓存以便下次秒开
+                        await saveSentMessage(msgText, res.data);
+                    } else {
                         span.setAttribute('data-original-restored', 'true');
-                        continue;
                     }
                 }
-                // 如果仍然匹配失败，暂时不打标记，等待下轮扫描
+            } catch (e) {
+                console.warn('❌ API 自动补偿同步失败:', e);
             }
         }
     } catch (error) {
-        console.error('恢复发送消息原文失败:', error);
+        console.error('恢复历史消息失败:', error);
     }
 }
 
