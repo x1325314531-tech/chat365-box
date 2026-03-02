@@ -733,16 +733,19 @@ function normalizeText(text) {
 }
 
 /**
- * 核心渲染函数：在消息下方显示对照原文
- * [Layout Fix] 引入 ComputedStyle 深度解封，确保长消息原文 100% 可见
+ * 核心渲染函数：在消息下方显示附加内容 (对照原文或补充译文)
+ * [Layout Fix] 引入 ComputedStyle 深度解封，确保长消息 100% 可见，不被父容器截断
+ * @param {HTMLElement} span - 消息文本 span
+ * @param {string} text - 要显示的内容
+ * @param {string} className - 节点类名 (translation-result 或 original-text-result)
  */
-function renderOriginalBelowSpan(span, originalText) {
-    if (!span || !originalText) return;
-    if (span.querySelector('.original-text-result')) return;
+function renderAdditionalTextBelow(span, text, className = 'original-text-result') {
+    if (!span || !text) return;
+    if (span.querySelector('.' + className)) return;
 
-    // 创建原文节点
+    // 创建展示节点
     const node = document.createElement('span');
-    node.className = 'original-text-result';
+    node.className = className;
     node.style.cssText = `
         display: block;
         font-size: 13px;
@@ -754,17 +757,25 @@ function renderOriginalBelowSpan(span, originalText) {
         white-space: pre-wrap;
         word-break: break-word;
     `;
-    node.textContent = originalText;
+    node.textContent = text;
 
-    // 确保图标在主体行末尾
+    // 确保图标在主体行末端 (而非在附加内容内部)
     const iconBtn = span.querySelector('.translate-icon-btn');
     if (iconBtn) {
         span.appendChild(iconBtn);
     }
 
-    span.appendChild(document.createElement('br'));
+    // 避免重复换行
+    if (!span.querySelector('br:last-of-type') || span.lastElementChild.tagName !== 'BR') {
+        span.appendChild(document.createElement('br'));
+    }
+    
     span.appendChild(node);
-    span.setAttribute('data-original-restored', 'true');
+    
+    // 标记状态防止重复处理
+    if (className === 'original-text-result') {
+        span.setAttribute('data-original-restored', 'true');
+    }
 
     // 强力解封 CSS：递归检查父容器，清除所有 maxHeight/overflow 限制
     try {
@@ -777,7 +788,6 @@ function renderOriginalBelowSpan(span, originalText) {
                 el.style.setProperty('overflow', 'visible', 'important');
                 el.style.setProperty('height', 'auto', 'important');
                 el.style.setProperty('-webkit-line-clamp', 'unset', 'important');
-                // el.style.setProperty('display', 'block', 'important');
             }
             if (el.classList.contains('message-out') || el.classList.contains('message-in')) break;
             el = el.parentElement;
@@ -1130,7 +1140,7 @@ async function addOriginalTextToSentMessage(originalText, translatedText, retryC
             return;
         }
 
-        renderOriginalBelowSpan(textSpan, originalText);
+        renderAdditionalTextBelow(textSpan, originalText, 'original-text-result');
         console.log('✅ 原文已成功显示在 DOM:', originalText);
         
     } catch (error) {
@@ -1397,7 +1407,7 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
         if (loadingNode && loadingNode.parentNode) loadingNode.remove();
 
         if (translatedText && normalizeText(translatedText) !== normalizeText(originalText)) {
-            renderOriginalBelowSpan(textSpan, translatedText);
+            renderAdditionalTextBelow(textSpan, translatedText, 'translation-result');
             console.log('✅ 译文已追加');
         }
         
@@ -1687,11 +1697,8 @@ function monitorMainNode() {
 
     // 处理消息列表翻译 - 只翻译对方发送的接收消息（英文 -> 中文）
     async function processMessageList() {
-        // 恢复发送消息的原文显示（从本地存储）
-        await restoreSentMessageOriginals();
-        
-        // 恢复发送消息的译文显示（从翻译缓存）
-        await restoreSentMessageTranslations();
+        // 恢复发送消息的历史显示（包含原文/译文的双向还原与 API 补偿）
+        await restoreSentMessageHistory();
         
         // 全局接收自动翻译开关的提前返回，以便即使关闭自动翻译也能添加手动翻译图标
         if (!globalConfig?.receiveAutoTranslate) {
@@ -1781,24 +1788,10 @@ function monitorMainNode() {
             }
 
             if (translatedText && normalizeText(translatedText) !== normalizeText(msg)) {
+                // 标记状态
                 span.setAttribute('data-translate-status', isFromCache ? 'cached' : 'translated');
-
-                // 创建翻译结果显示节点
-                let translationNode = document.createElement('span');
-                translationNode.className = 'translation-result';
-                translationNode.style.cssText = `
-                    display: block;
-                    font-size: 13px;
-                    color: #25D366;
-                    border-top: 1px dashed #ccc;
-                    padding-top: 5px;
-                    margin-top: 5px;
-                    font-style: italic;
-                `;
-                translationNode.textContent = '' + translatedText;
-
-                span.appendChild(document.createElement('br'));
-                span.appendChild(translationNode);
+                // 统一渲染译文：B 端扫描历史时命中缓存或自动异步补偿均走此逻辑
+                renderAdditionalTextBelow(span, translatedText, 'translation-result');
                 console.log(isFromCache ? '✅ 缓存译文已显示' : '✅ 翻译结果已显示');
             } else {
                 // 如果没有译文（因开关关闭、缓存缺失或 API 失败），则添加手动翻译图标
@@ -2830,11 +2823,10 @@ async function getSentMessage(translatedText) {
     }
 }
 
-// 恢复发送消息的原文显示
-// 恢复发送消息的原文显示 (核心：IDB 匹配 + API 自动还原兜底)
-async function restoreSentMessageOriginals() {
+// 恢复发送消息的历史显示 (核心：IDB 匹配 + API 自动还原/翻译补偿)
+async function restoreSentMessageHistory() {
     try {
-        const sentMessages = document.querySelectorAll('.message-out span[dir]:not([data-original-restored])');
+        const sentMessages = document.querySelectorAll('.message-out span[dir]:not([data-history-restored])');
         
         for (let span of sentMessages) {
             const clone = span.cloneNode(true);
@@ -2844,42 +2836,53 @@ async function restoreSentMessageOriginals() {
             const msgText = normalizeText(clone.textContent);
             if (!msgText || msgText.length < 1) continue;
             
-            // 步骤1：尝试从本地 IDB 检索 (针对 A 机)
-            const record = await getSentMessage(msgText);
-            if (record && record.originalText) {
-                if (normalizeText(record.originalText) === msgText) {
-                    span.setAttribute('data-original-restored', 'true');
-                    continue;
+            // 标记已处理，防止并发下重复扫描
+            span.setAttribute('data-history-restored', 'true');
+
+            // --- 场景 A: 查找译文对应的原文 (针对 B 端同步发送消息的原文) ---
+            const originalRecord = await getSentMessage(msgText);
+            if (originalRecord && originalRecord.originalText) {
+                if (normalizeText(originalRecord.originalText) !== msgText) {
+                    renderAdditionalTextBelow(span, originalRecord.originalText, 'original-text-result');
                 }
-                renderOriginalBelowSpan(span, record.originalText);
                 continue;
             }
 
-            // 步骤2：API 自动补全 (针对 B 机同步场景)
-            // 如果本地没找到记录，说明这条消息可能是其他端发送的。
-            // 我们主动调用 API 将这条“译文”还原为“原文”。
-            const fromLang = getTargetLanguage(); // 译文语言 (例如英文)
-            const toLang = getLocalLanguage();    // 原文语言 (例如中文)
-            
-            console.log('🔄 B端探测到缺失原文的历史消息，启动 API 自动补偿:', msgText.substring(0, 20));
-            try {
-                const res = await translateTextAPI(msgText, fromLang, toLang);
-                if (res && res.success && res.data) {
-                    // 校验：如果还原结果与译文本身高度相似，说明可能是直接发送的原文，不渲染
-                    if (normalizeText(res.data) !== msgText) {
-                        renderOriginalBelowSpan(span, res.data);
-                        // 补入缓存以便下次秒开
+            // --- 场景 B: 查找原文对应的译文 (针对 B 端同步发送消息的译文) ---
+            const fromLang = getTargetLanguage(); // 对方语言 (英文)
+            const toLang = getLocalLanguage();    // 母语 (中文)
+            const cachedTranslation = await getTranslationCache(msgText, fromLang, toLang);
+            if (cachedTranslation && normalizeText(cachedTranslation) !== msgText) {
+                renderAdditionalTextBelow(span, cachedTranslation, 'translation-result');
+                continue;
+            }
+
+            // --- 场景 C: API 自动补偿 (兜底同步) ---
+            // 如果 A 端开启了“发送自动翻译”，当前显示的可能是译文，尝试还原原文
+            if (globalConfig?.sendAutoTranslate) {
+                console.log('🔄 [Out] B端探测到缺失原文的历史发送消息，启动 API 还原:', msgText.substring(0, 20));
+                try {
+                    const res = await translateTextAPI(msgText, fromLang, toLang);
+                    if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
+                        renderAdditionalTextBelow(span, res.data, 'original-text-result');
                         await saveSentMessage(msgText, res.data);
-                    } else {
-                        span.setAttribute('data-original-restored', 'true');
                     }
-                }
-            } catch (e) {
-                console.warn('❌ API 自动补偿同步失败:', e);
+                } catch (e) { console.warn('❌ 发送历史原文补偿失败:', e); }
+            } 
+            // 如果 A 端开启了“发送原文+下方显示译文”，当前显示的可能是原文，尝试补全译文
+            else if (globalConfig?.sendAutoNotTranslate) {
+                console.log('🔄 [Out] B端探测到缺失译文的历史发送消息，启动 API 补全:', msgText.substring(0, 20));
+                try {
+                    const res = await translateTextAPI(msgText, toLang, fromLang); // 注意语言语序
+                    if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
+                        renderAdditionalTextBelow(span, res.data, 'translation-result');
+                        await saveTranslationCache(msgText, res.data, toLang, fromLang);
+                    }
+                } catch (e) { console.warn('❌ 发送历史译文补全失败:', e); }
             }
         }
     } catch (error) {
-        console.error('恢复历史消息失败:', error);
+        console.error('恢复发送消息历史失败:', error);
     }
 }
 
