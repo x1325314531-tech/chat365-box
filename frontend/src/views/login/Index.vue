@@ -2,31 +2,69 @@
   <div class="login-page">
     <div class="login-container">
       <div class="info-container">
-<!--        <h2>Swimming pool in summertime</h2>-->
-<!--        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>-->
-        <div ref="animationContainer" class="animation"></div>
+        <div ref="animationContainer" class="animation">
+          <img src ="@/assets/images/logo_bg.png" class="bg-img" />
+        </div>
       </div>
-
+    
       <div class="login-form">
+        <!-- 语言切换 -->
+        <div class="select-language">
+          <el-dropdown @command="switchLang" trigger="click">
+            <span class="lang-trigger">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              {{ currentLocale === 'zh' ? '简体中文' : (currentLocale === 'en' ? 'English' : 'Français') }}
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="zh" :class="{ 'is-active': currentLocale === 'zh' }">简体中文</el-dropdown-item>
+                <el-dropdown-item command="en" :class="{ 'is-active': currentLocale === 'en' }">English</el-dropdown-item>
+                <el-dropdown-item command="fr" :class="{ 'is-active': currentLocale === 'fr' }">Français</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+
         <div class="logo">
           <img src="@/assets/images/logo.png" alt="Logo" class="logo-img" />
           <h1 class="hero-title">
-            <span class="gradient-text">LOGIN</span>
+            <span class="gradient-text">Chat365</span>
           </h1>
         </div>
-        <div class="input-container">
-          <el-input v-model="form.userName" placeholder="请输入用户名" :prefix-icon="User" class="input-item" size="large"/>
-          <el-input v-model="form.password" placeholder="请输入密码" :prefix-icon="Lock" type="password" show-password class="input-item" size="large"/>
-          <el-input v-model="form.machineCode" v-if="isMachineCode" placeholder="本机机器码" readonly class="input-item">
-            <template #append>
-              <el-button  size="large" @click="copyMachineCode" :icon="DocumentCopy" />
-            </template>
-          </el-input>
-        </div>
-<!--        <a href="#" class="forgot-password">I forgot my password ?</a>-->
-         
-         <el-button type="primary" v-if="isMachineCode" @click="handleLogin" :loading="submitLoading" class="login-button">登录</el-button> 
-        <el-button type="primary" v-else @click="handleAccountLogin" :loading="submitLoading" class="login-button">登录</el-button> 
+
+        <el-form
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          class="input-container"
+          @submit.prevent
+        >
+          <el-form-item prop="userName">
+            <el-input v-model="form.userName" :placeholder="t('login.usernamePlaceholder')" :prefix-icon="User" class="input-item" size="large" />
+          </el-form-item>
+          <el-form-item prop="password">
+            <el-input v-model="form.password" :placeholder="t('login.passwordPlaceholder')" :prefix-icon="Lock" type="password" show-password class="input-item" size="large" />
+          </el-form-item>
+          <el-form-item v-if="isMachineCode">
+            <el-input v-model="form.machineCode" :placeholder="t('login.machineCodePlaceholder')" readonly class="input-item">
+              <template #append>
+                <el-button size="large" @click="copyMachineCode" :icon="DocumentCopy" />
+              </template>
+            </el-input>
+          </el-form-item>
+          <el-form-item prop="agree" class="form-item-agree">
+            <label class="agreement-label">
+              <input type="checkbox" v-model="form.agree" class="agreement-checkbox" />
+              <span class="agreement-text">{{ t('login.agreeText') }}</span>
+              <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">{{ t('login.agreementLink') }}</a>
+            </label>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" v-if="isMachineCode" @click="handleLogin" :loading="submitLoading" class="login-button">{{ t('login.loginBtn') }}</el-button>
+            <el-button type="primary" v-else @click="handleAccountLogin" :loading="submitLoading" class="login-button">{{ t('login.loginBtn') }}</el-button>
+          </el-form-item>
+        </el-form>
       </div>
     </div>
   </div>
@@ -39,13 +77,22 @@ import Notification from "@/utils/notification";
 import {decrypt, encrypt} from "@/utils/rsaEncrypt";
 import {post,get} from "@/utils/request";
 import {ipc} from "@/utils/ipcRenderer";
+import { useI18n } from 'vue-i18n';
 
 import { DocumentCopy, User, Lock } from '@element-plus/icons-vue'
 import {onMounted, reactive, ref} from 'vue';
 import { useRouter } from 'vue-router';
 
+const { t, locale } = useI18n();
+const currentLocale = ref(localStorage.getItem('app-locale') || 'zh');
+const switchLang = (lang) => {
+  locale.value = lang;
+  currentLocale.value = lang;
+  localStorage.setItem('app-locale', lang);
+};
 
 const submitLoading = ref(false)
+const formRef = ref(null)
 
 const animationContainer = ref(null);
 const  isMachineCode = ref(false)
@@ -69,13 +116,13 @@ const config = reactive({
   // groupAutoTranslate: false
 })
 onMounted(() => {
-  lottie.loadAnimation({
-    container: animationContainer.value, // 动画容器
-    renderer: 'svg',
-    loop: true,
-    autoplay: true,
-    animationData: animationData, // 动画数据
-  });
+  // lottie.loadAnimation({
+  //   container: animationContainer.value, // 动画容器
+  //   renderer: 'svg',
+  //   loop: true,
+  //   autoplay: true,
+  //   animationData: animationData, // 动画数据
+  // });
 });
 
 
@@ -125,6 +172,40 @@ const form = reactive({
   remember: false,
 });
 const router = useRouter();
+
+// 跳转用户协议
+const handleAgreementClick = () => {
+  const isDev = import.meta.env.MODE === 'development'
+  if (isDev) {
+    window.open('http://192.168.3.18/user-agreement/index', '_blank')
+  } else {
+    window.open('https://chat365.cc/user-agreement/index', '_blank')
+  }
+}
+
+// ===== 表单校验规则（跟随语言实时更新） =====
+import { computed } from 'vue';
+const rules = computed(() => ({
+  userName: [
+    { required: true, message: t('login.usernameRequired'), trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: t('login.passwordRequired'), trigger: 'blur' }
+  ],
+  agree: [
+    {
+      validator: (rule, value, callback) => {
+        if (!value) {
+          callback(new Error(t('login.agreeRequired')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change'
+    }
+  ]
+}));
+
 function initializeTranslateConfig() {
   try {
     if (!localStorage.getItem('translateConfig')) {
@@ -135,12 +216,11 @@ function initializeTranslateConfig() {
   }
 }
 const handleAccountLogin = async () => {
-  if (!form.userName || !form.password) {
-    Notification.message({ message: '请输入用户名和密码', type: 'warning' });
-    return;
-  }
-  
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+
   submitLoading.value = true;
+
   
   const payload = {
     username: form.userName,
@@ -197,11 +277,10 @@ const handleAccountLogin = async () => {
     submitLoading.value = false;
   }
 };
-const handleLogin = () => {
-  // if (!form.agree) {
-  //   Notification.message({ message: '请同意用户服务协议', type: 'info' });
-  //   return;
-  // }
+const handleLogin = async () => {
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+
   submitLoading.value = true
   //获取本机唯一机器码
   let oldTimestamp = new Date().getTime().toString();
@@ -267,15 +346,13 @@ const handleLogin = () => {
 }
 
 .info-container {
-  width: 50%;
-  padding: 40px;
+  width: 82%;
+  padding: 0;
   color: white;
-  background-color: #2878f0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  /* background-color: #2878f0; */
+  background-color: #ffffff;
   position: relative;
+  overflow: hidden;
 }
 
 .info-container h2 {
@@ -289,14 +366,17 @@ const handleLogin = () => {
 }
 
 .animation {
+  width: 100%;
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.bg-img {
   width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  overflow: hidden; /* 防止超出容器边界 */
+   height: 100%; 
+  object-fit: cover; 
 }
 
 .login-form {
@@ -307,15 +387,30 @@ const handleLogin = () => {
   align-items: center;
   background-color: #ffffff;
   justify-content: center;
+  position: relative;
 }
-
+.select-language { 
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid #dedede;
+  border-radius: 4px;
+  width: 100px;
+}
 .logo {
   text-align: center;
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-img {
-  width: 120px;
+  width: 68px;
   height: auto;
   margin-bottom: 15px;
 }
@@ -329,7 +424,8 @@ const handleLogin = () => {
 
 .gradient-text {
   font-size: 60px;
-  background: linear-gradient(90deg, #f4da0d, #67e76a, rgba(189, 21, 21, 0.99), #119ee2, #fbc2eb);
+  /* background: linear-gradient(90deg, #f4da0d, #67e76a, rgba(189, 21, 21, 0.99), #119ee2, #fbc2eb); */
+  background-color: #2377dd;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -350,7 +446,7 @@ const handleLogin = () => {
 }
 
 .input-item {
-  margin-bottom: 20px; /* 增加间距 */
+  margin-bottom: 8px; /* 增加间距 */
 }
 
 .input {
@@ -390,4 +486,49 @@ const handleLogin = () => {
 .login-button:hover {
   background-color: #218838; /* 悬停效果 */
 }
+
+/* agree form-item 减少底部空间 */
+.form-item-agree {
+  margin-bottom: 0;
+}
+
+/* 让包含登录按钮的 form-item 撑满宽度 */
+:deep(.el-form-item__content) {
+  width: 100%;
+}
+
+.service-agreement {
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+
+.agreement-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.agreement-checkbox {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #28a745;
+}
+
+.agreement-text {
+  font-size: 13px;
+  color: #555;
+}
+
+.agreement-link {
+  font-size: 13px;
+  color: #28a745;
+  text-decoration: none;
+}
+
+
 </style>

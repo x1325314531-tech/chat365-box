@@ -7,8 +7,10 @@ import Router from './router/index';
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import i18n from './i18n'
+import { setupErrorHandler } from '@/utils/errorHandler';
 
 const app = createApp(App)
+setupErrorHandler(app);
 app.config.productionTip = false
 // components
 for (const i in components) {

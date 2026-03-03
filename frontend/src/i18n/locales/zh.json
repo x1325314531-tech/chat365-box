@@ -275,5 +275,19 @@
   "whatsapp": {
     "title": "WhatsApp",
     "noSessions": "没有打开任何会话"
+  },
+  "login": {
+    "usernamePlaceholder": "请输入用户名",
+    "passwordPlaceholder": "请输入密码",
+    "machineCodePlaceholder": "本机机器码",
+    "loginBtn": "登录",
+    "agreeText": "我已阅读并同意",
+    "agreementLink": "【用户服务协议】",
+    "usernameRequired": "请输入用户名",
+    "passwordRequired": "请输入密码",
+    "agreeRequired": "请阅读并同意用户服务协议",
+    "langZh": "中文",
+    "langEn": "English",
+    "langFr": "法语"
   }
 }

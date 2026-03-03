@@ -274,5 +274,19 @@
   "whatsapp": {
     "title": "WhatsApp",
     "noSessions": "Aucune session ouverte"
+  },
+  "login": {
+    "usernamePlaceholder": "Saisir l'utilisateur",
+    "passwordPlaceholder": "Saisir le mot de passe",
+    "machineCodePlaceholder": "Code machine",
+    "loginBtn": "Connexion",
+    "agreeText": "J'ai lu et j'accepte",
+    "agreementLink": "[Conditions d'utilisation]",
+    "usernameRequired": "L'utilisateur est requis",
+    "passwordRequired": "Le mot de passe est requis",
+    "agreeRequired": "Veuillez lire et accepter les conditions d'utilisation",
+    "langZh": "Chinois",
+    "langEn": "Anglais",
+    "langFr": "Fran\u00e7ais"
   }
 }

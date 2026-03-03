@@ -312,10 +312,15 @@
                   </div>
                 </div>
               </div> -->
-
+         
               <!-- 应用按钮 -->
               <div class="form-actions">
                 <el-button type="primary" class="apply-btn" @click="applyConfig">{{ $t('settings.apply') }}</el-button>
+              </div>
+              <div class="preview-instruction">
+                <div class="instruction-title">翻译预览说明</div>
+                <div class="instruction-item">1、第一次回车或点击发送，只翻译不发送</div>
+                <div class="instruction-item">2、第二次回车或点击发送，发送翻译内容翻译预览说明</div>
               </div>
             </div>
           </div>
@@ -723,5 +728,22 @@ const applyConfig = () => {
   background: #2ed36a;
   border-color: #2ed36a;
   opacity: 0.8;
+}
+.preview-instruction {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #8c8c8c;
+  text-align: left;
+  line-height: 1.8;
+}
+
+.instruction-title {
+  font-weight: 500;
+  color: #595959;
+  margin-bottom: 4px;
+}
+
+.instruction-item {
+  color: #8c8c8c;
 }
 </style>

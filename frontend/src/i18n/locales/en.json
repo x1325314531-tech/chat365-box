@@ -275,5 +275,19 @@
   "whatsapp": {
     "title": "WhatsApp",
     "noSessions": "No sessions opened"
+  },
+  "login": {
+    "usernamePlaceholder": "Enter username",
+    "passwordPlaceholder": "Enter password",
+    "machineCodePlaceholder": "Machine code",
+    "loginBtn": "Login",
+    "agreeText": "I have read and agree to",
+    "agreementLink": "[Terms of Service]",
+    "usernameRequired": "Username is required",
+    "passwordRequired": "Password is required",
+    "agreeRequired": "Please read and agree to the Terms of Service",
+    "langZh": "Chinese",
+    "langEn": "English",
+    "langFr": "French"
   }
 }
