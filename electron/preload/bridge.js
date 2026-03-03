@@ -176,3 +176,28 @@ window.addEventListener('load', () => {
   // });
 });
 
+// ========== 全局渲染进程错误上报 ==========
+// 捕获未处理的同步错误（JS 运行时错误）
+window.addEventListener('error', (event) => {
+  ipcRenderer.send('renderer-log-error', {
+    type: 'window-error',
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    stack: event.error ? event.error.stack : '',
+    url: window.location.href,
+  });
+});
+
+// 捕获未处理的 Promise rejection
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  ipcRenderer.send('renderer-log-error', {
+    type: 'unhandled-rejection',
+    message: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : '',
+    url: window.location.href,
+  });
+});
+

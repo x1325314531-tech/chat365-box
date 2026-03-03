@@ -14,7 +14,16 @@ class Index extends Application {
     super();
     app.sdb = new Database();
     app.viewsMap = new Map();
-    this.initializeDatabase()
+    this.initializeDatabase();
+
+    // ========== 主进程全局异常捕获 ==========
+    process.on('uncaughtException', (err) => {
+      Log.error('[Main] Uncaught Exception:', err.stack || err);
+    });
+
+    process.on('unhandledRejection', (reason) => {
+      Log.error('[Main] Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
+    });
   }
 
   /**
@@ -251,6 +260,18 @@ class Index extends Application {
       }
     });
 
+
+    // 接收渲染进程上报的错误日志
+    ipcMain.on('renderer-log-error', (event, data) => {
+      const { type, message, stack, url, filename, lineno, colno } = data || {};
+      Log.error(`[Renderer][${type}] ${url || ''}`, {
+        message,
+        filename,
+        lineno,
+        colno,
+        stack,
+      });
+    });
   }
 
   /**
