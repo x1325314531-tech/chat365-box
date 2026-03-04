@@ -53,10 +53,18 @@ const ipcApiRoute = {
   hideWindow: 'controller.window.hideWindow',
   changeSidebarWidth: 'controller.window.changeSidebarWidth',
   changeSidebarLayout: 'controller.window.changeSidebarLayout',
+  getSidebarState: 'controller.window.getSidebarState',
 };
 
 
 onMounted(async () => {
+  // 获取侧边栏初始状态
+  ipc.invoke(ipcApiRoute.getSidebarState).then(res => {
+    if (res) {
+      openSidebar.value = res.isShrunk;
+      isPlacedTop.value = res.isPlacedTop;
+    }
+  });
   // 页面加载时获取所有会话
   await getAllSessions();
   // 移除可能存在的旧的 'online-notify' 监听器，避免重复添加

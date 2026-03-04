@@ -176,6 +176,15 @@ class WindowController extends Controller {
         }
     }
 
+    async getSidebarState(args, event) {
+        try {
+            return await Services.get('window').getSidebarState();
+        } catch (error) {
+            Log.error('获取侧边栏状态失败:', error);
+            return { isShrunk: false, isPlacedTop: false };
+        }
+    }
+
     async filterNumber(args, event) {
         // 解构参数
         const { platform, cardId, phoneNumber } = args;

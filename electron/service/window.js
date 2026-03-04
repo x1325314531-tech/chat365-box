@@ -282,16 +282,16 @@ class WindowService extends Service {
         this.isShrunk = isShrunk;
         Log.info('侧边栏状态变更:', isShrunk ? '收缩' : '展开');
         
-        // 获取当前活跃的 view
-        const activeCard = await app.sdb.selectOne('cards', { active_status: 'true' });
-        if (activeCard) {
-            const view = app.viewsMap.get(activeCard.card_id);
-            const mainId = Addon.get('window').getMWCid();
-            const mainWin = BrowserWindow.fromId(mainId);
-            if (view && mainWin) {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        
+        // 遍历所有视图，同步缩放
+        app.viewsMap.forEach((view, key) => {
+            if (view && !view.webContents.isDestroyed()) {
                 this._resizeView(mainWin, view);
             }
-        }
+        });
+        
         return { status: true };
     }
 
@@ -299,17 +299,24 @@ class WindowService extends Service {
         this.isPlacedTop = isPlacedTop;
         Log.info('侧边栏布局变更:', isPlacedTop ? '顶部' : '侧边');
         
-        // 获取当前活跃的 view
-        const activeCard = await app.sdb.selectOne('cards', { active_status: 'true' });
-        if (activeCard) {
-            const view = app.viewsMap.get(activeCard.card_id);
-            const mainId = Addon.get('window').getMWCid();
-            const mainWin = BrowserWindow.fromId(mainId);
-            if (view && mainWin) {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+
+        // 遍历所有视图，同步缩放
+        app.viewsMap.forEach((view, key) => {
+            if (view && !view.webContents.isDestroyed()) {
                 this._resizeView(mainWin, view);
             }
-        }
+        });
+        
         return { status: true };
+    }
+
+    async getSidebarState() {
+        return {
+            isShrunk: this.isShrunk,
+            isPlacedTop: this.isPlacedTop
+        };
     }
 
     async filterNumber(args, event) {
