@@ -54,11 +54,13 @@
             </el-input>
           </el-form-item>
           <el-form-item prop="agree" class="form-item-agree">
-            <label class="agreement-label">
-              <input type="checkbox" v-model="form.agree" class="agreement-checkbox" />
-              <span class="agreement-text">{{ t('login.agreeText') }}</span>
-              <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">{{ t('login.agreementLink') }}</a>
-            </label>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <label class="agreement-label">
+                <input type="checkbox" v-model="form.agree" class="agreement-checkbox" />
+                <span class="agreement-text">{{ t('login.agreeText') }}</span>
+                <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">{{ t('login.agreementLink') }}</a>
+              </label>
+            </div>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" v-if="isMachineCode" @click="handleLogin" :loading="submitLoading" class="login-button">{{ t('login.loginBtn') }}</el-button>
@@ -156,6 +158,19 @@ onMounted(()=>{
     if (res.status){
       form.machineCode = res.data.machineCode
       initializeTranslateConfig()
+      
+      // 读取记住的账号密码
+      const savedUser = localStorage.getItem('rememberedUser');
+      if (savedUser) {
+        try {
+          const { userName, password,agree } = JSON.parse(savedUser);
+          form.userName = userName;
+          form.password = password;
+          form.agree = true;
+        } catch (e) {
+          console.error('解析记住的账号失败', e);
+        }
+      }
     }else {
       Notification.message({ message: '初始化错误请重试', type: 'warning' });
     }
@@ -265,6 +280,18 @@ const handleAccountLogin = async () => {
       }
 
       Notification.message({ message: '登录成功', type: 'success' });
+
+      // 记住密码逻辑
+      if (form.agree) {
+        localStorage.setItem('rememberedUser', JSON.stringify({
+          userName: form.userName,
+          password: form.password,
+          agree:form.agree
+        }));
+      } else {
+        localStorage.removeItem('rememberedUser');
+      }
+
       // 登录成功后跳转到主页
       router.push('/home');
     } else {

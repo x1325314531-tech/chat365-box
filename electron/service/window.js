@@ -271,7 +271,7 @@ class WindowService extends Service {
         const mainId = Addon.get('window').getMWCid();
         const mainWin = BrowserWindow.fromId(mainId);
         if (mainWin) {
-            mainWin.setTitle('setToolbox');
+            mainWin.setTitle('Chat365');
         }
         
         app.boxToken = null; 

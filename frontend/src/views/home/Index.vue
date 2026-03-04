@@ -40,6 +40,7 @@ import telegramIcon from '@/assets/svgs/telegram.svg';
 import telegramKIcon from '@/assets/svgs/telegramK.svg';
 import { ipc } from '@/utils/ipcRenderer';
 import {del} from "@/utils/request";
+import { ElMessageBox } from 'element-plus';
 
 const router = useRouter();
 const route = useRoute();
@@ -99,17 +100,29 @@ function handleMenuSelect(id) {
 
 // 处理退出按钮点击
 function handleLogout() {
-  del('/app/account/logout').then(res=>{ 
-    if(res.code===200) { 
-    ipc.invoke(ipcApiRoute.logout,{}).then(()=>{
-    localStorage.removeItem('box-token');
-    localStorage.removeItem('userInfo');
-    router.push('/login');
-    })
+  ElMessageBox.confirm(
+    '确定要退出登录吗？',
+    '提示',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
     }
-  }).catch(error=>{ 
-     console.error('退出失败:', error);
-  })
+  ).then(() => {
+    del('/app/account/logout').then(res=>{ 
+      if(res.code===200) { 
+        ipc.invoke(ipcApiRoute.logout,{}).then(()=>{
+          localStorage.removeItem('box-token');
+          localStorage.removeItem('userInfo');
+          router.push('/login');
+        })
+      }
+    }).catch(error=>{ 
+      console.error('退出失败:', error);
+    })
+  }).catch(() => {
+    // 用户取消退出
+  });
 }
 </script>
 
