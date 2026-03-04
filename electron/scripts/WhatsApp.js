@@ -1662,6 +1662,7 @@ function monitorMainNode() {
                         processMessageList();
                         processImageMessageList(); 
                         processVoiceMessageList(); // 添加语音消息处理
+                        initSidebarResize(); // 初始化侧边栏拉伸
                     }, 800);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
@@ -1810,6 +1811,113 @@ function monitorMainNode() {
         }
     }
 
+    // ==========================================================
+    // 侧边栏拉伸功能 (轮询式注入 - 更兼容且可靠)
+    // ==========================================================
+    function initSidebarResize() {
+        const side = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
+        if (!side) return;
+
+        // 1. 持久化应用宽度 (确保持续生效)
+        const savedWidth = localStorage.getItem('whatsapp_side_width');
+        if (savedWidth && side.style.width !== savedWidth) {
+            side.style.setProperty('width', savedWidth, 'important');
+            side.style.setProperty('flex', 'none', 'important');
+            side.style.position = 'relative';
+        }
+
+        const iconId = 'side-resize-trigger-btn';
+        if (document.getElementById(iconId)) return; // 已存在
+
+        // 2. 寻找头部和三点菜单按钮
+        const header = side.querySelector('header') || 
+                       side.querySelector('[data-testid="side-header"]') ||
+                       side.parentElement?.querySelector('header') ||
+                       document.querySelector('header');
+        
+        if (!header) return;
+
+        const menuBtn = header.querySelector('[data-testid="menu"]') || 
+                        header.querySelector('[data-icon="menu"]')?.closest('[role="button"]') ||
+                        header.querySelector('button[aria-label*="菜单"]') ||
+                        header.querySelector('button[aria-label*="Menu"]');
+
+        let iconsContainer = menuBtn?.parentElement;
+        if (!iconsContainer) {
+            iconsContainer = header.querySelector('span[data-icon]')?.closest('div')?.parentElement || header;
+        }
+
+        // 3. 注入图标
+        const iconBtn = document.createElement('div');
+        iconBtn.id = iconId;
+        iconBtn.title = '拖动调整宽度';
+        iconBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#54656f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="9" y1="4" x2="9" y2="20"></line>
+                <line x1="15" y1="4" x2="15" y2="20"></line>
+            </svg>
+        `;
+        iconBtn.style.cssText = `
+            cursor: col-resize;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            transition: background 0.2s;
+            flex-shrink: 0;
+            margin-left: 2px;
+            vertical-align: middle;
+            -webkit-app-region: no-drag;
+        `;
+        
+        iconBtn.onmouseover = () => { iconBtn.style.background = 'rgba(0,0,0,0.06)'; };
+        iconBtn.onmouseout = () => { if (!window._isResizing) iconBtn.style.background = 'transparent'; };
+
+        iconBtn.onmousedown = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            window._isResizing = true;
+            window._resizeStartX = e.clientX;
+            window._resizeStartWidth = side.offsetWidth;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            iconBtn.style.background = 'rgba(37, 211, 102, 0.15)';
+        };
+
+        // 插在三点菜单后面，或者容器末尾
+        if (menuBtn && menuBtn.nextSibling && menuBtn.parentElement === iconsContainer) {
+            iconsContainer.insertBefore(iconBtn, menuBtn.nextSibling);
+        } else {
+            iconsContainer.appendChild(iconBtn);
+        }
+
+        // 4. 全局拖动逻辑 (只绑定一次)
+        if (!window._resizeEventsBound) {
+            window._resizeEventsBound = true;
+            document.addEventListener('mousemove', (e) => {
+                if (!window._isResizing) return;
+                const width = window._resizeStartWidth + (e.clientX - window._resizeStartX);
+                const currentSide = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
+                if (currentSide && width >= 200 && width <= 900) {
+                    currentSide.style.setProperty('width', width + 'px', 'important');
+                    currentSide.style.setProperty('flex', 'none', 'important');
+                }
+            });
+            document.addEventListener('mouseup', () => {
+                if (window._isResizing) {
+                    window._isResizing = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    const b = document.getElementById(iconId);
+                    if (b) b.style.background = 'transparent';
+                    const s = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
+                    if (s) localStorage.setItem('whatsapp_side_width', s.style.width);
+                }
+            });
+        }
+    }
+
     /**
      * 为接收到的消息添加手动翻译图标
      * @param {HTMLElement} span - 消息文本 span
@@ -1887,7 +1995,6 @@ function monitorMainNode() {
             const toLang = getLocalLanguage();
             
             try {
-                console.log('🔄 手动翻译接收消息:', originalText.substring(0, 20));
                 const res = await translateTextAPI(originalText, fromLang, toLang);
                 
                 if (res && res.success && res.data) {
@@ -1910,10 +2017,6 @@ function monitorMainNode() {
                     translationNode.textContent = res.data;
                     span.setAttribute('data-translate-status', 'translated');
                     await saveTranslationCache(originalText, res.data, fromLang, toLang);
-                    console.log('✅ 手动翻译成功');
-                    
-                    // 翻译成功后可以移除图标，或者保留
-                    // iconContainer.remove(); 
                 }
             } catch (error) {
                 console.error('❌ 手动翻译失败:', error);
@@ -1928,7 +2031,6 @@ function monitorMainNode() {
             }
         };
 
-        // 优先追加图标到已有的译文结果节点末尾，否则追加到 span
         const translationNode = span.querySelector('.translation-result');
         if (translationNode) {
             translationNode.appendChild(iconContainer);
