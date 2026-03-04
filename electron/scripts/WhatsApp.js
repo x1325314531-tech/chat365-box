@@ -1847,6 +1847,14 @@ function monitorMainNode() {
             iconsContainer = header.querySelector('span[data-icon]')?.closest('div')?.parentElement || header;
         }
 
+        // 强行设置容器为水平 flex 布局，确保图标水平排列
+        if (iconsContainer && iconsContainer !== header) {
+            iconsContainer.style.setProperty('display', 'flex', 'important');
+            iconsContainer.style.setProperty('flex-direction', 'row', 'important');
+            iconsContainer.style.setProperty('align-items', 'center', 'important');
+            iconsContainer.style.setProperty('justify-content', 'flex-end', 'important');
+        }
+
         // 3. 注入图标
         const iconBtn = document.createElement('div');
         iconBtn.id = iconId;
