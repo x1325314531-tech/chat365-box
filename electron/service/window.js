@@ -319,6 +319,25 @@ class WindowService extends Service {
         };
     }
 
+    async getRunningSessionsCount(args, event) {
+        try {
+            return await Services.get('window').getRunningSessionsCount();
+        } catch (error) {
+            Log.error('获取运行中会话数量出错:', error);
+            return 0;
+        }
+    }
+
+    async restoreActiveViews(args, event) {
+        try {
+            await Services.get('window').restoreActiveViews();
+            return { status: true };
+        } catch (error) {
+            Log.error('恢复活跃视图出错:', error);
+            return { status: false };
+        }
+    }
+
     async filterNumber(args, event) {
         const { platform, cardId, phoneNumber } = args;
         //查询手机号码是否存在检测记录

@@ -26,6 +26,27 @@
         <router-view />
       </el-main>
     </el-container>
+
+    <!-- 退出登录确认弹窗 -->
+    <el-dialog
+        v-model="logoutDialogVisible"
+        title="退出登录"
+        width="400px"
+        :show-close="true"
+        class="custom-logout-dialog"
+        align-center
+    >
+      <div class="dialog-content">
+        <p class="sessions-info">当前 {{ runningSessionsCount }} 个会话正在运行</p>
+        <p class="confirm-text">确认退出当前用户？</p>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="cancelLogout" class="cancel-btn">取消</el-button>
+          <el-button type="primary" @click="confirmLogout" class="confirm-btn">确定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -63,6 +84,8 @@ const menuItems = [
 ];
 
 const activeMenu = ref('home');
+const logoutDialogVisible = ref(false);
+const runningSessionsCount = ref(0);
 
 // 根据当前路由更新激活菜单
 const updateActiveMenu = () => {
@@ -99,30 +122,41 @@ function handleMenuSelect(id) {
 }
 
 // 处理退出按钮点击
-function handleLogout() {
-  ElMessageBox.confirm(
-    '确定要退出登录吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
+async function handleLogout() {
+  // 1. 隐藏所有活跃视图，防止遮挡弹窗
+  await ipc.invoke(ipcApiRoute.hideWindow, {});
+  
+  // 2. 获取正在运行的会话数量
+  runningSessionsCount.value = await ipc.invoke('controller.window.getRunningSessionsCount', {});
+  
+  // 3. 显示自定义确认弹窗
+  logoutDialogVisible.value = true;
+}
+
+// 取消退出
+async function cancelLogout() {
+  logoutDialogVisible.value = false;
+  // 恢复活跃视图显示
+  await ipc.invoke('controller.window.restoreActiveViews', {});
+}
+
+// 确认退出
+async function confirmLogout() {
+  logoutDialogVisible.value = false;
+  
+  del('/app/account/logout').then(res => {
+    if (res.code === 200) {
+      ipc.invoke(ipcApiRoute.logout, {}).then(() => {
+        localStorage.removeItem('box-token');
+        localStorage.removeItem('userInfo');
+        router.push('/login');
+      })
     }
-  ).then(() => {
-    del('/app/account/logout').then(res=>{ 
-      if(res.code===200) { 
-        ipc.invoke(ipcApiRoute.logout,{}).then(()=>{
-          localStorage.removeItem('box-token');
-          localStorage.removeItem('userInfo');
-          router.push('/login');
-        })
-      }
-    }).catch(error=>{ 
-      console.error('退出失败:', error);
-    })
-  }).catch(() => {
-    // 用户取消退出
-  });
+  }).catch(error => {
+    console.error('退出失败:', error);
+    // 即使失败也尝试恢复视图，或者让用户手动处理
+    ipc.invoke('controller.window.restoreActiveViews', {});
+  })
 }
 </script>
 
@@ -192,5 +226,73 @@ function handleLogout() {
 .nav-container::-webkit-scrollbar-thumb {
   background-color: #bbbbbb; /* 滚动条滑块的颜色 */
   border-radius: 0; /* 滑块的圆角 */
+}
+
+/* 自定义退出弹窗样式 */
+:deep(.custom-logout-dialog) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.custom-logout-dialog .el-dialog__header) {
+  margin: 0;
+  padding: 20px 24px 10px;
+}
+
+:deep(.custom-logout-dialog .el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+:deep(.custom-logout-dialog .el-dialog__body) {
+  padding: 10px 24px 30px;
+}
+
+.dialog-content {
+  color: #666;
+  line-height: 1.6;
+}
+
+.sessions-info {
+  margin: 0;
+  font-size: 15px;
+}
+
+.confirm-text {
+  margin: 5px 0 0;
+  font-size: 15px;
+}
+
+:deep(.custom-logout-dialog .el-dialog__footer) {
+  padding: 0 24px 24px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancel-btn {
+  border-radius: 8px;
+  padding: 10px 20px;
+  height: 40px;
+  font-size: 15px;
+}
+
+.confirm-btn {
+  background-color: #26d366 !important; /* WhatsApp Green */
+  border-color: #26d366 !important;
+  border-radius: 8px;
+  padding: 10px 20px;
+  height: 40px;
+  font-size: 15px;
+  color: white;
+}
+
+.confirm-btn:hover {
+  background-color: #20bd5a !important;
+  border-color: #20bd5a !important;
 }
 </style>

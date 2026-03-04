@@ -3,7 +3,7 @@
 const { Controller } = require('ee-core');
 const Log = require('ee-core/log');
 const Addon = require('ee-core/addon');
-const { app, BrowserWindow, WebContentsView } = require('electron');
+const { app, BrowserWindow, WebContentsView, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const Services = require('ee-core/services');
@@ -147,6 +147,20 @@ class WindowController extends Controller {
             return {status:false,message:'隐藏所有窗口发生错误'}
         }
     }
+
+    async showConfirmDialog(args, event) {
+        const { title, message, type = 'question' } = args;
+        const win = BrowserWindow.getFocusedWindow();
+        const result = await dialog.showMessageBox(win, {
+            type: type,
+            title: title || '提示',
+            message: message || '',
+            buttons: ['确定', '取消'],
+            defaultId: 0,
+            cancelId: 1
+        });
+        return { status: true, data: result.response === 0 };
+    }
     async logout(args, event) {
         try{
             await Services.get('window').logOut();
@@ -182,6 +196,22 @@ class WindowController extends Controller {
         } catch (error) {
             Log.error('获取侧边栏状态失败:', error);
             return { isShrunk: false, isPlacedTop: false };
+        }
+    }
+
+    async getRunningSessionsCount(args, event) {
+        try {
+            return await Services.get('window').getRunningSessionsCount();
+        } catch (error) {
+            return 0;
+        }
+    }
+
+    async restoreActiveViews(args, event) {
+        try {
+            return await Services.get('window').restoreActiveViews();
+        } catch (error) {
+            return { status: false };
         }
     }
 
