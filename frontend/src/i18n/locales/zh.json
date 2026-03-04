@@ -92,7 +92,7 @@
     "config": {
       "editTitle": "修改会话",
       "newTitle": "新建会话",
-      "nickname": "会话昵称",
+      "nickname": "会话名称",
       "nicknamePlaceholder": "请输入名称",
       "fingerprintSwitch": "指纹开关",
       "browser": "浏览器",

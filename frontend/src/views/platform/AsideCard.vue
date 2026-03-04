@@ -143,8 +143,10 @@ async function getAllSessions() {
   
   // 异步获取后端数据，仅用于同步 sessionId 等后端特定字段
   get('/app/session/list', {
-    pageSize: 1000,
-    page: 1,
+    params: {
+      pageSize: 1000,
+      page: 1,
+    }
   }).then(res => {
     if (res && res.data) {
       console.log('从后端获取会话列表成功');

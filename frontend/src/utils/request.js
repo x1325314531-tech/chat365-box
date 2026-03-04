@@ -19,7 +19,7 @@ service.interceptors.request.use(
         console.log('config', config);
         
         const token = localStorage.getItem('box-token');
-        if (token) {
+        if (token && !config.skipToken) {
             config.headers['box-token'] = token;
         }
         return config;
@@ -76,8 +76,8 @@ service.interceptors.response.use(
     }
 );
 // 导出请求方法
-export function get(url, params = {}) {
-    return service.get(url, { params });
+export function get(url, config = {}) {
+    return service.get(url, config);
 }
 
 export function post(url, data = {}) {

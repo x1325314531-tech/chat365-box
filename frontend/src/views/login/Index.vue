@@ -280,8 +280,9 @@ const handleAccountLogin = async () => {
       }
 
       Notification.message({ message: '登录成功', type: 'success' });
-
-      // 记住密码逻辑
+      // 登录成功后跳转到主页
+      router.replace({ name: 'HomeIndex' });
+           // 记住密码逻辑
       if (form.agree) {
         localStorage.setItem('rememberedUser', JSON.stringify({
           userName: form.userName,
@@ -291,9 +292,6 @@ const handleAccountLogin = async () => {
       } else {
         localStorage.removeItem('rememberedUser');
       }
-
-      // 登录成功后跳转到主页
-      router.push('/home');
     } else {
       Notification.message({ message: loginRes.msg || '登录失败', type: 'error' });
     }
@@ -339,7 +337,7 @@ const handleLogin = async () => {
             Notification.message({ message: '验证成功', type: 'success' });
             submitLoading.value = false
             //跳转页面
-            router.push('/home')
+            router.replace({ name: 'HomeIndex' })
           }else {
             Notification.message({ message: '网络连接异常请重试', type: 'warning' });
           }

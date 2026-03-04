@@ -92,7 +92,7 @@
     "config": {
       "editTitle": "Edit Session",
       "newTitle": "New Session",
-      "nickname": "Session Nickname",
+      "nickname": "Session name",
       "nicknamePlaceholder": "Please enter name",
       "fingerprintSwitch": "Fingerprint Switch",
       "browser": "Browser",

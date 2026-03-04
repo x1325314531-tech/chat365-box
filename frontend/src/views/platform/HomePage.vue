@@ -43,6 +43,15 @@
                 </div>
               </el-card>
             </el-col>
+            <!-- <el-col :span="6">
+              <el-card>
+              <div class="card-item">
+                <UpdateVersion/>
+              
+              </div>
+          
+              </el-card>
+            </el-col> -->
           </el-row>
        
        
@@ -192,6 +201,7 @@ import { useI18n } from 'vue-i18n'
 import { AlarmClock, QuestionFilled, ArrowDown, Refresh } from '@element-plus/icons-vue'
 import LineChart from '../components/LineChart.vue'
 import Notification from "@/utils/notification";
+import UpdateVersion from '@/views/components/UpdateVersion.vue'
 import { get } from '@/utils/request'
 
 // i18n
@@ -354,7 +364,11 @@ const handleQuickAccess = (item) => {
   align-items: center;
   justify-content: center;
 }
-
+.card-item{ 
+  display: flex;
+  align-items: center;
+}
+                    
 .info-content {
   text-align: center;
 }

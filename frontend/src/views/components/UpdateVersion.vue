@@ -1,5 +1,5 @@
 <template>
-  <div id="effect-login-index">
+  <div id="effect-login-index update-version">
     <div class="one-block-1">
       <span>
         当前版本:{{appVersion}} {{versionTips}}
@@ -33,6 +33,7 @@ import {ref, onMounted} from 'vue';
 import {ipcRoute, specialIpcRoute} from '@/api';
 import {ipc} from '@/utils/ipcRenderer';
 import {ElMessage} from 'element-plus';
+import {get} from '@/utils/request';
 
 const appVersion = ref('');
 const versionTips = ref('');
@@ -70,6 +71,19 @@ function init() {
     const {currentVersion} = result;
     appVersion.value = currentVersion;
   })
+
+  // 获取服务器最新版本号
+  get('/app/version', { skipToken: true }).then(res => {
+    if (res.code === 200 && res.data) {
+      const latestVersion = res.data.version; // 假设返回结构中有 version
+      if (latestVersion && latestVersion !== appVersion.value) {
+        versionTips.value = `有新版本可用: v${latestVersion}`;
+        available.value = true;
+      }
+    }
+  }).catch(err => {
+    console.error('获取最新版本失败:', err);
+  })
 }
 
 function checkForUpdater() {
@@ -106,7 +120,9 @@ function confirmOk() {
     padding-top: 10px;
   }
 }
-
+.update-version {
+  display: flex;
+}
 .dialog-footer {
   text-align: right;
 }
