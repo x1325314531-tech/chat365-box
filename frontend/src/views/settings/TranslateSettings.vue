@@ -317,11 +317,11 @@
               <div class="form-actions">
                 <el-button type="primary" class="apply-btn" @click="applyConfig">{{ $t('settings.apply') }}</el-button>
               </div>
-              <div class="preview-instruction">
+              <!-- <div class="preview-instruction">
                 <div class="instruction-title">翻译预览说明</div>
                 <div class="instruction-item">1、第一次回车或点击发送，只翻译不发送</div>
                 <div class="instruction-item">2、第二次回车或点击发送，发送翻译内容翻译预览说明</div>
-              </div>
+              </div> -->
             </div>
           </div>
         </div>
