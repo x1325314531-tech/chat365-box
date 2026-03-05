@@ -161,6 +161,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   saveCapturedAudio: (args) => {
     return ipcRenderer.invoke('save-captured-audio', args);
+  },
+  syncNewFan: (args) => {
+    return ipcRenderer.invoke('sync-new-fan', args);
   }
 
 });

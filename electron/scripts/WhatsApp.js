@@ -1666,6 +1666,10 @@ function monitorMainNode() {
                     }, 800);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
+                    // setInterval(() => {
+                    //     monitorNewContactPanel();
+                    //     monitorMyProfile(); // 监控个人信息抓取自己号码
+                    // }, 1000);
                     break;
                 }
             }
@@ -4190,3 +4194,161 @@ function displayVoiceTranslation(voiceContainer, translationData) {
 }
 
 console.log('🎤 语音翻译功能已加载');
+
+// ==================== 新联系人同步功能 ====================
+
+/**
+ * 监控新联系人面板并拦截保存操作
+ */
+async function monitorNewContactPanel() {
+    // 1. 面板检测：广撒网检测 Header 文本 (不限制 h2)
+    const headers = document.querySelectorAll('header');
+    let isNewContactPanel = false;
+    for (const h of headers) {
+        if (h.textContent.includes('新联系人') || h.textContent.includes('New contact')) {
+            isNewContactPanel = true;
+            break;
+        }
+    }
+    
+    if (!isNewContactPanel) return;
+
+    // 2. 找到确认按钮 (红色方框内：拥有 aria-label="保存联系人" 的按钮)
+    const saveBtn = document.querySelector('[aria-label="保存联系人"]') || 
+                    document.querySelector('[aria-label="Save contact"]') ||
+                    document.querySelector('span[data-icon="checkmark"]')?.closest('[role="button"]');
+                    
+    if (!saveBtn) return;
+    if (saveBtn.hasAttribute('data-hook-inited')) return;
+
+    // 3. 标记并绑定
+    saveBtn.setAttribute('data-hook-inited', 'true');
+    console.log('🎯 [New Contact] 成功捕获到保存按钮:', saveBtn);
+
+    saveBtn.addEventListener('click', async () => {
+        console.log('🖱️ [New Contact] 保存按钮被点击');
+        try {
+            // 延迟以确保内容同步到 DOM
+            await new Promise(r => setTimeout(r, 200));
+            
+            const data = extractNewContactInfo();
+            if (data) {
+                if (!data.myPhone) {
+                    window.electronAPI.showNotification({
+                        message: '⚠️ 未获取到您的手机号，请先点击左上角头像进入“个人信息”页面以同步账号信息',
+                        type: 'is-warning'
+                    });
+                    console.warn('⚠️ [New Contact] 同步取消：缺失 myPhone');
+                    return;
+                }
+                console.log('📤 [New Contact] 正在上报数据:', data);
+                const res = await window.electronAPI.syncNewFan(data);
+                if (res && (res.code === 200 || res.success)) {
+                    console.log('✅ [New Contact] 同步成功');
+                } else {
+                    console.warn('⚠️ [New Contact] 同步失败:', res?.msg);
+                }
+            }
+        } catch (e) {
+            console.error('❌ [New Contact] 同步逻辑出错:', e);
+        }
+    }, true);
+}
+
+/**
+ * 监控并抓取自己的手机号
+ */
+function monitorMyProfile() {
+    const headers = document.querySelectorAll('header');
+    let isProfile = false;
+    for (const h of headers) {
+        if (h.textContent.includes('新聊天') || h.textContent.includes('Profile')) {
+            isProfile = true;
+            break;
+        }
+    }
+    if (!isProfile) return;
+
+    const sections = document.querySelectorAll('div');
+    for (let div of sections) {
+        const text = div.textContent.trim();
+        if (text === '电话号码' || text === 'Phone number') {
+            const phoneContainer = div.parentElement;
+            if (phoneContainer) {
+                const phoneVal = phoneContainer.querySelector('span[dir="auto"]')?.textContent || 
+                               phoneContainer.querySelector('div[contenteditable="false"]')?.textContent || '';
+                const cleaned = phoneVal.replace(/[^\d+]/g, '');
+                if (cleaned.length > 5) {
+                    if (localStorage.getItem('last_known_my_phone') !== cleaned) {
+                        console.log('📱 [Profile] 已捕获自己的号码:', cleaned);
+                        localStorage.setItem('last_known_my_phone', cleaned);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 从界面中提取新联系人信息
+ */
+function extractNewContactInfo() {
+    let firstName = '';
+    let lastName = '';
+    let phoneNumber = '';
+    let countryCode = '';
+
+    // 基于 label 文本进行深度查找
+    const allDivs = document.querySelectorAll('div');
+    allDivs.forEach(div => {
+        const text = div.textContent.trim();
+        const parent = div.parentElement;
+        if (!parent || parent.children.length < 2) return;
+
+        // 根据截图，Label 通常在上方，输入框/值在下方或同级
+        if (text === '名字' || text === 'First name') {
+            firstName = parent.querySelector('div[contenteditable="true"]')?.textContent || '';
+        } else if (text === '姓氏' || text === 'Last name') {
+            lastName = parent.querySelector('div[contenteditable="true"]')?.textContent || '';
+        } else if (text === '电话号码' || text === 'Phone number') {
+            phoneNumber = parent.querySelector('div[contenteditable="true"]')?.textContent || '';
+        } else if (text === '国家/地区' || text === 'Country/Region') {
+            // 国家代码通常在一个单独的 span 或按钮内
+            const countrySection = parent.textContent.trim();
+            const match = countrySection.match(/\+\d+/);
+            if (match) countryCode = match[0];
+        }
+    });
+
+    // 兜底策略
+    if (!phoneNumber) {
+        const phoneInput = document.querySelector('div[data-testid="contact-input-phone"] div[contenteditable="true"]');
+        if (phoneInput) phoneNumber = phoneInput.textContent.trim();
+    }
+    
+    // 如果还没抓到国家码，找找带 + 的短文本
+    if (!countryCode) {
+        const countryEl = document.querySelector('span[title*="+"]') || 
+                          [...document.querySelectorAll('span, div')].find(el => el.textContent.trim().startsWith('+') && el.textContent.trim().length < 6);
+        if (countryEl) countryCode = countryEl.textContent.trim();
+    }
+
+    // 清洗号码
+    phoneNumber = phoneNumber.replace(/\D/g, '');
+
+    if (!phoneNumber) {
+        console.warn('⚠️ [New Contact] 无法解析有效电话号码');
+        return null;
+    }
+
+    return {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        countryCode: countryCode.trim(),
+        phoneNumber: phoneNumber,
+        fullPhone: (countryCode.trim() + phoneNumber).replace(/\s/g, ''),
+        myPhone: localStorage.getItem('last_known_my_phone') || ''
+    };
+}
+
+console.log('🎤 语音翻译 & 新联系人监控功能已加载');

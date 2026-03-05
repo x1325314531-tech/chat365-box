@@ -346,6 +346,19 @@ async function translateVoice(filePath, fromLang, targetLang, format, rate) {
     }
 }
 
+// 新增粉丝同步
+async function syncNewFan(data) {
+    try {
+        Log.info('开始同步新粉丝:', data);
+        const response = await request.post('/app/newFans', data);
+        Log.info('同步新粉丝响应:', response);
+        return response;
+    } catch (error) {
+        Log.error('syncNewFan 接口请求失败:', error);
+        return { success: false, msg: error.message || '网络请求失败' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
@@ -353,5 +366,6 @@ module.exports = {
     checkSensitiveContent,
     translateImage,
     translateVoice,
-    getTenantSetting
+    getTenantSetting,
+    syncNewFan
 };

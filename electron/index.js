@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -584,6 +584,10 @@ class Index extends Application {
         Log.error('❌ fetch-tenant-setting 异常:', err);
         return { success: false, error: err.message };
       }
+    });
+
+    ipcMain.handle('sync-new-fan', async (event, args) => {
+      return await syncNewFan(args);
     });
   }
   /**
