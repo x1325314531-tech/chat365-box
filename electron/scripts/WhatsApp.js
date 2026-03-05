@@ -1816,25 +1816,41 @@ function monitorMainNode() {
     // ==========================================================
     function initSidebarResize() {
         const side = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
+       const asgw = document.querySelector('._aigw.xwfak60');
+        console.log('2222', asgw);
+        
         if (!side) return;
 
-        // 1. 持久化应用宽度 (确保持续生效)
+        // 取包含 header + #side 的公共父容器（._aigw 或其等价元素）
+        const wrapper = side.parentElement;
+        if (!wrapper) return;
+
+        // 1. 持久化应用宽度：直接设置父容器宽度
         const savedWidth = localStorage.getItem('whatsapp_side_width');
-        if (savedWidth && side.style.width !== savedWidth) {
-            side.style.setProperty('width', savedWidth, 'important');
-            side.style.setProperty('flex', 'none', 'important');
-            side.style.position = 'relative';
+        // 默认设置为 450px 以匹配截图需求，如果有保存则用保存的
+        const widthToApply = savedWidth || '450px';
+        
+        // 设置容器样式，确保其右边框作为唯一的侧边栏边缘
+        wrapper.style.setProperty('width', widthToApply, 'important');
+        wrapper.style.setProperty('flex', 'none', 'important');
+        wrapper.style.setProperty('min-width', '0', 'important');
+        wrapper.style.setProperty('border-right', '1px solid rgba(134,150,160,0.15)', 'important');
+        wrapper.style.setProperty('position', 'relative', 'important');
+       asgw.style.setProperty('max-width', widthToApply)
+        // 强制所有子元素（Header 和 #side）充满父容器，消除重影边框
+        const children = wrapper.children;
+        for (let child of children) {
+            child.style.setProperty('width', '100%', 'important');
+            child.style.setProperty('border-right', 'none', 'important');
         }
+        side.style.setProperty('width', '100%', 'important');
+        side.style.setProperty('border-right', 'none', 'important');
 
         const iconId = 'side-resize-trigger-btn';
         if (document.getElementById(iconId)) return; // 已存在
 
         // 2. 寻找头部和三点菜单按钮
-        const header = side.querySelector('header') || 
-                       side.querySelector('[data-testid="side-header"]') ||
-                       side.parentElement?.querySelector('header') ||
-                       document.querySelector('header');
-        
+        const header = wrapper.querySelector('header') || document.querySelector('header');
         if (!header) return;
 
         const menuBtn = header.querySelector('[data-testid="menu"]') || 
@@ -1887,7 +1903,8 @@ function monitorMainNode() {
             e.preventDefault(); e.stopPropagation();
             window._isResizing = true;
             window._resizeStartX = e.clientX;
-            window._resizeStartWidth = side.offsetWidth;
+            // 以 wrapper 的当前宽度为起点
+            window._resizeStartWidth = wrapper.offsetWidth;
             document.body.style.cursor = 'col-resize';
             document.body.style.userSelect = 'none';
             iconBtn.style.background = 'rgba(37, 211, 102, 0.15)';
@@ -1903,15 +1920,36 @@ function monitorMainNode() {
         // 4. 全局拖动逻辑 (只绑定一次)
         if (!window._resizeEventsBound) {
             window._resizeEventsBound = true;
+
             document.addEventListener('mousemove', (e) => {
                 if (!window._isResizing) return;
                 const width = window._resizeStartWidth + (e.clientX - window._resizeStartX);
-                const currentSide = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
-                if (currentSide && width >= 200 && width <= 900) {
-                    currentSide.style.setProperty('width', width + 'px', 'important');
-                    currentSide.style.setProperty('flex', 'none', 'important');
+                if (width < 200 || width > 900) return;
+                // 调整公共父容器宽度，header + #side 自动同步
+                const s = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
+                const w = s?.parentElement;
+                const asgw= document.querySelector('._asgw.xwfak60')
+                console.log('111', asgw);
+                
+                if (w) {
+                    w.style.setProperty('width', width + 'px', 'important');
+                    w.style.setProperty('flex', 'none', 'important');
+                    w.style.setProperty('min-width', '0', 'important');
+                    w.style.setProperty('border-right', '1px solid rgba(134,150,160,0.15)', 'important');
+                    asgw.style.setProperty('max-width',width +'px', 'important');
+                    // 强制内部所有子元素同步填充父容器并移除冗余边框
+                    const children = w.children;
+                    for (let child of children) {
+                        child.style.setProperty('width', '100%', 'important');
+                        child.style.setProperty('border-right', 'none', 'important');
+                    }
+                    if (s) {
+                        s.style.setProperty('width', '100%', 'important');
+                        s.style.setProperty('border-right', 'none', 'important');
+                    }
                 }
             });
+
             document.addEventListener('mouseup', () => {
                 if (window._isResizing) {
                     window._isResizing = false;
@@ -1919,8 +1957,10 @@ function monitorMainNode() {
                     document.body.style.userSelect = '';
                     const b = document.getElementById(iconId);
                     if (b) b.style.background = 'transparent';
+                    // 保存 wrapper 的宽度
                     const s = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
-                    if (s) localStorage.setItem('whatsapp_side_width', s.style.width);
+                    const w = s?.parentElement;
+                    if (w) localStorage.setItem('whatsapp_side_width', w.style.width);
                 }
             });
         }
