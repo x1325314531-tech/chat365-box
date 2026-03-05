@@ -742,22 +742,43 @@ function normalizeText(text) {
 function renderAdditionalTextBelow(span, text, className = 'original-text-result') {
     if (!span || !text) return;
     if (span.querySelector('.' + className)) return;
-
-    // 创建展示节点
+      
+    // 创建底层展示节点
     const node = document.createElement('span');
     node.className = className;
     node.style.cssText = `
         display: block;
         font-size: 13px;
         color: #25D366;
-        border-top: 1px dashed rgba(0,0,0,0.12);
-        padding-top: 5px;
+        padding-top: 2px;
         margin-top: 5px;
         font-style: italic;
         white-space: pre-wrap;
         word-break: break-word;
     `;
-    node.textContent = text;
+    
+    // 创建带文字的分割线 (chat365 居中)
+    const separator = document.createElement('div');
+    separator.style.cssText = `
+        display: flex;
+        align-items: center;
+        color: rgba(0, 0, 0, 0.2);
+        font-size: 12px;
+        font-style: normal;
+        margin-bottom: 4px;
+        user-select: none;
+    `;
+    separator.innerHTML = `
+        <div style="flex: 1; border-top: 1px dashed rgba(0,0,0,0.12); margin-top: 2px;"></div>
+        <span style="margin: 0 8px; font-weight: 600; color: #000;">chat365</span>
+        <div style="flex: 1; border-top: 1px dashed rgba(0,0,0,0.12); margin-top: 2px;"></div>
+    `;
+    node.appendChild(separator);
+
+    // 消息文本部分
+    const textNode = document.createElement('div');
+    textNode.textContent = text;
+    node.appendChild(textNode);
 
     // 确保图标在主体行末端 (而非在附加内容内部)
     const iconBtn = span.querySelector('.translate-icon-btn');
