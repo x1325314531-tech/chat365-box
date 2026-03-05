@@ -1719,7 +1719,10 @@ function monitorMainNode() {
             console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
         }
         
-        for (let span of incomingMessages) {
+        // 采用逆序遍历：由新到旧优先处理最新消息
+        for (let i = incomingMessages.length - 1; i >= 0; i--) {
+            let span = incomingMessages[i];
+            
             // 跳过已经有翻译子节点的
             if (span.querySelector('.translation-result')) {
                 span.setAttribute('data-translate-status', 'already-has-translation');
@@ -1741,11 +1744,11 @@ function monitorMainNode() {
             // 使用消息内容作为唯一标识，防止重复处理
             const msgKey = msg.substring(0, 100); // 取前100字符作为key
             if (processingMessages.has(msgKey)) {
-                console.log('⏳ 消息正在处理中，跳过:', msgKey.substring(0, 30));
+                // console.log('⏳ 消息正在处理中，跳过:', msgKey.substring(0, 30));
                 continue;
             }
             
-            console.log('📩 找到接收消息:', msg.substring(0, 50));
+            console.log('📩 优先处理最新接收消息:', msg.substring(0, 50));
             await processMessageTranslation(span, msgKey);
         }
     }
@@ -2981,7 +2984,10 @@ async function restoreSentMessageHistory() {
     try {
         const sentMessages = document.querySelectorAll('.message-out span[dir]:not([data-history-restored])');
         
-        for (let span of sentMessages) {
+        // 逆序遍历：优先处理最近发出的消息
+        for (let i = sentMessages.length - 1; i >= 0; i--) {
+            const span = sentMessages[i];
+            
             const clone = span.cloneNode(true);
             const excludeSelectors = ['.translation-result', '.original-text-result', '.translate-icon-btn', '.translation-loading', '[class*="time"]', '[class*="timestamp"]'];
             excludeSelectors.forEach(sel => clone.querySelectorAll(sel).forEach(n => n.remove()));
@@ -3013,7 +3019,7 @@ async function restoreSentMessageHistory() {
             // --- 场景 C: API 自动补偿 (兜底同步) ---
             // 如果 A 端开启了“发送自动翻译”，当前显示的可能是译文，尝试还原原文
             if (globalConfig?.sendAutoTranslate) {
-                console.log('🔄 [Out] B端探测到缺失原文的历史发送消息，启动 API 还原:', msgText.substring(0, 20));
+                console.log('🔄 [Out] 启动 API 还原(由新到旧):', msgText.substring(0, 20));
                 try {
                     const res = await translateTextAPI(msgText, fromLang, toLang);
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
@@ -3024,7 +3030,7 @@ async function restoreSentMessageHistory() {
             } 
             // 如果 A 端开启了“发送原文+下方显示译文”，当前显示的可能是原文，尝试补全译文
             else if (globalConfig?.sendAutoNotTranslate) {
-                console.log('🔄 [Out] B端探测到缺失译文的历史发送消息，启动 API 补全:', msgText.substring(0, 20));
+                console.log('🔄 [Out] 启动 API 补全(由新到旧):', msgText.substring(0, 20));
                 try {
                     const res = await translateTextAPI(msgText, toLang, fromLang); // 注意语言语序
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
@@ -3236,7 +3242,9 @@ async function restoreSentMessageTranslations() {
         // 移除 data-translation-restored 限制，因为我们需要检查每一条消息是否缺少图标
         const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"], .message-out span[dir="rtl"]');
         
-        for (let span of sentMessages) {
+        // 逆序遍历：由新到旧
+        for (let i = sentMessages.length - 1; i >= 0; i--) {
+            const span = sentMessages[i];
             // 获取消息文本 (优先使用 innerText 以获取正确的换行)
             const spanText = span.innerText || span.textContent;
             const msgText = spanText.trim();
