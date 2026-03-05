@@ -1816,8 +1816,7 @@ function monitorMainNode() {
     // ==========================================================
     function initSidebarResize() {
         const side = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
-       const asgw = document.querySelector('._aigw.xwfak60');
-        console.log('2222', asgw);
+        const asgw = document.querySelector('._aigw.xwfak60');
         
         if (!side) return;
 
@@ -1836,7 +1835,7 @@ function monitorMainNode() {
         wrapper.style.setProperty('min-width', '0', 'important');
         wrapper.style.setProperty('border-right', '1px solid rgba(134,150,160,0.15)', 'important');
         wrapper.style.setProperty('position', 'relative', 'important');
-       asgw.style.setProperty('max-width', widthToApply)
+        if (asgw) asgw.style.setProperty('max-width', widthToApply);
         // 强制所有子元素（Header 和 #side）充满父容器，消除重影边框
         const children = wrapper.children;
         for (let child of children) {
@@ -1876,9 +1875,10 @@ function monitorMainNode() {
         iconBtn.id = iconId;
         iconBtn.title = '拖动调整宽度';
         iconBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#54656f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="9" y1="4" x2="9" y2="20"></line>
-                <line x1="15" y1="4" x2="15" y2="20"></line>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#54656f">
+                <rect x="11.25" y="4" width="1.5" height="16" rx="0.75" />
+                <path d="M8 8l-5 4 5 4V8z" />
+                <path d="M16 8l5 4-5 4V8z" />
             </svg>
         `;
         iconBtn.style.cssText = `
@@ -1928,15 +1928,14 @@ function monitorMainNode() {
                 // 调整公共父容器宽度，header + #side 自动同步
                 const s = document.querySelector('#side') || document.querySelector('[data-testid="side-panel"]');
                 const w = s?.parentElement;
-                const asgw= document.querySelector('._asgw.xwfak60')
-                console.log('111', asgw);
+                const asgw = document.querySelector('._aigw.xwfak60');
                 
                 if (w) {
                     w.style.setProperty('width', width + 'px', 'important');
                     w.style.setProperty('flex', 'none', 'important');
                     w.style.setProperty('min-width', '0', 'important');
                     w.style.setProperty('border-right', '1px solid rgba(134,150,160,0.15)', 'important');
-                    asgw.style.setProperty('max-width',width +'px', 'important');
+                    if (asgw) asgw.style.setProperty('max-width', width + 'px', 'important');
                     // 强制内部所有子元素同步填充父容器并移除冗余边框
                     const children = w.children;
                     for (let child of children) {

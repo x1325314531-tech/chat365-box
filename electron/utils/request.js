@@ -38,7 +38,7 @@ axiosInstance.interceptors.response.use(
     (response) => {
          Log.info('响应数据', response);
         // 检查业务状态码
-        if (response.data && response.data.code === 401) {
+        if (response.data && response.data.code === 401 || response.data.code===403) {
             Log.warn('Token 过期或无效，需要重新登录');
             
             // 清除 token
@@ -62,7 +62,7 @@ axiosInstance.interceptors.response.use(
     },
     (error) => {
         // HTTP 状态码为 401 的情况
-        if (error.response && error.response.status === 401) {
+        if (error.response && error.response.status === 401 || error.response.status===403) {
             Log.warn('HTTP 401 未授权');
             
             const { app, BrowserWindow } = require('electron');
