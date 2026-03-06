@@ -1712,6 +1712,8 @@ function monitorMainNode() {
                     }, 800);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
+                    // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
+                    setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
@@ -4437,6 +4439,90 @@ function extractNewContactInfo() {
 }
 
 console.log('🎤 语音翻译 & 新联系人监控功能已加载');
+
+// ==================== WhatsApp IndexedDB 联系人读取 ====================
+
+let _contactsFetched = false; // 防止重复读取
+
+/**
+ * 从 WhatsApp Web 的 IndexedDB `model-storage` 数据库中读取 `contact` 对象存储
+ * 字段：isAddressBookContact, isContactSyncCompleted, contactHash, phoneNumber, textStatusExpiryTs, pnContactHash
+ */
+async function fetchWhatsAppContacts() {
+    if (_contactsFetched) {
+        console.log('📇 [Contacts] 联系人已读取过，跳过');
+        return;
+    }
+    
+    console.log('📇 [Contacts] 开始读取 WhatsApp IndexedDB 联系人...');
+    
+    try {
+        const db = await new Promise((resolve, reject) => {
+            const request = indexedDB.open('model-storage');
+            request.onsuccess = (event) => resolve(event.target.result);
+            request.onerror = (event) => reject('打开 model-storage 失败: ' + event.target.errorCode);
+        });
+        
+        // 检查 contact 对象存储是否存在
+        if (!db.objectStoreNames.contains('contact')) {
+            console.warn('📇 [Contacts] model-storage 中不存在 contact 对象存储');
+            db.close();
+            return;
+        }
+        
+        const contacts = await new Promise((resolve, reject) => {
+            const transaction = db.transaction(['contact'], 'readonly');
+            const store = transaction.objectStore('contact');
+            const request = store.getAll();
+            
+            request.onsuccess = (event) => {
+                resolve(event.target.result || []);
+            };
+            request.onerror = (event) => {
+                reject('读取 contact 失败: ' + event.target.error);
+            };
+        });
+        
+        db.close();
+        
+        console.log(`📇 [Contacts] 成功读取 ${contacts} ${contacts.length} 条联系人记录`);
+        
+        if (contacts.length > 0) {
+            // 提取关键字段
+            const contactList = contacts
+          .filter(c => c.phoneNumberCreatedAt)  // 只保留有 phoneNumberCreatedAt 的项
+        .map(c => ({
+        ...c,
+         phoneNumber: c.phoneNumber || '',
+        isAddressBookContact: c.isAddressBookContact || false,
+        isContactSyncCompleted: c.isContactSyncCompleted || false,
+        contactHash: c.contactHash || '',
+        textStatusExpiryTs: c.textStatusExpiryTs || 0,
+        pnContactHash: c.pnContactHash || '',
+  }));
+            
+            console.log('📇 [Contacts] 联系人样本:',contactList, contactList.slice(0, 3));
+            
+            // 通过 IPC 发送给主进程
+            const myPhone = getMyPhone();
+            const result = await window.electronAPI.syncWhatsAppContacts({
+                platform: 'WhatsApp',
+                myPhone: myPhone,
+                contacts: contactList,
+                totalCount: contactList.length
+            });
+            
+            if (result && result.status) {
+                _contactsFetched = true;
+                console.log('✅ [Contacts] 联系人数据已成功同步到主进程');
+            } else {
+                console.warn('⚠️ [Contacts] 同步失败:', result?.message);
+            }
+        }
+    } catch (error) {
+        console.error('❌ [Contacts] 读取 IndexedDB 联系人出错:', error);
+    }
+}
 
 // ==================== 脚本入口 (Initialization) ====================
 // 1. 启动在线状态 & 手机号上报 (每 5 秒一次)

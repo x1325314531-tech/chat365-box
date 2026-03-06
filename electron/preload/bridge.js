@@ -164,6 +164,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   syncNewFan: (args) => {
     return ipcRenderer.invoke('sync-new-fan', args);
+  },
+  syncWhatsAppContacts: (args) => {
+    return ipcRenderer.invoke('sync-whatsapp-contacts', args);
   }
 
 });

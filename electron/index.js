@@ -610,6 +610,30 @@ class Index extends Application {
     ipcMain.handle('sync-new-fan', async (event, args) => {
       return await syncNewFan(args);
     });
+
+    // 接收 WhatsApp IndexedDB 联系人数据并转发给前端
+    ipcMain.handle('sync-whatsapp-contacts', async (event, args) => {
+      const { platform, myPhone, contacts, totalCount } = args;
+      Log.info(`📇 [Contacts] 收到 ${totalCount} 条 WhatsApp 联系人, myPhone: ${myPhone}`);
+      
+      try {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (mainWin && mainWin.webContents) {
+          mainWin.webContents.send('whatsapp-contacts-update', {
+            platform,
+            myPhone,
+            contacts,
+            totalCount
+          });
+          Log.info('📇 [Contacts] 联系人数据已转发给前端渲染进程');
+        }
+        return { status: true, message: '联系人同步成功' };
+      } catch (error) {
+        Log.error('📇 [Contacts] 处理联系人数据出错:', error);
+        return { status: false, message: error.message };
+      }
+    });
   }
   /**
    * before app close
