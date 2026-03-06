@@ -49,6 +49,7 @@ class Index extends Application {
           online_status: 'TEXT',
           show_badge: 'TEXT',
           session_id: 'TEXT',
+          my_phone: 'TEXT',
         },
         constraints: []
       },
@@ -448,28 +449,47 @@ class Index extends Application {
     });
 
     ipcMain.handle('online-notify', async (event, args) => {
-      const {online,platform,avatarUrl} = args;
+      const {online,platform,avatarUrl,myPhone} = args;
       // 获取发送消息的渲染进程的 webContents 对象
       const senderWebContents = event.sender;
       const processId = senderWebContents.id;
       const mainId = Addon.get('window').getMWCid();
       const mainWin = BrowserWindow.fromId(mainId);
       if (mainWin && mainWin.webContents) {
-        const card = await app.sdb.selectOne('cards',{window_id:processId})
-        if (card) {
-          const cardId = card.card_id;
-          const onlineStatus = card.online_status;
-          const result = (onlineStatus === String(online)); // 将 online 转换为字符串
-          const status = String(online)
-          if (!result) {
-            await app.sdb.update('cards', { online_status: status, avatar_url: avatarUrl }, { platform: platform, card_id: cardId });
-          mainWin.webContents.send('online-notify', { cardId: cardId, onlineStatus: online,avatarUrl:avatarUrl });
-            Log.info(`登录状态发生改变已发送给渲染程序`);
+        let card = await app.sdb.selectOne('cards', { window_id: processId });
+        
+        // 如果没找到，尝试通过 active_status 兜底（处理初始化或刷新时 ID 未同步的情况）
+        if (!card) {
+          card = await app.sdb.selectOne('cards', { active_status: 'true', platform: platform });
+          if (card) {
+            Log.info(`[online-notify] 通过 active_status 找到匹配卡片: ${card.card_id}, 正同步 window_id 为 ${processId}`);
           }
         }
-        return {status:true,message:'状态修改成功！'}
+
+        if (card) {
+          const cardId = card.card_id;
+          const status = String(online);
+          const needsUpdate = (card.online_status !== status) || 
+                              (myPhone && card.my_phone !== myPhone) ||
+                              (!card.my_phone && myPhone);
+          
+          if (needsUpdate) {
+            Log.info(`[online-notify] 更新卡片 ${cardId}: online=${status}, phone=${myPhone || card.my_phone}`);
+            const updateCount = await app.sdb.update('cards', 
+              { online_status: status, avatar_url: avatarUrl, my_phone: myPhone || card.my_phone, window_id: processId }, 
+              { platform: platform, card_id: cardId }
+            );
+            Log.info(`[online-notify] 数据库更新完成，受影响行数: ${updateCount}`);
+            
+            mainWin.webContents.send('online-notify', { cardId: cardId, onlineStatus: online, avatarUrl: avatarUrl, myPhone: myPhone || card.my_phone });
+            Log.info(`登录状态或号码发生改变已发送给渲染程序`);
+          }
+        } else {
+          Log.warn(`[online-notify] 未找到与 processId ${processId} 匹配的卡片记录`);
+        }
+        return { status: true, message: '状态修改成功！' };
       } else {
-        return {status:false,message:'未找到的渲染进程！'};
+        return { status: false, message: '未找到主窗口或渲染进程！' };
       }
     });
     // 接收渲染进程发送的 IPC 消息，并执行 JS 操作
@@ -498,6 +518,7 @@ class Index extends Application {
           }
 
           // 在发送该消息的渲染进程中执行 JavaScript
+          Log.info(`🚀 [Chat365] 正向 ${url} 注入脚本: ${fileName}.js`);
           await senderWebContents.executeJavaScript(scriptContent);
           Log.info('脚本已成功在渲染进程中执行');
         }else {

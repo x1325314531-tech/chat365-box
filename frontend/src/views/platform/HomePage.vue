@@ -319,7 +319,7 @@ const quickAccessList = ref([
   { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
   { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
   { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' },
-  { icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
+  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
 ])
 
 const router = useRouter()
@@ -327,7 +327,9 @@ const router = useRouter()
 const handleQuickAccess = (item) => {
   if (item.id === 'translate') {
     router.push('/home/settings')
-  }else  { 
+  } else if (item.id === 'fans') {
+    router.push('/home/fans')
+  } else { 
      Notification.message({ 
       message: t('home.developing'),
       type:'info'

@@ -23,6 +23,11 @@ const constantRouterMap = [
         component: () => import('@/views/platform/WhatsApp.vue')
       },
       {
+        path: 'fans',
+        name: 'FansList',
+        component: () => import('@/views/platform/FansList.vue')
+      },
+      {
         path: 'zalo',
         name: 'Zalo',
         component: () => import('@/views/platform/Zalo.vue')

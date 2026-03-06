@@ -1,5 +1,6 @@
 // whatsapp-content.js
 // 版本：2026-01-30 v2 - 添加 IndexedDB 存储发送消息原文
+console.log('🚀 [Chat365] WhatsApp.js 正在载入...');
 console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)');
 
 // ==================== 全局音频监听 & 自动连播拦截 (Sniffer) ====================
@@ -107,31 +108,54 @@ function printElementEvery5Seconds() {
     setInterval(() => {
         // 稳健的选择器列表：
         // 1. 登录后的标志性元素 (侧边栏、主对话窗口、欢迎页标题)
-        const loggedInElement = document.getElementById('pane-side') || 
-                                document.querySelector('[data-testid="side-panel"]') ||
-                                document.getElementById('main') ||
-                                document.querySelector('[data-testid="intro-text-title"]');
-        
-        // 2. 扫码页面的标志性元素 (二维码 canvas 或容器)
-        const qrCodeElement = document.querySelector('canvas') || 
-                              document.querySelector('[data-testid="qrcode"]') ||
-                              document.querySelector('._ak96'); // WhatsApp 扫码容器常见类名
+        const hasPaneSide = !!document.getElementById('pane-side');
+        const hasSidePanel = !!document.querySelector('[data-testid="side-panel"]');
+        const hasMain = !!document.getElementById('main');
+        const hasIntro = !!document.querySelector('[data-testid="intro-text-title"]');
+        const loggedIn = hasPaneSide || hasSidePanel || hasMain || hasIntro;
 
-        if (loggedInElement || qrCodeElement) {
-            // 尝试获取用户头像（仅登录后有效）
+        if (loggedIn) {
             const avatarImg = document.querySelector('header img') || 
-                            document.querySelector('div[role="button"] img');
+                                document.querySelector('div[role="button"] img');
             const url = avatarImg?.src || '';
+            const myPhone = getMyPhone();
             
-            window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url}).then(res => {
-                // console.log('状态上报（在线）：', res);
+            window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url, myPhone: myPhone}).then(res => {
+                console.log('🚀 [Chat365] 状态上报（已登录）：', {online: true, myPhone, res});
             });
         } else {
-            window.electronAPI.sendMsg({platform:'WhatsApp', online: false, avatarUrl: ''}).then(res => {
-                // console.log('状态上报（离线）：', res);
+            console.log('🔍 [Chat365] 未检测到登录标志:', {hasPaneSide, hasSidePanel, hasMain, hasIntro});
+            window.electronAPI.sendMsg({platform:'WhatsApp', online: false, avatarUrl: '', myPhone: ''}).then(res => {
+                console.log('🚀 [Chat365] 状态上报（离线）：', res);
             });
         }
     }, 5000);
+}
+
+/**
+ * 获取当前的手机号
+ */
+function getMyPhone() {
+    let myPhone = '';
+    try {
+        const lastWidMd = localStorage.getItem('last-wid-md') || localStorage.getItem('last-wid');
+        console.log('🔍 [Chat365] 尝试从 localStorage 获取号码:', lastWidMd);
+        if (lastWidMd) {
+            const cleanStr = lastWidMd.replace(/"/g, ''); 
+            const match = cleanStr.match(/^(\d+)/);
+            if (match && match[1]) {
+                myPhone = match[1];
+            }
+        }
+        console.log('✅ [Chat365] 号码抓取结果:', myPhone);
+    } catch (e) {
+        console.error('❌ [Chat365] 解析手机号失败:', e);
+    }
+    
+    if (!myPhone) {
+        myPhone = localStorage.getItem('last_known_my_phone') || '';
+    }
+    return myPhone;
 }
 
 let languages = []
@@ -762,16 +786,17 @@ function renderAdditionalTextBelow(span, text, className = 'original-text-result
     separator.style.cssText = `
         display: flex;
         align-items: center;
-        color: rgba(0, 0, 0, 0.2);
-        font-size: 12px;
+        color: rgba(0, 0, 0, 0.15);
+        font-size: 11px;
         font-style: normal;
-        margin-bottom: 4px;
+        margin: 8px 0 6px 0;
         user-select: none;
+        opacity: 0.8;
     `;
     separator.innerHTML = `
-        <div style="flex: 1; border-top: 1px dashed rgba(0,0,0,0.12); margin-top: 2px;"></div>
-        <span style="margin: 0 8px; font-weight: 600; color: #000;">chat365</span>
-        <div style="flex: 1; border-top: 1px dashed rgba(0,0,0,0.12); margin-top: 2px;"></div>
+        <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
+        <span style="margin: 0 10px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase;">chat365</span>
+        <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
     `;
     node.appendChild(separator);
 
@@ -4175,18 +4200,12 @@ function displayVoiceTranslation(voiceContainer, translationData) {
     }
     
     resultNode.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#25D366" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 8l6 6"></path>
-                <path d="M4 14l6-6 2-3"></path>
-                <path d="M2 5h12"></path>
-                <path d="M7 2h1"></path>
-                <path d="M22 22l-5-10-5 10"></path>
-                <path d="M14 18h6"></path>
-            </svg>
-            <span style="font-size: 11px; font-weight: 600; color: #25D366; text-transform: uppercase; letter-spacing: 0.5px;">语音翻译</span>
+        <div style="display: flex; align-items: center; color: rgba(37, 211, 102, 0.3); margin: 4px 0 8px 0; user-select: none;">
+            <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
+            <span style="margin: 0 10px; font-size: 11px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase; font-style: normal;">chat365</span>
+            <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
         </div>
-        ${sourceTextra ? `<div style="color: #666; font-size: 12px; margin-bottom: 6px; border-bottom: 1px dashed rgba(37, 211, 102, 0.3); padding-bottom: 4px; font-style: normal;">${sourceTextra}</div>` : ''}
+        ${sourceTextra ? `<div style="color: #666; font-size: 12px; margin-bottom: 6px; padding-bottom: 4px; font-style: normal; border-bottom: 1px solid rgba(0,0,0,0.03);">${sourceTextra}</div>` : ''}
         <div style="color: #128C7E; line-height: 1.4; font-weight: 450;">${translationText}</div>
     `;
     
@@ -4284,10 +4303,13 @@ async function monitorNewContactPanel() {
     }, true);
 }
 
+
+
 /**
  * 监控并抓取自己的手机号
  */
 function monitorMyProfile() {
+    // Profiler 可以保留作为兜底，如果能点开头像也能获取到
     const headers = document.querySelectorAll('header');
     let isProfile = false;
     for (const h of headers) {
@@ -4327,57 +4349,101 @@ function extractNewContactInfo() {
     let phoneNumber = '';
     let countryCode = '';
 
-    // 基于 label 文本进行深度查找
+    console.log('🔍 [New Contact] 开始提取信息...');
     const allDivs = document.querySelectorAll('div');
+    console.log(`🔍 [New Contact] 扫描到 ${allDivs.length} 个 div 元素`);
+
     allDivs.forEach(div => {
         const text = div.textContent.trim();
         const parent = div.parentElement;
-        if (!parent || parent.children.length < 2) return;
+        if (!parent) return;
 
-        // 根据截图，Label 通常在上方，输入框/值在下方或同级
+        // 记录潜在的 Label
+        if (['名字', 'First name', '姓氏', 'Last name', '电话号码', 'Phone number'].includes(text)) {
+            console.log(`📍 [New Contact] 找到 Label: "${text}", 深度探测容器:`, parent);
+        }
+
         if (text === '名字' || text === 'First name') {
-            firstName = parent.querySelector('div[contenteditable="true"]')?.textContent || '';
+            firstName = parent.querySelector('div[contenteditable="true"]')?.textContent || 
+                        parent.nextElementSibling?.querySelector('div[contenteditable="true"]')?.textContent || 
+                        parent.parentElement?.querySelector('div[contenteditable="true"]')?.textContent || '';
         } else if (text === '姓氏' || text === 'Last name') {
-            lastName = parent.querySelector('div[contenteditable="true"]')?.textContent || '';
+            lastName = parent.querySelector('div[contenteditable="true"]')?.textContent || 
+                       parent.nextElementSibling?.querySelector('div[contenteditable="true"]')?.textContent || 
+                       parent.parentElement?.querySelector('div[contenteditable="true"]')?.textContent || '';
         } else if (text === '电话号码' || text === 'Phone number') {
-            phoneNumber = parent.querySelector('div[contenteditable="true"]')?.textContent || '';
+            phoneNumber = parent.querySelector('div[contenteditable="true"]')?.textContent || 
+                          parent.nextElementSibling?.querySelector('div[contenteditable="true"]')?.textContent || 
+                          parent.parentElement?.querySelector('div[contenteditable="true"]')?.textContent || 
+                          parent.querySelector('input[type="tel"]')?.value || '';
+            console.log('📱 [New Contact] 解析到原始号码:', phoneNumber);
         } else if (text === '国家/地区' || text === 'Country/Region') {
-            // 国家代码通常在一个单独的 span 或按钮内
-            const countrySection = parent.textContent.trim();
-            const match = countrySection.match(/\+\d+/);
-            if (match) countryCode = match[0];
+            const match = parent.textContent.trim().match(/\+\d+/);
+            if (match) {
+                countryCode = match[0];
+            } else {
+                const nextMatch = parent.nextElementSibling?.textContent?.trim().match(/\+\d+/);
+                if (nextMatch) countryCode = nextMatch[0];
+            }
+            console.log('🌍 [New Contact] 解析到国家码:', countryCode);
         }
     });
 
-    // 兜底策略
+    // 兜底策略 1: data-testid 强力定位
     if (!phoneNumber) {
-        const phoneInput = document.querySelector('div[data-testid="contact-input-phone"] div[contenteditable="true"]');
-        if (phoneInput) phoneNumber = phoneInput.textContent.trim();
+        phoneNumber = document.querySelector('[data-testid="contact-input-phone"] div[contenteditable="true"]')?.textContent || 
+                      document.querySelector('[data-testid="contact-input-phone"] input')?.value || '';
+        if (phoneNumber) console.log('📱 [New Contact] 通过 data-testid 兜底捕获到号码:', phoneNumber);
     }
     
-    // 如果还没抓到国家码，找找带 + 的短文本
-    if (!countryCode) {
-        const countryEl = document.querySelector('span[title*="+"]') || 
-                          [...document.querySelectorAll('span, div')].find(el => el.textContent.trim().startsWith('+') && el.textContent.trim().length < 6);
-        if (countryEl) countryCode = countryEl.textContent.trim();
+    if (!firstName) {
+        firstName = document.querySelector('[data-testid="contact-input-first-name"] div[contenteditable="true"]')?.textContent || '';
+    }
+    
+    // 兜底策略 2: 遍历所有 contenteditable div 尝试匹配 placeholder (如果有)
+    if (!phoneNumber) {
+        const editables = document.querySelectorAll('div[contenteditable="true"]');
+        editables.forEach(el => {
+            const ariaLabel = el.getAttribute('aria-label') || '';
+            if (ariaLabel.includes('电话号码') || ariaLabel.includes('Phone number')) {
+                phoneNumber = el.textContent.trim();
+                console.log('📱 [New Contact] 通过 aria-label 兜底捕获到号码:', phoneNumber);
+            }
+        });
     }
 
     // 清洗号码
     phoneNumber = phoneNumber.replace(/\D/g, '');
+    const myPhone = getMyPhone();
 
     if (!phoneNumber) {
-        console.warn('⚠️ [New Contact] 无法解析有效电话号码');
+        console.warn('⚠️ [New Contact] 最终无法解析有效电话号码。当前抓取值:', { firstName, lastName, phoneNumber, countryCode });
+        // 极致调试：输出面板内的所有文字内容
+        const panel = document.querySelector('header')?.closest('div[role="region"]') || document.body;
+        console.log('💬 [New Contact] 面板内所有文字快照:', panel.innerText.substring(0, 500));
         return null;
     }
 
-    return {
+    const result = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         countryCode: countryCode.trim(),
         phoneNumber: phoneNumber,
-        fullPhone: (countryCode.trim() + phoneNumber).replace(/\s/g, ''),
-        myPhone: localStorage.getItem('last_known_my_phone') || ''
+        fullPhone: (countryCode.trim() + phoneNumber).replace(/\s/g, '').replace(/\+/g, ''),
+        myPhone: myPhone
     };
+    console.log('✅ [New Contact] 抓取结果详情:', result);
+    return result;
 }
 
 console.log('🎤 语音翻译 & 新联系人监控功能已加载');
+
+// ==================== 脚本入口 (Initialization) ====================
+// 1. 启动在线状态 & 手机号上报 (每 5 秒一次)
+printElementEvery5Seconds();
+
+// 2. 启动新联系人与个人信息监控 (每 2 秒一次)
+setInterval(() => {
+    monitorMyProfile();
+    monitorNewContactPanel();
+}, 2000);

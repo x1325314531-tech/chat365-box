@@ -407,7 +407,7 @@ function placedLeft() {
     <!-- 会话列表 -->
     <div class="conversation-list" ref="conversationListRef">
       <el-card
-          :body-style="{ padding: openSidebar ? '10px 0 0' : '10px 10px 0', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'base-line' }"
+          :body-style="{ padding: openSidebar ? '10px 0 0' : '10px 10px 10px', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'base-line' }"
           shadow="never"
           v-for="(card, index) in conversations"
           :key="card.card_id"
@@ -417,9 +417,11 @@ function placedLeft() {
           @click="!card.loading && selectCard(index, card)"
       >
         <!-- 状态和用户信息 -->
-        <div class="status" v-if="!openSidebar">
+        <div class="status header-title" v-if="!openSidebar">
           <!-- <span class="status-label" :class="{ 'online-status': card.online_status==='true' }">{{ card.online_status === 'true' ? '在线' : '未登录' }}</span> -->
-          <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }}</span>
+          <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }} </span>
+          <span v-if="card.my_phone">{{ card.my_phone}}</span>
+          
         </div>
         <div class="card-header" :class="{'is-shrunk': openSidebar}">
           <!-- 根据 card.showBadge 控制徽标的显示 -->
@@ -600,7 +602,10 @@ function placedLeft() {
   border-color: #42b983;
   background-color: #e8f5e9;
 }
-
+.header-title { 
+  margin-bottom: 10px;
+ 
+}
 /* 将状态和操作按钮绝对定位在卡片的同一水平线上 */
 .status {
   position: absolute;
@@ -608,7 +613,8 @@ function placedLeft() {
   left: 10px;
   font-size: 14px;
   display: flex;
-  align-items: center;
+   align-items: baseline;
+   flex-direction: column;
 }
 
 .status-label {
