@@ -420,7 +420,7 @@ function placedLeft() {
         <div class="status header-title" v-if="!openSidebar">
           <!-- <span class="status-label" :class="{ 'online-status': card.online_status==='true' }">{{ card.online_status === 'true' ? '在线' : '未登录' }}</span> -->
           <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }} </span>
-          <span v-if="card.my_phone">{{ card.my_phone}}</span>
+          <span class="subtitle-phone" v-if="card.my_phone">{{ card.my_phone}}</span>
           
         </div>
         <div class="card-header" :class="{'is-shrunk': openSidebar}">
@@ -435,15 +435,14 @@ function placedLeft() {
           </el-badge>
 
           <!-- 当 avatar_url 存在但不显示徽标时 -->
-          <el-avatar
-              v-else-if="card.avatar_url"
-              :src="card.avatar_url"
-              class="avatar"
-          />
-
+          <div v-else-if="card.avatar_url" class="avatar-wrapper">
+            <el-avatar :src="card.avatar_url" class="avatar" />
+            <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
+          </div>
           <!-- 当没有 avatar_url 时显示默认头像 -->
           <el-avatar v-else class="avatar">
             <el-icon><User /></el-icon>
+           
           </el-avatar>
 
           <h4 v-if="!openSidebar" class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
@@ -648,6 +647,27 @@ function placedLeft() {
   transition: all 0.3s ease;
 }
 
+.avatar-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.online-status {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #c0c4cc;
+  border: 2px solid #fff;
+  transition: background-color 0.3s ease;
+}
+
+.online-status-online {
+  background-color: #00b66f;
+}
+
 .title {
   font-size: 16px;
   font-weight: 500;
@@ -665,6 +685,10 @@ function placedLeft() {
 }
 .subtitle-title { 
    font-size: 16px;
+}
+.subtitle-phone {
+  margin-top: -4px;
+  color: #999;
 }
 .action-buttons {
   position: absolute;

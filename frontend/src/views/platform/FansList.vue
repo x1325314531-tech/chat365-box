@@ -28,7 +28,8 @@
         </el-form-item>
         <el-form-item>
           <el-select v-model="searchForm.fanType" placeholder="粉丝类型" style="width: 120px" clearable>
-            <el-option label="类型1" value="type1"></el-option>
+            <el-option label="新粉" value="1"></el-option>
+            <el-option label="重粉" value="2"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
