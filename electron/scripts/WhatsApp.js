@@ -806,14 +806,22 @@ function checkAndResetReusedNode(span) {
             '.original-text-result', 
             '.translate-icon-btn', 
             '.translation-loading', 
+            '.voice-translate-btn',
             'br', 
+            'hr',
             'div',
             '[class*="time"]', 
-            '[class*="timestamp"]'
+            '[class*="timestamp"]',
+            '[data-testid="msg-meta"]'
         ];
-        excludeSelectors.forEach(sel => clone.querySelectorAll(sel).forEach(n => n.remove()));
+        excludeSelectors.forEach(sel => {
+            try {
+                clone.querySelectorAll(sel).forEach(n => n.remove());
+            } catch (e) {}
+        });
         return normalizeText(clone.textContent);
     };
+
 
     const currentCleanText = getCleanMsgText(span);
     const lastCleanText = span.getAttribute('data-last-text');
@@ -844,9 +852,30 @@ function checkAndResetReusedNode(span) {
 function renderAdditionalTextBelow(span, text, className = 'original-text-result') {
     if (!span || !text) return;
     if (span.querySelector('.' + className)) return;
+
+    // 严谨校验：如果目标节点本身就是元数据或时间戳，或者包含在这些容器中，则直接拒绝渲染
+    // 同时也排除在引用（回复）消息块内的渲染，避免布局堆叠
+    const isExcluded = span.closest(`
+        [data-testid="msg-meta"], 
+        .msg-meta, 
+        [class*="time"], 
+        [class*="timestamp"],
+        [data-testid*="quoted"], 
+        [class*="quoted"], 
+        .quoted-mention, 
+        [data-testid="msg-quoted"]
+    `);
+
+    
+    if (isExcluded) {
+        // console.log('🛡️ [Safety] 拒绝在排除区域渲染辅助内容');
+        return;
+    }
+
       
     // 创建底层展示节点
     const node = document.createElement('span');
+
     node.className = className;
     node.style.cssText = `
         display: block;
@@ -905,19 +934,25 @@ function renderAdditionalTextBelow(span, text, className = 'original-text-result
     try {
         let el = span.parentElement;
         let depth = 0;
-        while (el && depth < 10) {
+        while (el && depth < 12) { // 稍微增加深度以应对更深层的容器
             const cs = window.getComputedStyle(el);
-            if ((cs.maxHeight && cs.maxHeight !== 'none') || cs.overflow === 'hidden' || cs.display === 'flex') {
-                el.style.setProperty('max-height', 'none', 'important');
-                el.style.setProperty('overflow', 'visible', 'important');
-                el.style.setProperty('height', 'auto', 'important');
-                el.style.setProperty('-webkit-line-clamp', 'unset', 'important');
+            // 针对 flex 容器或有尺寸限制的容器进行处理
+            if ((cs.maxHeight && cs.maxHeight !== 'none') || 
+                (cs.height && cs.height !== 'auto' && parseInt(cs.height) < 100) || 
+                cs.overflow === 'hidden' || 
+                cs.display === 'flex') {
+                el.style.maxHeight = 'none';
+                el.style.height = 'auto';
+                el.style.overflow = 'visible';
+                if (cs.display === 'flex') {
+                    el.style.flexDirection = 'column';
+                }
             }
             if (el.classList.contains('message-out') || el.classList.contains('message-in')) break;
             el = el.parentElement;
             depth++;
         }
-    } catch (_) {}
+    } catch (e) {}
 }
 
 // 处理空格 换行 
@@ -1967,11 +2002,15 @@ function monitorMainNode() {
      */
     async function restoreReceivedMessageHistory() {
         try {
-            // 查找接收消息 (执行复用检测)
+            // 查找接收消息 (执行复用检测) 
+            // 关键：限定在 .copyable-text 或 .selectable-text 容器内，彻底规避元数据(msg-meta)
             const incomingMessages = document.querySelectorAll(`
-                .message-in span[dir="ltr"], 
-                .message-in span[dir="rtl"]
+                .message-in .copyable-text span[dir],
+                .message-in .selectable-text span[dir]
             `);
+
+
+
 
             if (incomingMessages.length === 0) return;
 
@@ -1982,8 +2021,16 @@ function monitorMainNode() {
             for (let i = incomingMessages.length - 1; i >= 0; i--) {
                 const span = incomingMessages[i];
                 
+                // 排除元数据和引用消息 (采用广泛匹配防混淆)
+                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+                    continue;
+                }
+
+
+
                 // 节点复用检查
                 checkAndResetReusedNode(span);
+
 
                 // 简化跳过逻辑：只要处理过就跳过，防止 API 补偿循环触发
                 if (span.hasAttribute('data-translate-status')) {
@@ -2002,9 +2049,15 @@ function monitorMainNode() {
                 // 1. 尝试从缓存获取
                 const translatedText = await getTranslationCache(msg, fromLang, toLang);
                 if (translatedText && normalizeText(translatedText) !== normalizeText(msg)) {
+                    // 二次防重：检查是否已经存在翻译条 (针对极速滚动或 DOM 更新滞后)
+                    if (span.querySelector('.translation-result')) {
+                        span.setAttribute('data-translate-status', 'already-exists');
+                        continue;
+                    }
                     span.setAttribute('data-translate-status', 'cached');
                     renderAdditionalTextBelow(span, translatedText, 'translation-result');
                 } 
+
                 // 2. 缓存未命中的异步补偿逻辑 (仅在开启自动翻译时)
                 else if (globalConfig?.receiveAutoTranslate) {
                     const msgKey = msg.substring(0, 100);
@@ -3207,19 +3260,30 @@ async function getSentMessage(translatedText) {
 // 恢复发送消息的历史显示 (核心：IDB 匹配 + API 自动还原/翻译补偿)
 async function restoreSentMessageHistory() {
     try {
-        // 改进选择器：扩大范围以执行复用检测
+        // 改进选择器：限定在正文文本容器内，防止误认时间戳 span
         const sentMessages = document.querySelectorAll(`
-            .message-out span[dir]
+            .message-out .copyable-text span[dir],
+            .message-out .selectable-text span[dir]
         `);
+
+
         
         // 逆序遍历：优先处理最近发出的消息
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
+
+            // 再次确认过滤元数据及引用消息 (采用广泛匹配防混淆)
+            if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+                continue;
+            }
+
+
             
             // 1. 节点复用检查
             checkAndResetReusedNode(span);
 
-            // 2. 已处理标记跳过 (只要标记了就被认为在本轮逻辑中已终结，防止 API 循环)
+
+            // 2. 已处理标记跳过
             if (span.hasAttribute('data-history-restored')) {
                 continue;
             }
@@ -3231,47 +3295,54 @@ async function restoreSentMessageHistory() {
             const msgText = normalizeText(clone.textContent);
             if (!msgText || msgText.length < 1) continue;
             
-            // 标记已初步处理，防止本轮扫描重叠
+            // 标记已初步处理
             span.setAttribute('data-history-restored', 'true');
 
+            const fromLang_Not = globalConfig?.sendAutoNotSourceLang || 'en';
+            const toLang_Not = globalConfig?.sendAutoNotTargetLang || 'zh';
+            const fromLang_Auto = globalConfig?.sendAutoSourceLang || 'zh';
+            const toLang_Auto = globalConfig?.sendAutoTargetLang || 'en';
+
             // --- 场景 A: 查找译文对应的原文 (针对 B 端同步发送消息的原文还原) ---
+            // 用户要求：发送消息显示为 “译文 + 原文(下方)”
             const originalRecord = await getSentMessage(msgText);
             if (originalRecord && originalRecord.originalText) {
+                // 如果当前主体是译文，我们需要在下方显示原文
                 if (normalizeText(originalRecord.originalText) !== msgText) {
+                    if (span.querySelector('.original-text-result')) {
+                        span.setAttribute('data-history-restored', 'already-exists');
+                        continue;
+                    }
                     renderAdditionalTextBelow(span, originalRecord.originalText, 'original-text-result');
                 }
                 continue;
             }
 
-            // --- 场景 B: 查找原文对应的译文 (针对 B 端同步发送消息的译文补全) ---
-            const fromLang_Not = globalConfig?.sendAutoNotSourceLang || 'en';
-            const toLang_Not = globalConfig?.sendAutoNotTargetLang || 'zh';
-            const fromLang_Auto = globalConfig?.sendAutoSourceLang || 'zh';
-            const toLang_Auto = globalConfig?.sendAutoTargetLang || 'en';
-            
-            // 尝试多种可能的缓存方向 (适应不同配置下的历史补全)
+
+            // --- 场景 B: 查找原文对应的译文 (针对特定配置下的补全) ---
             let cachedTranslation = await getTranslationCache(msgText, fromLang_Not, toLang_Not);
             if (!cachedTranslation) {
                 cachedTranslation = await getTranslationCache(msgText, fromLang_Auto, toLang_Auto);
             }
 
             if (cachedTranslation && normalizeText(cachedTranslation) !== msgText) {
+                // 二次防重
+                if (span.querySelector('.translation-result')) {
+                    span.setAttribute('data-history-restored', 'already-exists');
+                    continue;
+                }
                 renderAdditionalTextBelow(span, cachedTranslation, 'translation-result');
                 continue;
             }
 
-            // --- 场景 C: API 自动补偿 (兜底同步) ---
+
+            // --- 场景 C: API 自动补偿 ---
             const state = window._chat365_state;
-            if (state.processingSentMessages.has(msgText)) {
-                continue;
-            }
-            
+            if (state.processingSentMessages.has(msgText)) continue;
             state.processingSentMessages.add(msgText);
 
-            // 如果 A 端开启了“发送自动翻译”，当前显示的可能是译文，尝试还原原文
             if (globalConfig?.sendAutoTranslate) {
-                // 方向：译文(toLang_Auto) -> 原文(fromLang_Auto)
-                console.log('🔄 [Out] 启动 API 还原(译文还原原文):', msgText.substring(0, 20));
+                // 当前是译文，取回原文显示在下方
                 try {
                     const res = await translateTextAPI(msgText, toLang_Auto, fromLang_Auto); 
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
@@ -3283,11 +3354,8 @@ async function restoreSentMessageHistory() {
                 } finally {
                     state.processingSentMessages.delete(msgText);
                 }
-            } 
-            // 如果 A 端开启了“发送原文+下方显示译文”，当前显示的可能是原文，尝试补全译文
-            else if (globalConfig?.sendAutoNotTranslate) {
-                // 方向：原文(fromLang_Not) -> 译文(toLang_Not)
-                console.log('🔄 [Out] 启动 API 补全(原文补全译文):', msgText.substring(0, 20));
+            } else if (globalConfig?.sendAutoNotTranslate) {
+                // 当前是原文，补全译文显示在下方
                 try {
                     const res = await translateTextAPI(msgText, fromLang_Not, toLang_Not); 
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
@@ -3307,6 +3375,7 @@ async function restoreSentMessageHistory() {
         console.error('恢复发送消息历史失败:', error);
     }
 }
+
 
 
 
