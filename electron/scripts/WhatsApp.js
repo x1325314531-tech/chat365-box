@@ -1737,6 +1737,8 @@ function monitorMainNode() {
                         lastPreviewedTranslation = '';
                         startMonitor();
                         addTranslateButtonWithSelect();
+                        // 切换联系人立即触发一次消息列表处理，确保历史记录同步加载
+                        processMessageList();
                     }
                 }
             });
@@ -1752,6 +1754,8 @@ function monitorMainNode() {
     async function processMessageList() {
         // 恢复发送消息的历史显示（包含原文/译文的双向还原与 API 补偿）
         await restoreSentMessageHistory();
+        // 补充恢复发送消息的译文与图标（针对手动场景和补全）
+        await restoreSentMessageTranslations();
         
         // 全局接收自动翻译开关的提前返回，以便即使关闭自动翻译也能添加手动翻译图标
         if (!globalConfig?.receiveAutoTranslate) {
@@ -1759,8 +1763,13 @@ function monitorMainNode() {
         }
 
         // 直接查找接收消息中的文本 span
-        // WhatsApp 结构: .message-in 包含消息内容，其中 span[dir] 包含实际文本
-        let incomingMessages = document.querySelectorAll('.message-in span[dir="ltr"]:not([data-translate-status]), .message-in span[dir="rtl"]:not([data-translate-status])');
+        // 改进选择器：即使有 data-translate-status，如果内部没有 .translation-result 且不是跳过状态，也应允许重新检查 (应对虚拟列表回收)
+        let incomingMessages = document.querySelectorAll(`
+            .message-in span[dir="ltr"]:not([data-translate-status]), 
+            .message-in span[dir="rtl"]:not([data-translate-status]),
+            .message-in span[data-translate-status="translated"]:not(:has(.translation-result)),
+            .message-in span[data-translate-status="cached"]:not(:has(.translation-result))
+        `);
         
         // 只在有新消息时打印日志
         if (incomingMessages.length > 0) {
@@ -3030,7 +3039,11 @@ async function getSentMessage(translatedText) {
 // 恢复发送消息的历史显示 (核心：IDB 匹配 + API 自动还原/翻译补偿)
 async function restoreSentMessageHistory() {
     try {
-        const sentMessages = document.querySelectorAll('.message-out span[dir]:not([data-history-restored])');
+        // 改进选择器：增加对标记过但实际节点丢失的节点的处理 (虚拟列表回收支持)
+        const sentMessages = document.querySelectorAll(`
+            .message-out span[dir]:not([data-history-restored]),
+            .message-out span[data-history-restored="true"]:not(:has(.original-text-result)):not(:has(.translation-result))
+        `);
         
         // 逆序遍历：优先处理最近发出的消息
         for (let i = sentMessages.length - 1; i >= 0; i--) {
