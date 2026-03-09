@@ -177,6 +177,7 @@
           <el-option label="每1分钟" :value="1"></el-option>
           <el-option label="每3分钟" :value="3"></el-option>
           <el-option label="每5分钟" :value="5"></el-option>
+          <el-option label="每10分钟" :value="10"></el-option>
         </el-select>
         <span class="auto-refresh-label">自动刷新数据:</span>
         <el-switch v-model="autoRefresh" active-color="#13ce66" />
@@ -362,6 +363,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: baseline;
+    border-bottom: 1px solid #e5e7eb;
 }
 .summary-card {
   background-color: #fff;
@@ -397,6 +399,7 @@ onUnmounted(() => {
   grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   text-align: center;
+  margin-top: 12px;
 }
 
 .stat-item {
