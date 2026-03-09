@@ -38,8 +38,8 @@ class UpdaterController extends Controller {
     /**
      * 下载新版本
      */
-    downloadApp() {
-        Services.get('updater').download();
+    downloadApp(args) {
+        Services.get('updater').download(args);
         return;
     }
 

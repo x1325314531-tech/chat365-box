@@ -43,7 +43,7 @@
                 </div>
               </el-card>
             </el-col>
-            <!-- <el-col :span="6">
+            <el-col :span="6">
               <el-card>
               <div class="card-item">
                 <UpdateVersion/>
@@ -51,7 +51,7 @@
               </div>
           
               </el-card>
-            </el-col> -->
+            </el-col>
           </el-row>
        
        

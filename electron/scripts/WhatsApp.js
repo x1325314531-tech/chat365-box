@@ -100,6 +100,15 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
         return element;
     };
 })();
+
+// ==================== 全局状态管理 (修复作用域并防止重复处理) ====================
+if (typeof window._chat365_state === 'undefined') {
+    window._chat365_state = {
+        processingMessages: new Set(),         // 接收消息处理集
+        processingSentMessages: new Set(),     // 发送消息处理集 (防止还原/补全循环)
+        isProcessingLock: false                // 运行锁 (防止定时器重叠)
+    };
+}
 // ==========================================================
 
 function printElementEvery5Seconds() {
@@ -1747,90 +1756,83 @@ function monitorMainNode() {
         observer.observe(paneSideNode, { attributes: true, subtree: true, attributeFilter: ['aria-selected'] });
     }
 
-    // 用于跟踪正在处理中的消息，防止重复调用
-    const processingMessages = new Set();
-
     // 处理消息列表翻译 - 只翻译对方发送的接收消息（英文 -> 中文）
     async function processMessageList() {
-        // 恢复发送消息的历史显示（包含原文/译文的双向还原与 API 补偿）
-        await restoreSentMessageHistory();
-        // 补充恢复发送消息的译文与图标（针对手动场景和补全）
-        await restoreSentMessageTranslations();
+        const state = window._chat365_state;
+        if (state.isProcessingLock) return;
         
-        // 全局接收自动翻译开关的提前返回，以便即使关闭自动翻译也能添加手动翻译图标
-        if (!globalConfig?.receiveAutoTranslate) {
-            return;
-        }
+        state.isProcessingLock = true;
+        
+        try {
+            // 恢复发送消息的历史显示（包含原文/译文的双向还原与 API 补偿）
+            await restoreSentMessageHistory();
+            // 补充恢复发送消息的译文与图标（针对手动场景和补全）
+            await restoreSentMessageTranslations();
+            
+            // 全局接收自动翻译开关的提前返回，以便即使关闭自动翻译也能添加手动翻译图标
+            if (!globalConfig?.receiveAutoTranslate) {
+                return;
+            }
 
-        // 直接查找接收消息中的文本 span
-        // 改进选择器：即使有 data-translate-status，如果内部没有 .translation-result 且不是跳过状态，也应允许重新检查 (应对虚拟列表回收)
-        let incomingMessages = document.querySelectorAll(`
-            .message-in span[dir="ltr"]:not([data-translate-status]), 
-            .message-in span[dir="rtl"]:not([data-translate-status]),
-            .message-in span[data-translate-status="translated"]:not(:has(.translation-result)),
-            .message-in span[data-translate-status="cached"]:not(:has(.translation-result))
-        `);
-        
-        // 只在有新消息时打印日志
-        if (incomingMessages.length > 0) {
-            console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
-        }
-        
-        // 采用逆序遍历：由新到旧优先处理最新消息
-        for (let i = incomingMessages.length - 1; i >= 0; i--) {
-            let span = incomingMessages[i];
+            // 直接查找接收消息中的文本 span
+            let incomingMessages = document.querySelectorAll(`
+                .message-in span[dir="ltr"]:not([data-translate-status]), 
+                .message-in span[dir="rtl"]:not([data-translate-status]),
+                .message-in span[data-translate-status="translated"]:not(:has(.translation-result)),
+                .message-in span[data-translate-status="cached"]:not(:has(.translation-result))
+            `);
             
-            // 跳过已经有翻译子节点的
-            if (span.querySelector('.translation-result')) {
-                span.setAttribute('data-translate-status', 'already-has-translation');
-                continue;
+            if (incomingMessages.length > 0) {
+                console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
             }
             
-            // 跳过空消息或太短的消息
-            let msg = span.textContent.trim();
-            if (!msg || msg.length < 2) {
-                span.setAttribute('data-translate-status', 'skipped-short');
-                continue;
+            // 采用逆序遍历：由新到旧优先处理最新消息
+            for (let i = incomingMessages.length - 1; i >= 0; i--) {
+                let span = incomingMessages[i];
+                
+                if (span.querySelector('.translation-result')) {
+                    span.setAttribute('data-translate-status', 'already-has-translation');
+                    continue;
+                }
+                
+                let msg = span.textContent.trim();
+                if (!msg || msg.length < 2) {
+                    span.setAttribute('data-translate-status', 'skipped-short');
+                    continue;
+                }
+                
+                if (span.closest('[data-translate-status]')) {
+                    continue;
+                }
+                
+                const msgKey = msg.substring(0, 100);
+                
+                console.log('📩 优先处理最新接收消息:', msg.substring(0, 50));
+                await processMessageTranslation(span, msgKey);
             }
-            
-            // 跳过父元素已有翻译状态的（避免嵌套span重复翻译）
-            if (span.closest('[data-translate-status]')) {
-                continue;
-            }
-            
-            // 使用消息内容作为唯一标识，防止重复处理
-            const msgKey = msg.substring(0, 100); // 取前100字符作为key
-            if (processingMessages.has(msgKey)) {
-                // console.log('⏳ 消息正在处理中，跳过:', msgKey.substring(0, 30));
-                continue;
-            }
-            
-            console.log('📩 优先处理最新接收消息:', msg.substring(0, 50));
-            await processMessageTranslation(span, msgKey);
+        } catch (e) {
+            console.error('❌ 处理消息列表异常:', e);
+        } finally {
+            state.isProcessingLock = false;
         }
     }
 
     // 翻译接收的消息（英文 -> 中文）
     async function processMessageTranslation(span, msgKey) {
+        const state = window._chat365_state;
         let msg = span.textContent.trim();
         if (!msg) return;
         
-        // 跳过太短的消息
         if (msg.length < 2) {
             span.setAttribute('data-translate-status', 'skipped-short');
             return;
         }
 
-        // 立即标记为正在处理，防止重复调用
-        span.setAttribute('data-translate-status', 'processing');
-        processingMessages.add(msgKey);
-
+        // 立即尝试从缓存获取 (不被 Set 锁阻塞)
         try {
-            // 从目标语言（英文）翻译到本地语言（中文）
             const fromLang = getTargetLanguage(); // 英文
             const toLang = getLocalLanguage(); // 中文
             
-            // 1. 尝试从缓存获取
             let translatedText = await getTranslationCache(msg, fromLang, toLang);
             let isFromCache = false;
 
@@ -1838,7 +1840,13 @@ function monitorMainNode() {
                 isFromCache = true;
                 console.log('✅ 接收消息翻译命中缓存:', msg.substring(0, 30));
             } else if (globalConfig?.receiveAutoTranslate) {
-                // 仅在开启自动翻译时调用 API
+                // 仅在开启自动翻译时调用 API，此时才需要进行“并发锁”检查
+                if (state.processingMessages.has(msgKey)) {
+                    return; 
+                }
+                
+                state.processingMessages.add(msgKey);
+                
                 console.log('🌐 缓存未命中，调用翻译API:', fromLang, '->', toLang);
                 const result = await translateTextAPI(msg, fromLang, toLang);
                 
@@ -1871,7 +1879,7 @@ function monitorMainNode() {
             addManualTranslateIconToReceivedMessage(span, msg);
         } finally {
             // 处理完成后从Set中移除
-            processingMessages.delete(msgKey);
+            state.processingMessages.delete(msgKey);
         }
     }
 
@@ -3056,7 +3064,7 @@ async function restoreSentMessageHistory() {
             const msgText = normalizeText(clone.textContent);
             if (!msgText || msgText.length < 1) continue;
             
-            // 标记已处理，防止并发下重复扫描
+            // 标记已初步处理，防止本轮扫描重叠
             span.setAttribute('data-history-restored', 'true');
 
             // --- 场景 A: 查找译文对应的原文 (针对 B 端同步发送消息的原文) ---
@@ -3078,27 +3086,64 @@ async function restoreSentMessageHistory() {
             }
 
             // --- 场景 C: API 自动补偿 (兜底同步) ---
+            // 只有在此场景下，我们才需要“防重锁”来防止并发 API 请求
+            const state = window._chat365_state;
+            if (state.processingSentMessages.has(msgText)) {
+                continue;
+            }
+            
+            // 标记正在等待 API 处理，防止 800ms 后的下一次扫描再次进入 Scene C
+            state.processingSentMessages.add(msgText);
+
             // 如果 A 端开启了“发送自动翻译”，当前显示的可能是译文，尝试还原原文
             if (globalConfig?.sendAutoTranslate) {
-                console.log('🔄 [Out] 启动 API 还原(由新到旧):', msgText.substring(0, 20));
+                // 发起请求前最后一次确认缓存，应对极速滚动场景
+                const doubleCheck = await getSentMessage(msgText);
+                if (doubleCheck) {
+                   if (normalizeText(doubleCheck.originalText) !== msgText) renderAdditionalTextBelow(span, doubleCheck.originalText, 'original-text-result');
+                   state.processingSentMessages.delete(msgText); // 任务完成，释放标识
+                   continue;
+                }
+
+                console.log('🔄 [Out] 启动 API 还原(由新到旧888888):', msgText.substring(0, 20));
                 try {
                     const res = await translateTextAPI(msgText, fromLang, toLang);
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
                         renderAdditionalTextBelow(span, res.data, 'original-text-result');
                         await saveSentMessage(msgText, res.data);
                     }
-                } catch (e) { console.warn('❌ 发送历史原文补偿失败:', e); }
+                } catch (e) {
+                    console.warn('❌ 发送历史原文补偿失败:', e);
+                } finally {
+                    // API 处理完或失败后，从逻辑上可以允许后续再次扫描（但在本会话中通常不再重复）
+                    // 保持在 set 中可以减少无效重试。如果需要彻底释放，可在此 delete。
+                }
             } 
             // 如果 A 端开启了“发送原文+下方显示译文”，当前显示的可能是原文，尝试补全译文
             else if (globalConfig?.sendAutoNotTranslate) {
-                console.log('🔄 [Out] 启动 API 补全(由新到旧):', msgText.substring(0, 20));
+                // 发起请求前最后一次确认缓存
+                const doubleCheck = await getTranslationCache(msgText, toLang, fromLang);
+                if (doubleCheck) {
+                    if (normalizeText(doubleCheck) !== msgText) renderAdditionalTextBelow(span, doubleCheck, 'translation-result');
+                    state.processingSentMessages.delete(msgText);
+                    continue;
+                }
+
+                console.log('🔄 [Out] 启动 API 补全(由新到旧6666):', msgText.substring(0, 20));
                 try {
                     const res = await translateTextAPI(msgText, toLang, fromLang); // 注意语言语序
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
                         renderAdditionalTextBelow(span, res.data, 'translation-result');
                         await saveTranslationCache(msgText, res.data, toLang, fromLang);
                     }
-                } catch (e) { console.warn('❌ 发送历史译文补全失败:', e); }
+                } catch (e) {
+                    console.warn('❌ 发送历史译文补全失败:', e);
+                } finally {
+                    // 释放由开发选择：建议保持直到任务终结
+                }
+            } else {
+                // 如果既没开启自动还原也没开启补全，则从处理集中移除，保持干净
+                state.processingSentMessages.delete(msgText);
             }
         }
     } catch (error) {
@@ -3299,17 +3344,24 @@ async function restoreSentMessageTranslations() {
     // 移除全局的 early return 限制
 
     try {
-        // 查找所有发送的消息
-        // 移除 data-translation-restored 限制，因为我们需要检查每一条消息是否缺少图标
-        const sentMessages = document.querySelectorAll('.message-out span[dir="ltr"], .message-out span[dir="rtl"]');
+        // 查找所有发送的消息 (增加标记排除已扫描过的节点，提高效率)
+        const sentMessages = document.querySelectorAll(`
+            .message-out span[dir="ltr"]:not([data-translation-icon-added]), 
+            .message-out span[dir="rtl"]:not([data-translation-icon-added])
+        `);
         
         // 逆序遍历：由新到旧
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
-            // 获取消息文本 (优先使用 innerText 以获取正确的换行)
             const spanText = span.innerText || span.textContent;
             const msgText = spanText.trim();
-            if (!msgText || msgText.length < 1) continue;
+            if (!msgText || msgText.length < 1) {
+                span.setAttribute('data-translation-icon-added', 'skipped');
+                continue;
+            }
+            
+            // 标记已初步扫描，下次循环跳过该节点
+            span.setAttribute('data-translation-icon-added', 'true');
 
             // 1. 检查并添加翻译图标 (如果不存在)
             let iconContainer = span.querySelector('.translate-icon-btn');
