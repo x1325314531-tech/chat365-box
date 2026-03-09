@@ -106,7 +106,11 @@ if (typeof window._chat365_state === 'undefined') {
     window._chat365_state = {
         processingMessages: new Set(),         // 接收消息处理集
         processingSentMessages: new Set(),     // 发送消息处理集 (防止还原/补全循环)
-        isProcessingLock: false                // 运行锁 (防止定时器重叠)
+        isProcessingLock: false,               // 运行锁 (防止定时器重叠)
+        fansSyncTimer: null,                   // 粉丝同步定时器
+        lastFansSyncTime: 0,                   // 上次同步时间
+        appId: '',                             // 当前账户ID
+        appName: ''                            // 当前账户名
     };
 }
 // ==========================================================
@@ -148,15 +152,14 @@ function getMyPhone() {
     let myPhone = '';
     try {
         const lastWidMd = localStorage.getItem('last-wid-md') || localStorage.getItem('last-wid');
-        console.log('🔍 [Chat365] 尝试从 localStorage 获取号码:', lastWidMd);
         if (lastWidMd) {
             const cleanStr = lastWidMd.replace(/"/g, ''); 
-            const match = cleanStr.match(/^(\d+)/);
+            // 捕获开头的 + 和后续数字
+            const match = cleanStr.match(/^(\+?\d+)/);
             if (match && match[1]) {
                 myPhone = match[1];
             }
         }
-        console.log('✅ [Chat365] 号码抓取结果:', myPhone);
     } catch (e) {
         console.error('❌ [Chat365] 解析手机号失败:', e);
     }
@@ -164,6 +167,15 @@ function getMyPhone() {
     if (!myPhone) {
         myPhone = localStorage.getItem('last_known_my_phone') || '';
     }
+
+    // 格式化处理：如果手机号不包含 + 号，且长度符合国际号段（如 86...），尝试补充（遵循用户示例）
+    if (myPhone && !myPhone.startsWith('+')) {
+        // 如果是以 86 开头的 13 位数字，或者长度超过 10 位，通常是含国家码的
+        if (myPhone.length >= 11) {
+            myPhone = '+' + myPhone;
+        }
+    }
+
     return myPhone;
 }
 
@@ -499,8 +511,17 @@ async function syncGlobalConfig() {
         // const tenantConfig = await window.electronAPI.getTenantConfig()
         // const tenantConfig  = await  initTenantConfig()   
         if (config) {
-            globalConfig =  { ...config, }
+            const oldInterval = globalConfig?.refreshInterval;
+            const oldAuto = globalConfig?.autoRefresh;
+            
+            globalConfig =  { ...config };
             console.log('🔄 全局配置同步成功:', globalConfig);
+
+            // 当同步配置发生变化时，重新初始化同步定时器
+            if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
+                console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
+                initFansSyncTimer();
+            }
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -772,6 +793,54 @@ function normalizeText(text) {
  * @param {string} text - 要显示的内容
  * @param {string} className - 节点类名 (translation-result 或 original-text-result)
  */
+function checkAndResetReusedNode(span) {
+    if (!span) return;
+
+    // 提取纯净的消息文本（排除我们添加的翻译、原文、分割线等节点）
+    // 同时也排除 WhatsApp 的时间戳等可能混入的 Span
+    const getCleanMsgText = (node) => {
+        const clone = node.cloneNode(true);
+        // 排除我们注入的所有类以及换行、分割线 div
+        const excludeSelectors = [
+            '.translation-result', 
+            '.original-text-result', 
+            '.translate-icon-btn', 
+            '.translation-loading', 
+            'br', 
+            'div',
+            '[class*="time"]', 
+            '[class*="timestamp"]'
+        ];
+        excludeSelectors.forEach(sel => clone.querySelectorAll(sel).forEach(n => n.remove()));
+        return normalizeText(clone.textContent);
+    };
+
+    const currentCleanText = getCleanMsgText(span);
+    const lastCleanText = span.getAttribute('data-last-text');
+
+    // 如果内容不一致，说明 DOM 节点被虚拟列表复用（或者内容发生了本质改变）
+    if (lastCleanText !== null && lastCleanText !== currentCleanText) {
+        // 清除旧的状态标记，让逻辑重新扫描
+        const attrsToRemove = [
+            'data-translate-status',
+            'data-history-restored',
+            'data-translation-icon-added',
+            'data-translation-restored',
+            'data-original-restored'
+        ];
+        attrsToRemove.forEach(attr => span.removeAttribute(attr));
+
+        // 清除已注入的 UI 元素，恢复节点原始状态
+        span.querySelectorAll('.translation-result, .original-text-result, .translate-icon-btn, .translation-loading').forEach(el => el.remove());
+        span.querySelectorAll('br').forEach(br => br.remove());
+
+        console.log('♻️ [Scroll] 节点内容变化(复用)，重置状态:', currentCleanText.substring(0, 30));
+    }
+
+    // 更新指纹
+    span.setAttribute('data-last-text', currentCleanText);
+}
+
 function renderAdditionalTextBelow(span, text, className = 'original-text-result') {
     if (!span || !text) return;
     if (span.querySelector('.' + className)) return;
@@ -1718,7 +1787,7 @@ function monitorMainNode() {
                         processImageMessageList(); 
                         processVoiceMessageList(); // 添加语音消息处理
                         initSidebarResize(); // 初始化侧边栏拉伸
-                    }, 800);
+                    }, 500);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
@@ -1768,27 +1837,35 @@ function monitorMainNode() {
             await restoreSentMessageHistory();
             // 补充恢复发送消息的译文与图标（针对手动场景和补全）
             await restoreSentMessageTranslations();
+            // 新增：恢复接收消息的历史显示（从缓存中还原已有的翻译结果）
+            await restoreReceivedMessageHistory();
             
             // 全局接收自动翻译开关的提前返回，以便即使关闭自动翻译也能添加手动翻译图标
             if (!globalConfig?.receiveAutoTranslate) {
                 return;
             }
 
-            // 直接查找接收消息中的文本 span
+            // 直接查找接收消息中的文本 span (包括已处理的，用于复用检查)
             let incomingMessages = document.querySelectorAll(`
-                .message-in span[dir="ltr"]:not([data-translate-status]), 
-                .message-in span[dir="rtl"]:not([data-translate-status]),
-                .message-in span[data-translate-status="translated"]:not(:has(.translation-result)),
-                .message-in span[data-translate-status="cached"]:not(:has(.translation-result))
+                .message-in span[dir="ltr"], 
+                .message-in span[dir="rtl"]
             `);
             
             if (incomingMessages.length > 0) {
-                console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
+                // console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
             }
             
             // 采用逆序遍历：由新到旧优先处理最新消息
             for (let i = incomingMessages.length - 1; i >= 0; i--) {
                 let span = incomingMessages[i];
+                
+                // 1. 深度复用检查
+                checkAndResetReusedNode(span);
+                
+                // 2. 如果已经处理过（且节点内容未变），则跳过
+                if (span.hasAttribute('data-translate-status') && span.querySelector('.translation-result, .translate-icon-btn')) {
+                    continue;
+                }
                 
                 if (span.querySelector('.translation-result')) {
                     span.setAttribute('data-translate-status', 'already-has-translation');
@@ -1882,6 +1959,88 @@ function monitorMainNode() {
             state.processingMessages.delete(msgKey);
         }
     }
+
+    /**
+     * 恢复接收消息的历史显示 (核心：从缓存 IDB 匹配)
+     * 无论接收自动翻译开关是否开启，只要缓存中有，就应该显示
+     * 如果缓存没有但开启了自动翻译，则后台异步补偿
+     */
+    async function restoreReceivedMessageHistory() {
+        try {
+            // 查找接收消息 (执行复用检测)
+            const incomingMessages = document.querySelectorAll(`
+                .message-in span[dir="ltr"], 
+                .message-in span[dir="rtl"]
+            `);
+
+            if (incomingMessages.length === 0) return;
+
+            const fromLang = getTargetLanguage(); // 对方语言 (通常是英文)
+            const toLang = getLocalLanguage();    // 母语 (通常是中文)
+            const state = window._chat365_state;
+
+            for (let i = incomingMessages.length - 1; i >= 0; i--) {
+                const span = incomingMessages[i];
+                
+                // 节点复用检查
+                checkAndResetReusedNode(span);
+
+                // 简化跳过逻辑：只要处理过就跳过，防止 API 补偿循环触发
+                if (span.hasAttribute('data-translate-status')) {
+                    continue;
+                }
+                
+                const msg = span.textContent.trim();
+                if (!msg || msg.length < 2) {
+                    span.setAttribute('data-translate-status', 'skipped-short');
+                    continue;
+                }
+
+                // 标记已进入处理流程，防止下一次扫描重叠
+                span.setAttribute('data-translate-status', 'processing');
+
+                // 1. 尝试从缓存获取
+                const translatedText = await getTranslationCache(msg, fromLang, toLang);
+                if (translatedText && normalizeText(translatedText) !== normalizeText(msg)) {
+                    span.setAttribute('data-translate-status', 'cached');
+                    renderAdditionalTextBelow(span, translatedText, 'translation-result');
+                } 
+                // 2. 缓存未命中的异步补偿逻辑 (仅在开启自动翻译时)
+                else if (globalConfig?.receiveAutoTranslate) {
+                    const msgKey = msg.substring(0, 100);
+                    if (state.processingMessages.has(msgKey)) continue;
+
+                    // 异步调用翻译并追加 (不阻塞循环)
+                    (async () => {
+                        state.processingMessages.add(msgKey);
+                        try {
+                            const result = await translateTextAPI(msg, fromLang, toLang);
+                            if (result && result.success && result.data) {
+                                // 查重复：API 归来后再次检查节点是否仍在页面上且未被处理
+                                if (span.isConnected && !span.querySelector('.translation-result')) {
+                                    span.setAttribute('data-translate-status', 'translated-async');
+                                    renderAdditionalTextBelow(span, result.data, 'translation-result');
+                                    await saveTranslationCache(msg, result.data, fromLang, toLang);
+                                }
+                            } else {
+                                // 翻译失败也标记为结束，由下一次复用逻辑重置
+                                span.setAttribute('data-translate-status', 'failed');
+                            }
+                        } finally {
+                            state.processingMessages.delete(msgKey);
+                        }
+                    })();
+                } else {
+                    // 既无缓存也未开启自动翻译
+                    span.setAttribute('data-translate-status', 'no-action');
+                }
+            }
+        } catch (error) {
+            console.error('❌ 恢复接收消息历史异常:', error);
+        }
+    }
+
+
 
     // ==========================================================
     // 侧边栏拉伸功能 (轮询式注入 - 更兼容且可靠)
@@ -3035,6 +3194,7 @@ async function getSentMessage(translatedText) {
         
         return new Promise((resolve, reject) => {
             const request = store.get(translatedText);
+            
             request.onsuccess = (event) => resolve(event.target.result);
             request.onerror = (event) => reject(event.target.error);
         });
@@ -3047,15 +3207,22 @@ async function getSentMessage(translatedText) {
 // 恢复发送消息的历史显示 (核心：IDB 匹配 + API 自动还原/翻译补偿)
 async function restoreSentMessageHistory() {
     try {
-        // 改进选择器：增加对标记过但实际节点丢失的节点的处理 (虚拟列表回收支持)
+        // 改进选择器：扩大范围以执行复用检测
         const sentMessages = document.querySelectorAll(`
-            .message-out span[dir]:not([data-history-restored]),
-            .message-out span[data-history-restored="true"]:not(:has(.original-text-result)):not(:has(.translation-result))
+            .message-out span[dir]
         `);
         
         // 逆序遍历：优先处理最近发出的消息
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
+            
+            // 1. 节点复用检查
+            checkAndResetReusedNode(span);
+
+            // 2. 已处理标记跳过 (只要标记了就被认为在本轮逻辑中已终结，防止 API 循环)
+            if (span.hasAttribute('data-history-restored')) {
+                continue;
+            }
             
             const clone = span.cloneNode(true);
             const excludeSelectors = ['.translation-result', '.original-text-result', '.translate-icon-btn', '.translation-loading', '[class*="time"]', '[class*="timestamp"]'];
@@ -3067,7 +3234,7 @@ async function restoreSentMessageHistory() {
             // 标记已初步处理，防止本轮扫描重叠
             span.setAttribute('data-history-restored', 'true');
 
-            // --- 场景 A: 查找译文对应的原文 (针对 B 端同步发送消息的原文) ---
+            // --- 场景 A: 查找译文对应的原文 (针对 B 端同步发送消息的原文还原) ---
             const originalRecord = await getSentMessage(msgText);
             if (originalRecord && originalRecord.originalText) {
                 if (normalizeText(originalRecord.originalText) !== msgText) {
@@ -3076,38 +3243,37 @@ async function restoreSentMessageHistory() {
                 continue;
             }
 
-            // --- 场景 B: 查找原文对应的译文 (针对 B 端同步发送消息的译文) ---
-            const fromLang = getTargetLanguage(); // 对方语言 (英文)
-            const toLang = getLocalLanguage();    // 母语 (中文)
-            const cachedTranslation = await getTranslationCache(msgText, fromLang, toLang);
+            // --- 场景 B: 查找原文对应的译文 (针对 B 端同步发送消息的译文补全) ---
+            const fromLang_Not = globalConfig?.sendAutoNotSourceLang || 'en';
+            const toLang_Not = globalConfig?.sendAutoNotTargetLang || 'zh';
+            const fromLang_Auto = globalConfig?.sendAutoSourceLang || 'zh';
+            const toLang_Auto = globalConfig?.sendAutoTargetLang || 'en';
+            
+            // 尝试多种可能的缓存方向 (适应不同配置下的历史补全)
+            let cachedTranslation = await getTranslationCache(msgText, fromLang_Not, toLang_Not);
+            if (!cachedTranslation) {
+                cachedTranslation = await getTranslationCache(msgText, fromLang_Auto, toLang_Auto);
+            }
+
             if (cachedTranslation && normalizeText(cachedTranslation) !== msgText) {
                 renderAdditionalTextBelow(span, cachedTranslation, 'translation-result');
                 continue;
             }
 
             // --- 场景 C: API 自动补偿 (兜底同步) ---
-            // 只有在此场景下，我们才需要“防重锁”来防止并发 API 请求
             const state = window._chat365_state;
             if (state.processingSentMessages.has(msgText)) {
                 continue;
             }
             
-            // 标记正在等待 API 处理，防止 800ms 后的下一次扫描再次进入 Scene C
             state.processingSentMessages.add(msgText);
 
             // 如果 A 端开启了“发送自动翻译”，当前显示的可能是译文，尝试还原原文
             if (globalConfig?.sendAutoTranslate) {
-                // 发起请求前最后一次确认缓存，应对极速滚动场景
-                const doubleCheck = await getSentMessage(msgText);
-                if (doubleCheck) {
-                   if (normalizeText(doubleCheck.originalText) !== msgText) renderAdditionalTextBelow(span, doubleCheck.originalText, 'original-text-result');
-                   state.processingSentMessages.delete(msgText); // 任务完成，释放标识
-                   continue;
-                }
-
-                console.log('🔄 [Out] 启动 API 还原(由新到旧888888):', msgText.substring(0, 20));
+                // 方向：译文(toLang_Auto) -> 原文(fromLang_Auto)
+                console.log('🔄 [Out] 启动 API 还原(译文还原原文):', msgText.substring(0, 20));
                 try {
-                    const res = await translateTextAPI(msgText, fromLang, toLang);
+                    const res = await translateTextAPI(msgText, toLang_Auto, fromLang_Auto); 
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
                         renderAdditionalTextBelow(span, res.data, 'original-text-result');
                         await saveSentMessage(msgText, res.data);
@@ -3115,34 +3281,25 @@ async function restoreSentMessageHistory() {
                 } catch (e) {
                     console.warn('❌ 发送历史原文补偿失败:', e);
                 } finally {
-                    // API 处理完或失败后，从逻辑上可以允许后续再次扫描（但在本会话中通常不再重复）
-                    // 保持在 set 中可以减少无效重试。如果需要彻底释放，可在此 delete。
+                    state.processingSentMessages.delete(msgText);
                 }
             } 
             // 如果 A 端开启了“发送原文+下方显示译文”，当前显示的可能是原文，尝试补全译文
             else if (globalConfig?.sendAutoNotTranslate) {
-                // 发起请求前最后一次确认缓存
-                const doubleCheck = await getTranslationCache(msgText, toLang, fromLang);
-                if (doubleCheck) {
-                    if (normalizeText(doubleCheck) !== msgText) renderAdditionalTextBelow(span, doubleCheck, 'translation-result');
-                    state.processingSentMessages.delete(msgText);
-                    continue;
-                }
-
-                console.log('🔄 [Out] 启动 API 补全(由新到旧6666):', msgText.substring(0, 20));
+                // 方向：原文(fromLang_Not) -> 译文(toLang_Not)
+                console.log('🔄 [Out] 启动 API 补全(原文补全译文):', msgText.substring(0, 20));
                 try {
-                    const res = await translateTextAPI(msgText, toLang, fromLang); // 注意语言语序
+                    const res = await translateTextAPI(msgText, fromLang_Not, toLang_Not); 
                     if (res && res.success && res.data && normalizeText(res.data) !== msgText) {
                         renderAdditionalTextBelow(span, res.data, 'translation-result');
-                        await saveTranslationCache(msgText, res.data, toLang, fromLang);
+                        await saveTranslationCache(msgText, res.data, fromLang_Not, toLang_Not);
                     }
                 } catch (e) {
                     console.warn('❌ 发送历史译文补全失败:', e);
                 } finally {
-                    // 释放由开发选择：建议保持直到任务终结
+                    state.processingSentMessages.delete(msgText);
                 }
             } else {
-                // 如果既没开启自动还原也没开启补全，则从处理集中移除，保持干净
                 state.processingSentMessages.delete(msgText);
             }
         }
@@ -3150,6 +3307,8 @@ async function restoreSentMessageHistory() {
         console.error('恢复发送消息历史失败:', error);
     }
 }
+
+
 
 // 获取所有发送消息记录
 async function getAllSentMessages() {
@@ -3344,15 +3503,23 @@ async function restoreSentMessageTranslations() {
     // 移除全局的 early return 限制
 
     try {
-        // 查找所有发送的消息 (增加标记排除已扫描过的节点，提高效率)
+        // 查找所有发送的消息 (执行复用检测)
         const sentMessages = document.querySelectorAll(`
-            .message-out span[dir="ltr"]:not([data-translation-icon-added]), 
-            .message-out span[dir="rtl"]:not([data-translation-icon-added])
+            .message-out span[dir="ltr"], 
+            .message-out span[dir="rtl"]
         `);
         
         // 逆序遍历：由新到旧
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
+            
+            // 节点复用检查
+            checkAndResetReusedNode(span);
+
+            if (span.hasAttribute('data-translation-icon-added') && span.querySelector('.translate-icon-btn')) {
+                continue;
+            }
+            
             const spanText = span.innerText || span.textContent;
             const msgText = spanText.trim();
             if (!msgText || msgText.length < 1) {
@@ -4376,11 +4543,12 @@ async function monitorNewContactPanel() {
  * 监控并抓取自己的手机号
  */
 function monitorMyProfile() {
-    // Profiler 可以保留作为兜底，如果能点开头像也能获取到
+    // Profile 面板监控
     const headers = document.querySelectorAll('header');
     let isProfile = false;
     for (const h of headers) {
-        if (h.textContent.includes('新聊天') || h.textContent.includes('Profile')) {
+        // 增加中文支持
+        if (h.textContent.includes('Profile') || h.textContent.includes('个人信息') || h.textContent.includes('个人资料')) {
             isProfile = true;
             break;
         }
@@ -4390,6 +4558,8 @@ function monitorMyProfile() {
     const sections = document.querySelectorAll('div');
     for (let div of sections) {
         const text = div.textContent.trim();
+        
+        // 1. 抓取手机号
         if (text === '电话号码' || text === 'Phone number') {
             const phoneContainer = div.parentElement;
             if (phoneContainer) {
@@ -4400,6 +4570,23 @@ function monitorMyProfile() {
                     if (localStorage.getItem('last_known_my_phone') !== cleaned) {
                         console.log('📱 [Profile] 已捕获自己的号码:', cleaned);
                         localStorage.setItem('last_known_my_phone', cleaned);
+                    }
+                }
+            }
+        }
+
+        // 2. 抓取姓名 (appName)
+        if (text === '姓名' || text === 'Your name' || text === 'Name') {
+            const nameContainer = div.parentElement;
+            if (nameContainer) {
+                const nameVal = nameContainer.querySelector('span[dir="auto"]')?.textContent || 
+                               nameContainer.querySelector('div[contenteditable="false"]')?.textContent || '';
+                if (nameVal && nameVal.trim()) {
+                    const state = window._chat365_state;
+                    if (state.appName !== nameVal.trim()) {
+                        console.log('👤 [Profile] 已捕获自己的姓名:', nameVal.trim());
+                        state.appName = nameVal.trim();
+                        localStorage.setItem('last_known_my_name', nameVal.trim());
                     }
                 }
             }
@@ -4507,19 +4694,60 @@ console.log('🎤 语音翻译 & 新联系人监控功能已加载');
 
 // ==================== WhatsApp IndexedDB 联系人读取 ====================
 
-let _contactsFetched = false; // 防止重复读取
+let _contactsFetched = false; // 防止初始重复读取
+let _isSyncingFans = false;   // 防止同步冲突
+
+/**
+ * 格式化日期为 YYYY-MM-DD HH:mm:ss
+ */
+function formatSyncDate(date) {
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/**
+ * 初始化粉丝自动同步定时器
+ */
+function initFansSyncTimer() {
+    const state = window._chat365_state;
+    
+    // 先清除旧定时器
+    if (state.fansSyncTimer) {
+        clearInterval(state.fansSyncTimer);
+        state.fansSyncTimer = null;
+    }
+
+    if (globalConfig?.autoRefresh) {
+        const interval = (globalConfig.refreshInterval || 1) * 60 * 1000;
+        console.log(`⏰ [FansSync] 启动自动同步定时器，间隔: ${globalConfig.refreshInterval} 分钟`);
+        
+        state.fansSyncTimer = setInterval(async () => {
+            console.log('⏰ [FansSync] 触发定时同步任务...');
+            await fetchWhatsAppContacts(true); // true 表示是由定时器触发的自动同步
+        }, interval);
+    } else {
+        console.log('⏰ [FansSync] 自动刷新已关闭，停止同步定时器');
+    }
+}
 
 /**
  * 从 WhatsApp Web 的 IndexedDB `model-storage` 数据库中读取 `contact` 对象存储
- * 字段：isAddressBookContact, isContactSyncCompleted, contactHash, phoneNumber, textStatusExpiryTs, pnContactHash
+ * 并同步到后端。
+ * @param {boolean} isAutoSync 是否为自动同步模式
  */
-async function fetchWhatsAppContacts() {
-    if (_contactsFetched) {
-        console.log('📇 [Contacts] 联系人已读取过，跳过');
+async function fetchWhatsAppContacts(isAutoSync = false) {
+    if (!isAutoSync && _contactsFetched) {
+        console.log('📇 [Contacts] 初始联系人已读取过，跳过');
+        return;
+    }
+
+    if (_isSyncingFans) {
+        console.log('📇 [Contacts] 同步任务正在进行中，跳过本次触发');
         return;
     }
     
-    console.log('📇 [Contacts] 开始读取 WhatsApp IndexedDB 联系人...');
+    _isSyncingFans = true;
+    console.log(`📇 [Contacts] 开始读取 WhatsApp IndexedDB 联系人... (${isAutoSync ? '自动同步' : '初始读取'})`);
     
     try {
         const db = await new Promise((resolve, reject) => {
@@ -4528,64 +4756,97 @@ async function fetchWhatsAppContacts() {
             request.onerror = (event) => reject('打开 model-storage 失败: ' + event.target.errorCode);
         });
         
-        // 检查 contact 对象存储是否存在
         if (!db.objectStoreNames.contains('contact')) {
             console.warn('📇 [Contacts] model-storage 中不存在 contact 对象存储');
             db.close();
+            _isSyncingFans = false;
             return;
         }
         
-        const contacts = await new Promise((resolve, reject) => {
+        const contactsRaw = await new Promise((resolve, reject) => {
             const transaction = db.transaction(['contact'], 'readonly');
             const store = transaction.objectStore('contact');
             const request = store.getAll();
-            
-            request.onsuccess = (event) => {
-                resolve(event.target.result || []);
-            };
-            request.onerror = (event) => {
-                reject('读取 contact 失败: ' + event.target.error);
-            };
+            request.onsuccess = (event) => resolve(event.target.result || []);
+            request.onerror = (event) => reject('读取 contact 失败: ' + event.target.error);
         });
         
         db.close();
         
-        console.log(`📇 [Contacts] 成功读取 ${contacts} ${contacts.length} 条联系人记录`);
-        
-        if (contacts.length > 0) {
-            // 提取关键字段
-            const contactList = contacts
-          .filter(c => c.phoneNumberCreatedAt)  // 只保留有 phoneNumberCreatedAt 的项
-        .map(c => ({
-        ...c,
-         phoneNumber: c.phoneNumber || '',
-        isAddressBookContact: c.isAddressBookContact || false,
-        isContactSyncCompleted: c.isContactSyncCompleted || false,
-        contactHash: c.contactHash || '',
-        textStatusExpiryTs: c.textStatusExpiryTs || 0,
-        pnContactHash: c.pnContactHash || '',
-  }));
+        if (contactsRaw.length > 0) {
+            // 过滤并转换数据格式
+            const nowStr = formatSyncDate(new Date());
+            const fans = [];
             
-            console.log('📇 [Contacts] 联系人样本:',contactList, contactList.slice(0, 3));
-            
-            // 通过 IPC 发送给主进程
-            const myPhone = getMyPhone();
-            const result = await window.electronAPI.syncWhatsAppContacts({
-                platform: 'WhatsApp',
-                myPhone: myPhone,
-                contacts: contactList,
-                totalCount: contactList.length
+            contactsRaw.forEach(c => {
+                // 仅同步有手机号且是联系人的项 (或者有名字的)
+                const phone = (c.phoneNumber || '').replace(/[^\d+]/g, '');
+                if (phone && phone.length > 5) {
+                    fans.push({
+                        fansId: c.id?.toString() || c.contactHash || '',
+                        fansPhone: phone,
+                        fansName: c.name || c.pushname || c.verifiedName || 'WhatsApp用户',
+                        platform: 'WhatsAPP',
+                        addTime: nowStr,
+                        source: '自动扫描'
+                    });
+                }
             });
+
+            console.log(`📇 [Contacts] 有效粉丝数量: ${fans.length} / 总计: ${contactsRaw.length}`);
+
+            // 获取当前账户信息
+            const myPhone = getMyPhone();
+            const state = window._chat365_state;
             
-            if (result && result.status) {
-                _contactsFetched = true;
-                console.log('✅ [Contacts] 联系人数据已成功同步到主进程');
+            // 优先获取用户提到的 WALId 缓存
+            const walId = localStorage.getItem('WALId');
+            
+            // 尝试通过 IPC 获取更完整的账户信息 (如果内存中没有或 ID 为空)
+            if (!state.appId || !state.appName || walId) {
+                try {
+                    const sessionRes = await window.electronAPI.getSessions({ platform: 'WhatsApp' });
+                    if (sessionRes && sessionRes.data) {
+                        const current = sessionRes.data.find(s => (s.my_phone || s.myPhone) === myPhone);
+                        if (current) {
+                            state.appId = walId || current.id?.toString() || '';
+                            state.appName = state.appName || current.nickname || current.name || localStorage.getItem('last_known_my_name') || 'WhatsApp账户';
+                        }
+                    }
+                } catch (e) {
+                    console.error('❌ 获取账号详情失败:', e);
+                }
+            }
+
+            // 构造载荷 (按照用户示例格式)
+            const payload = {
+                appId: walId || state.appId || 'unknown',
+                appPhone: myPhone,
+                appName: state.appName || 'WhatsApp Account',
+                fans: fans
+            };
+
+            // 发起同步请求 (复用 syncWhatsAppContacts 或新增特定接口)
+            console.log('🚀 [Contacts] 发起批量同步请求:', payload.appPhone, '粉丝数:', fans.length);
+            
+            // 注意：这里建议在 main 进程增加 controller.fansStore.batchAddFans 路由
+            const result = await window.electronAPI.syncWhatsAppContacts({
+                ...payload,
+                isBatchAdd: true // 标记使用 batchAddFans 逻辑
+            });
+
+            if (result && (result.status || result.success)) {
+                if (!isAutoSync) _contactsFetched = true;
+                state.lastFansSyncTime = Date.now();
+                console.log('✅ [Contacts] 粉丝数据同步成功');
             } else {
-                console.warn('⚠️ [Contacts] 同步失败:', result?.message);
+                console.warn('⚠️ [Contacts] 同步结果异常:', result?.message || result?.msg);
             }
         }
     } catch (error) {
-        console.error('❌ [Contacts] 读取 IndexedDB 联系人出错:', error);
+        console.error('❌ [Contacts] 同步流程出错:', error);
+    } finally {
+        _isSyncingFans = false;
     }
 }
 

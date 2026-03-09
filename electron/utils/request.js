@@ -25,7 +25,7 @@ axiosInstance.interceptors.request.use(
         if (app.boxToken) {
             config.headers['box-token'] = app.boxToken;
         }
-        Log.info('请求头', config.headers)
+        // Log.info('请求头', config.headers)
         return config;
     },
     (error) => {

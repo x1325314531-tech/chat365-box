@@ -1,18 +1,19 @@
 <template>
   <div class="update-version-container">
+    <div class="update-version-row">
     <div class="one-block-1">
       <span>
         当前版本: {{ appVersion }} 
-        <el-tag v-if="available" type="success" size="small" effect="plain" class="ml-10">有新版本: v{{ latestVersion }}</el-tag>
+        <el-tag v-if="available"  type="success" size="small" effect="plain" class="ml-10 tag-version">有新版本: v{{ latestVersion }}</el-tag>
       </span>
     </div>
     <div class="one-block-2">
       <el-space>
         <el-button type="primary" plain @click="checkForUpdate(true)">检查更新</el-button>
-        <el-button v-if="available" type="success" @click="showUpdateDialog = true">立即更新</el-button>
+        <!-- <el-button v-if="available" type="success" @click="showUpdateDialog = true">立即更新</el-button> -->
       </el-space>
     </div>
-
+</div>
     <!-- 发现新版本弹窗 (Screenshot 1 Style) -->
     <el-dialog
       v-model="showUpdateDialog"
@@ -90,10 +91,8 @@ const totalSize = ref('0MB');
 
 const releaseNotes = ref([
   "全平台翻译配置新增 源语言功能，翻译更准确",
-  "kakao新增消息已读功能 & ID显示",
-  "kakao修复引用回复不翻译的问题",
-  "优化翻译节点高延迟情况下文字过长换行的问题",
-  "批量开群/关群时间随机化"
+  "切换联系人后，所有历史消息和接收消息的翻译（只要本地有缓存）都会立即恢复显示",
+  "更新检查版本功能上线"
 ]);
 
 onMounted(() => {
@@ -137,7 +136,7 @@ function init() {
   // 获取当前版本
   ipc.invoke(ipcRoute.getAppInfo).then(result => {
     appVersion.value = result.currentVersion;
-    checkForUpdate(false);
+    // checkForUpdate(false);
   });
 }
 
@@ -337,17 +336,23 @@ function handleStartUpdate() {
   text-align: left;
   width: 100%;
 
-  .one-block-1 {
-    font-size: 16px;
-    padding-top: 10px;
+  .update-version-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
   }
 
-  .one-block-2 {
-    padding-top: 10px;
+  .one-block-1 {
+    font-size: 16px;
   }
-  
+
   .ml-10 {
     margin-left: 10px;
+  }
+  .tag-version  { 
+    height: 34px;
   }
 }
 </style>

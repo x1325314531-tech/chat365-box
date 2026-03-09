@@ -359,6 +359,19 @@ async function syncNewFan(data) {
     }
 }
 
+// 批量同步回复联系人/粉丝
+async function batchAddFans(data) {
+    try {
+        Log.info('🚀 开始批量同步粉丝数据:', data.appPhone, '数量:', data.fans?.length);
+        const response = await request.post('/app/fansStore/batchAddFans', data);
+        Log.info('🚀 批量同步粉丝响应:', response);
+        return response;
+    } catch (error) {
+        Log.error('❌ batchAddFans 接口请求失败:', error);
+        return { success: false, msg: error.message || '网络请求失败' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
@@ -367,5 +380,6 @@ module.exports = {
     translateImage,
     translateVoice,
     getTenantSetting,
-    syncNewFan
+    syncNewFan,
+    batchAddFans
 };

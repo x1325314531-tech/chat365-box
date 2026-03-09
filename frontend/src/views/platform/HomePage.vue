@@ -1,55 +1,54 @@
 <template>
   <el-container direction="vertical" style="height: 100%; padding: 20px; box-sizing: border-box; overflow-y: auto;">
     <!-- 顶部部分 -->
-        <div class="header-top ">
-          <el-row :gutter="12">
-            <el-col :span="8">
-             <el-card>
+        <div class="header-top">
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="12" :md="12" :lg="6">
+             <el-card shadow="hover">
              <div class="countdown">
           <el-icon><AlarmClock /></el-icon>
           <span class="countdown-tex">{{ currentTime }}</span>
         </div>
           </el-card>
             </el-col>
-            <el-col :span="6">
-              <el-card>
-                <div>
+            <el-col :xs="24" :sm="12" :md="12" :lg="6">
+              <el-card shadow="hover">
+                <div class="clear-cache-content">
                   <i class="iconfont icon-qingchu"></i>
-                  {{ $t('home.clearCache') }}</div>
-              </el-card>
-            </el-col>
-            <el-col :span="6">
-                 <el-card>
-                <div class="select-language">
-                  <el-dropdown trigger="click" @command="handleLangChange">
-                    <span class="lang-trigger">
-                      <i class="iconfont icon-language language"></i>
-                      {{ currentLangLabel }}
-                      <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                    </span>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item
-                          v-for="lang in langOptions"
-                          :key="lang.value"
-                          :command="lang.value"
-                          :class="{ 'is-active': locale === lang.value }"
-                        >
-                          {{ lang.flag }} {{ lang.label }}
-                        </el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
+                  {{ $t('home.clearCache') }}
                 </div>
               </el-card>
             </el-col>
-            <el-col :span="6">
-              <el-card>
-              <div class="card-item">
+            <el-col :xs="24" :sm="12" :md="12" :lg="6">
+                  <el-card shadow="hover">
+                 <div class="select-language">
+                   <el-dropdown trigger="click" @command="handleLangChange">
+                     <span class="lang-trigger">
+                       <i class="iconfont icon-language language"></i>
+                       {{ currentLangLabel }}
+                       <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                     </span>
+                     <template #dropdown>
+                       <el-dropdown-menu>
+                         <el-dropdown-item
+                           v-for="lang in langOptions"
+                           :key="lang.value"
+                           :command="lang.value"
+                           :class="{ 'is-active': locale === lang.value }"
+                         >
+                           {{ lang.flag }} {{ lang.label }}
+                         </el-dropdown-item>
+                       </el-dropdown-menu>
+                     </template>
+                   </el-dropdown>
+                 </div>
+               </el-card>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="12" :lg="6">
+              <el-card shadow="hover">
+              <div class="card-item version-card">
                 <UpdateVersion/>
-              
               </div>
-          
               </el-card>
             </el-col>
           </el-row>
@@ -319,7 +318,7 @@ const quickAccessList = ref([
   { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
   { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
   { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' },
-  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
+  { id: '', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
 ])
 
 const router = useRouter()
@@ -340,18 +339,37 @@ const handleQuickAccess = (item) => {
 
 </script>
 
-<style scoped>
+<style lang="less" scoped>
 .carousel-container {
   width: 70%;
 }
-.header-top{
+.header-top {
   padding: 0 20px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
+
+  .el-col {
+    margin-bottom: 20px;
+  }
+
+  :deep(.el-card) {
+    height: 80px; // 设定统一高度
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    .el-card__body {
+      padding: 0 20px;
+      width: 100%;
+    }
+  }
 }
 .countdown { 
   display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
 }
-.countdown-tex   { 
+.countdown-tex { 
   margin-left: 8px;
 }
 .carousel-item {
@@ -366,9 +384,17 @@ const handleQuickAccess = (item) => {
   align-items: center;
   justify-content: center;
 }
-.card-item{ 
+.card-item { 
   display: flex;
   align-items: center;
+  height: 100%;
+}
+
+.clear-cache-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
 }
                     
 .info-content {
@@ -384,6 +410,7 @@ const handleQuickAccess = (item) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
 }
 .lang-trigger {
   display: flex;

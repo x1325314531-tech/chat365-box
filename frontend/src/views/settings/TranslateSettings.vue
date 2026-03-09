@@ -110,7 +110,7 @@
                     </div>
                     <div class="form-col">
                       <div class="form-label">{{ $t('settings.targetLang') }}</div>
-                      <el-select v-model="config.sendAutoNotTargetlseLang" :placeholder="$t('settings.selectPlaceholder')">
+                      <el-select v-model="config.sendAutoNotTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                         <el-option
                           v-for="lang in languageList"
                           :key="lang.id"

@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -611,9 +611,16 @@ class Index extends Application {
       return await syncNewFan(args);
     });
 
-    // 接收 WhatsApp IndexedDB 联系人数据并转发给前端
+    // 接收 WhatsApp IndexedDB 联系人数据并转发给前端或直接同步后端
     ipcMain.handle('sync-whatsapp-contacts', async (event, args) => {
-      const { platform, myPhone, contacts, totalCount } = args;
+      const { platform, myPhone, contacts, totalCount, isBatchAdd } = args;
+      
+      // 如果明确是批量增加粉丝请求，则调用后端接口同步
+      if (isBatchAdd) {
+        Log.info(`🚀 [Contacts] 正在调用批量同步粉丝接口: ${myPhone}`);
+        return await batchAddFans(args);
+      }
+
       Log.info(`📇 [Contacts] 收到 ${totalCount} 条 WhatsApp 联系人, myPhone: ${myPhone}`);
       
       try {
