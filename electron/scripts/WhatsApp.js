@@ -1805,6 +1805,75 @@ function getTargetLanguage() {
     return globalConfig?.sendTargetLang || localStorage.getItem('targetLanguage') || 'en';
 }
 
+/**
+ * 强力滚动聊天区域到底部
+ * 策略：优先点击 WhatsApp 原生的"滚动到底部"按钮，其次 scrollIntoView 最后一条消息
+ * 因为 WhatsApp 使用虚拟滚动列表，手动设 scrollTop 会被其内部逻辑覆盖
+ */
+let _scrollAggressiveTimer = null;
+function scrollChatToBottomAggressive() {
+    // 清除上一次的定时器（快速连续切换联系人时防堆积）
+    if (_scrollAggressiveTimer) {
+        clearInterval(_scrollAggressiveTimer);
+        _scrollAggressiveTimer = null;
+    }
+
+    function doScroll() {
+        // 策略1：点击 WhatsApp 原生的 "滚动到底部" 按钮（最可靠）
+        const scrollDownBtn = document.querySelector('[data-testid="chat-composer-scroll-to-bottom"]') ||
+                              document.querySelector('span[data-icon="chevron-down"]')?.closest('button') ||
+                              document.querySelector('span[data-icon="chevron-down"]')?.closest('[role="button"]') ||
+                              document.querySelector('._1ZMSM') || // WhatsApp 旧版类名
+                              document.querySelector('button > span[data-icon="chevron-down"]')?.parentElement;
+        
+        if (scrollDownBtn) {
+            scrollDownBtn.click();
+            console.log('📜 [Scroll] 已点击 WhatsApp 原生滚动到底部按钮');
+            return true;
+        }
+
+        // 策略2：找到最后一条消息，调用 scrollIntoView（兼容虚拟列表）
+        const allMessages = document.querySelectorAll('#main .message-in, #main .message-out');
+        if (allMessages.length > 0) {
+            const lastMsg = allMessages[allMessages.length - 1];
+            lastMsg.scrollIntoView({ behavior: 'instant', block: 'end' });
+            console.log('📜 [Scroll] 已通过 scrollIntoView 滚动到最后一条消息');
+            return true;
+        }
+
+        // 策略3：传统 scrollTop 兜底
+        const mainEl = document.querySelector('#main');
+        if (mainEl) {
+            const allDivs = mainEl.querySelectorAll('div');
+            for (const div of allDivs) {
+                const style = window.getComputedStyle(div);
+                if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && div.scrollHeight > div.clientHeight + 50) {
+                    div.scrollTop = div.scrollHeight;
+                    console.log('📜 [Scroll] 已通过 scrollTop 兜底滚动');
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // 延迟 300ms 开始（等 WhatsApp 加载新联系人的会话面板）
+    setTimeout(() => {
+        doScroll();
+
+        // 每 200ms 再尝试一次，持续 3 秒（覆盖异步翻译插入）
+        let elapsed = 0;
+        _scrollAggressiveTimer = setInterval(() => {
+            elapsed += 200;
+            doScroll();
+            if (elapsed >= 3000) {
+                clearInterval(_scrollAggressiveTimer);
+                _scrollAggressiveTimer = null;
+            }
+        }, 200);
+    }, 300);
+}
+
 // 监控主节点
 function monitorMainNode() {
     const observer = new MutationObserver((mutationsList, observer) => {
@@ -1852,6 +1921,8 @@ function monitorMainNode() {
                         addTranslateButtonWithSelect();
                         // 切换联系人立即触发一次消息列表处理，确保历史记录同步加载
                         processMessageList();
+                        // 强制滚动到底部（独立于 processMessageList 的异步翻译完成时机）
+                        scrollChatToBottomAggressive();
                     }
                 }
             });
