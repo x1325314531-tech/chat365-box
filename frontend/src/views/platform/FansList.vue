@@ -159,14 +159,14 @@
         </template>
         <el-table-column type="index" label="序号" width="80" align="center" />
         <el-table-column prop="platform" label="平台" align="center" />
-        <el-table-column prop="myAccount" label="我的账号" align="center" />
-        <el-table-column prop="fanAccount" label="粉丝账号" align="center" />
+        <el-table-column prop="appPhone" label="我的账号" align="center" />
+        <el-table-column prop="fansPhone" label="粉丝账号" align="center" />
         <el-table-column prop="source" label="来源" align="center" />
         <el-table-column prop="region" label="地区" align="center" />
-        <el-table-column prop="fanTime" label="进粉时间" align="center" min-width="120" />
-        <el-table-column prop="recordTime" label="记录时间" align="center" min-width="120" />
+        <el-table-column prop="addTime" label="进粉时间" align="center" min-width="120" />
+        <el-table-column prop="createTime" label="记录时间" align="center" min-width="120" />
         <el-table-column prop="repeatCount" label="重复次数" align="center" />
-        <el-table-column prop="fanType" label="粉丝类型" align="center" />
+        <el-table-column prop="fansType" label="粉丝类型" align="center" />
       </el-table>
     </div>
 
@@ -203,6 +203,9 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { Search, RefreshRight, Document } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
+import { get} from '@/utils/request'
+
+
 
 // 搜索表单状态
 const availableAccounts = ref([])
@@ -255,13 +258,52 @@ const getAccounts = async () => {
   }
 }
 
-const handleSearch = () => {
+const handleSearch = async () => {
   loading.value = true
-  // TODO: 模拟接口请求
-  setTimeout(() => {
+  
+  try {
+    // 构造查询参数
+    const params = {
+      pageNum: pagination.page,
+      pageSize: pagination.size,
+      platform: searchForm.platform || undefined,
+      keyword: searchForm.keyword || undefined,
+      fanType: searchForm.fanType || undefined,
+      appPhones: searchForm.myAccounts.length > 0 ? searchForm.myAccounts : undefined
+    }
+
+    // 处理时间范围
+    if (searchForm.dateRange && searchForm.dateRange.length === 2) {
+      // 假设后端需要 YYYY-MM-DD HH:mm:ss 或时间戳
+      const startTime = new Date(searchForm.dateRange[0]);
+      const endTime = new Date(searchForm.dateRange[1]);
+      // 如果后端要求是时间戳或者字符串（此处转换为常见的基础格式，具体可按需再调）
+      params.startTime = startTime.getTime();
+      params.endTime = endTime.getTime();
+    }
+
+    // 调用真实接口
+    const res = await get('/app/fansStore/pageRecord', params)
+    
+    if (res && res.code === 200) {
+      // 适配响应结构
+      const data = res.data || {}
+      tableData.value = data|| data.records || data.list || []
+      pagination.total = data.total || 0
+    } else {
+      console.error('获取粉丝列表失败:', res?.msg)
+      tableData.value = []
+      pagination.total = 0
+    }
+  } catch (err) {
+    console.error('查询报错:', err)
+    tableData.value = []
+    pagination.total = 0
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
+
 
 const resetSearch = () => {
   searchForm.platform = ''

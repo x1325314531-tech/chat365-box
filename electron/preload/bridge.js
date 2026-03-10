@@ -167,9 +167,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   syncWhatsAppContacts: (args) => {
     return ipcRenderer.invoke('sync-whatsapp-contacts', args);
+  },
+  getSessions: (args) => {
+    return ipcRenderer.invoke('controller.window.getSessions', args);
   }
 
 });
+
 
 // 在页面加载完成时发送消息，包括当前页面的 URL
 window.addEventListener('load', () => {

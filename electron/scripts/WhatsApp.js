@@ -4793,7 +4793,7 @@ function initFansSyncTimer() {
         state.fansSyncTimer = setInterval(async () => {
             console.log('⏰ [FansSync] 触发定时同步任务...');
             await fetchWhatsAppContacts(true); // true 表示是由定时器触发的自动同步
-        }, interval);
+        }, 5000);
     } else {
         console.log('⏰ [FansSync] 自动刷新已关闭，停止同步定时器');
     }
@@ -4850,7 +4850,7 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
             contactsRaw.forEach(c => {
                 // 仅同步有手机号且是联系人的项 (或者有名字的)
                 const phone = (c.phoneNumber || '').replace(/[^\d+]/g, '');
-                if (phone && phone.length > 5) {
+                if (phone && phone.length > 2) {
                     fans.push({
                         fansId: c.id?.toString() || c.contactHash || '',
                         fansPhone: phone,
@@ -4869,13 +4869,17 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
             const state = window._chat365_state;
             
             // 优先获取用户提到的 WALId 缓存
-            const walId = localStorage.getItem('WALId');
-            
+            const walId = localStorage.getItem('WALid');
+             console.log('WHATSPP', walId );
+             
             // 尝试通过 IPC 获取更完整的账户信息 (如果内存中没有或 ID 为空)
             if (!state.appId || !state.appName || walId) {
                 try {
                     const sessionRes = await window.electronAPI.getSessions({ platform: 'WhatsApp' });
+                    console.log('sessionRes', sessionRes);
+                    
                     if (sessionRes && sessionRes.data) {
+                        
                         const current = sessionRes.data.find(s => (s.my_phone || s.myPhone) === myPhone);
                         if (current) {
                             state.appId = walId || current.id?.toString() || '';
@@ -4887,16 +4891,32 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
                 }
             }
 
+            console.log(' fans', fans);
+            
+            // 灵活匹配自己的账号信息，因为 fans 过滤掉了没有手机号的联系人，而自己的账号可能没有 phoneNumber 字段
+            // 因此改从最初的 contactsRaw 中去寻找
+            let appName = null;
+            if (walId) {
+                 console.log(' myPhone', myPhone, );
+                 const phoneFormat = myPhone.replace(/^\+/, "");
+                const baseId = walId.replace(/:.*/, "").replace(/@.*/, "");
+                console.log('phoneFormat', phoneFormat,fans.find(item=>item.fansPhone===phoneFormat));
+                
+                appName =fans.find(item=>item.fansPhone===phoneFormat)?.fansName
+                
+                console.log(' appName', myPhone, baseId, 'appName:', appName);
+            }
+
             // 构造载荷 (按照用户示例格式)
             const payload = {
                 appId: walId || state.appId || 'unknown',
                 appPhone: myPhone,
-                appName: state.appName || 'WhatsApp Account',
+                appName: appName || state.appName || 'WhatsApp Account',
                 fans: fans
             };
 
             // 发起同步请求 (复用 syncWhatsAppContacts 或新增特定接口)
-            console.log('🚀 [Contacts] 发起批量同步请求:', payload.appPhone, '粉丝数:', fans.length);
+            console.log('🚀 [Contacts] 发起批量同步请求:',  payload, payload.appPhone, '粉丝数:', fans.length);
             
             // 注意：这里建议在 main 进程增加 controller.fansStore.batchAddFans 路由
             const result = await window.electronAPI.syncWhatsAppContacts({
@@ -4904,7 +4924,7 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
                 isBatchAdd: true // 标记使用 batchAddFans 逻辑
             });
 
-            if (result && (result.status || result.success)) {
+            if (result && (result.status || result.code==200)){
                 if (!isAutoSync) _contactsFetched = true;
                 state.lastFansSyncTime = Date.now();
                 console.log('✅ [Contacts] 粉丝数据同步成功');
