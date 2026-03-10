@@ -1866,7 +1866,8 @@ function monitorMainNode() {
         if (state.isProcessingLock) return;
         
         state.isProcessingLock = true;
-        
+          console.log('是否锁', state.isProcessingLock);
+          
         try {
             // 恢复发送消息的历史显示（包含原文/译文的双向还原与 API 补偿）
             await restoreSentMessageHistory();
@@ -1881,11 +1882,14 @@ function monitorMainNode() {
             }
 
             // 直接查找接收消息中的文本 span (包括已处理的，用于复用检查)
+            // 放宽限制，只要是在 message-in 内并且有 dir 属性的 span 都算，以防结构变化导致遗漏
             let incomingMessages = document.querySelectorAll(`
+                .message-in .copyable-text span[dir],
+                .message-in .selectable-text span[dir],
                 .message-in span[dir="ltr"], 
                 .message-in span[dir="rtl"]
             `);
-            
+              console.log('接收新消息',incomingMessages );
             if (incomingMessages.length > 0) {
                 // console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
             }
@@ -2008,10 +2012,8 @@ function monitorMainNode() {
                 .message-in .copyable-text span[dir],
                 .message-in .selectable-text span[dir]
             `);
-
-
-
-
+              console.log('incomingMessages+++++++', incomingMessages);
+               
             if (incomingMessages.length === 0) return;
 
             const fromLang = getTargetLanguage(); // 对方语言 (通常是英文)
@@ -2067,6 +2069,8 @@ function monitorMainNode() {
                     (async () => {
                         state.processingMessages.add(msgKey);
                         try {
+                           console.log('接收自动翻译', msg);
+                           
                             const result = await translateTextAPI(msg, fromLang, toLang);
                             if (result && result.success && result.data) {
                                 // 查重复：API 归来后再次检查节点是否仍在页面上且未被处理
@@ -2078,6 +2082,7 @@ function monitorMainNode() {
                             } else {
                                 // 翻译失败也标记为结束，由下一次复用逻辑重置
                                 span.setAttribute('data-translate-status', 'failed');
+                                addManualTranslateIconToReceivedMessage(span, msg);
                             }
                         } finally {
                             state.processingMessages.delete(msgKey);
@@ -2086,6 +2091,9 @@ function monitorMainNode() {
                 } else {
                     // 既无缓存也未开启自动翻译
                     span.setAttribute('data-translate-status', 'no-action');
+                    if (!span.querySelector('.translate-icon-btn')) {
+                        addManualTranslateIconToReceivedMessage(span, msg);
+                    }
                 }
             }
         } catch (error) {

@@ -36,7 +36,7 @@ axiosInstance.interceptors.request.use(
 // 响应拦截器
 axiosInstance.interceptors.response.use(
     (response) => {
-         Log.info('响应数据', response);
+         Log.info('响应数据', response.data);
         // 检查业务状态码
         if (response.data && response.data.code === 401 || response.data.code===403) {
             Log.warn('Token 过期或无效，需要重新登录');

@@ -432,8 +432,12 @@ const toggleSection = (section) => {
 }
 //发送自动消息
 const handleSendAutoTranslate= (val) =>{ 
+ 
   if(!val) { 
-    config.sendAutoNotTranslate =  true
+    config.sendAutoNotTranslate =  true;
+   
+  }else{ 
+     config.sendAutoNotTranslate =  false;
   }
 }
 const handlesendAutoNotTranslate = (val) =>{
