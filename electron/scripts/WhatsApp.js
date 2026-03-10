@@ -1973,8 +1973,15 @@ function monitorMainNode() {
                 checkAndResetReusedNode(span);
                 
                 // 2. 如果已经处理过（且节点内容未变），则跳过
-                if (span.hasAttribute('data-translate-status') && span.querySelector('.translation-result, .translate-icon-btn')) {
+                // 但 failed 状态允许重试
+                const existingStatus = span.getAttribute('data-translate-status');
+                if (existingStatus && existingStatus !== 'failed' && span.querySelector('.translation-result, .translate-icon-btn')) {
                     continue;
+                }
+                // 重试 failed 状态：清理旧的手动翻译图标
+                if (existingStatus === 'failed') {
+                    span.querySelectorAll('.translate-icon-btn').forEach(el => el.remove());
+                    span.removeAttribute('data-translate-status');
                 }
                 
                 if (span.querySelector('.translation-result')) {
@@ -2105,9 +2112,15 @@ function monitorMainNode() {
                 checkAndResetReusedNode(span);
 
 
-                // 简化跳过逻辑：只要处理过就跳过，防止 API 补偿循环触发
-                if (span.hasAttribute('data-translate-status')) {
+                // 简化跳过逻辑：只要处理过就跳过，但 failed 状态允许重试
+                const existingStatus = span.getAttribute('data-translate-status');
+                if (existingStatus && existingStatus !== 'failed') {
                     continue;
+                }
+                // 重试 failed 状态：清理旧的手动翻译图标
+                if (existingStatus === 'failed') {
+                    span.querySelectorAll('.translate-icon-btn').forEach(el => el.remove());
+                    span.removeAttribute('data-translate-status');
                 }
                 
                 const msg = span.textContent.trim();
