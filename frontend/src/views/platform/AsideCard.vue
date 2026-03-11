@@ -278,10 +278,21 @@ function selectCard(index, card) {
         });
   });
 }
+
+const selectAndRefreshCard = async (cardId) => {
+  const index = conversations.findIndex(c => c.card_id === cardId || c.cardId === cardId);
+  if (index !== -1) {
+    const card = conversations[index];
+    await selectCard(index, card);
+    handleRefresh(card);
+  }
+};
+
 defineExpose({
   getAllSessions,
   setActiveStatus,
-  hideWindow: () => ipc.invoke(ipcApiRoute.hideWindow)
+  hideWindow: () => ipc.invoke(ipcApiRoute.hideWindow),
+  selectAndRefreshCard
 });
 // 处理设置按钮点击
 function handleSetting(card) {

@@ -461,6 +461,9 @@ const applyConfig = () => {
   ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(config))).then(res => {
     console.log('配置已同步到主进程:', res);
   });
+  if(localStorage.getItem('firstTranslateSetting')) {
+    router.push('/home/whatsapp')
+  }
  //更新成功提示
   Notification.message({ message: t('settings.updateSuccess'), type: 'success' });
   // 返回首页W

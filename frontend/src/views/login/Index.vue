@@ -98,6 +98,7 @@ const formRef = ref(null)
 
 const animationContainer = ref(null);
 const  isMachineCode = ref(false)
+const firstTranslateSetting = ref(false)
 const config = reactive({
   // 发送设置
   sendAutoTranslate: true,
@@ -157,7 +158,7 @@ onMounted(()=>{
     
     if (res.status){
       form.machineCode = res.data.machineCode
-      initializeTranslateConfig()
+      // initializeTranslateConfig()
       
       // 读取记住的账号密码
       const savedUser = localStorage.getItem('rememberedUser');
@@ -225,6 +226,7 @@ function initializeTranslateConfig() {
   try {
     if (!localStorage.getItem('translateConfig')) {
       localStorage.setItem('translateConfig', JSON.stringify(config))
+
     }
   } catch (error) {
     console.error('配置初始化失败:', error)
@@ -281,7 +283,15 @@ const handleAccountLogin = async () => {
 
       Notification.message({ message: '登录成功', type: 'success' });
       // 登录成功后跳转到主页
-      router.replace({ name: 'HomeIndex' });
+    
+      if (localStorage.getItem('translateConfig')) {
+           router.replace({ name: 'HomeIndex' });
+           firstTranslateSetting.value = false
+      }else { 
+           router.replace({name:'SettingsIndex'})
+           firstTranslateSetting.value = true
+        }
+        localStorage.setItem('firstTranslateSetting', firstTranslateSetting.value);
            // 记住密码逻辑
       if (form.agree) {
         localStorage.setItem('rememberedUser', JSON.stringify({

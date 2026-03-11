@@ -1171,7 +1171,7 @@ const confirmClick = async () => {
       ElMessage.success(props.isEdit ? t('session.messages.updateSuccess') : t('session.messages.addSuccess'));
       
       // 触发 confirm 事件，父组件（如 WhatsApp.vue）会监听到并调用 getAllSessions() 刷新列表
-      emit('confirm');
+      emit('confirm', { cardId: configForm.cardId, isNew: !props.isEdit });
     }
   } catch (error) {
     console.error('保存会话失败:', error);

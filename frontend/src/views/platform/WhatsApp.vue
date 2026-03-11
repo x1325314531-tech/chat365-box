@@ -56,10 +56,13 @@ const handleOpenSettings = (data) => {
   }
 };
 
-const handleSettingsConfirm = () => {
+const handleSettingsConfirm = async (payload) => {
   showSettings.value = false;
   if (asideCardRef.value) {
-    asideCardRef.value.getAllSessions();
+    await asideCardRef.value.getAllSessions();
+    if (payload && payload.isNew && payload.cardId) {
+      asideCardRef.value.selectAndRefreshCard(payload.cardId);
+    }
   }
 };
 const handleSettingsCancel = () => {
