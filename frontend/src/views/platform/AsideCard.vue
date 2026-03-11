@@ -144,7 +144,8 @@ async function getAllSessions() {
           sessionId: item.session_id || item.sessionId,
           active_status: activeStatus,
           online_status: String(item.online_status || item.onlineStatus || 'false') === 'true' || String(item.online_status || item.onlineStatus) === '1' ? 'true' : 'false',
-          show_badge: String(item.show_badge || 'false')
+          show_badge: String(item.show_badge || 'false'),
+          unread_count: item.unread_count || 0
         };
       });
       
@@ -451,17 +452,18 @@ function placedLeft() {
           
         </div>
         <div class="card-header" :class="{'is-shrunk': openSidebar}">
-          <!-- 根据 card.showBadge 控制徽标的显示 -->
+          <!-- 根据 card.unread_count 控制徽标的显示 -->
           <el-badge
               style="margin-right: 0"
-              v-if="card.avatar_url && card.show_badge==='true'"
-              is-dot
+              v-if="card.avatar_url && (card.unread_count > 0 || card.show_badge === 'true')"
+              :value="card.unread_count > 0 ? card.unread_count : ''"
+              :is-dot="card.unread_count <= 0 && card.show_badge === 'true'"
               type="danger"
           >
             <el-avatar :src="card.avatar_url" class="avatar" />
           </el-badge>
 
-          <!-- 当 avatar_url 存在但不显示徽标时 -->
+          <!-- 当 avatar_url 存在但没有未读提醒时 -->
           <div v-else-if="card.avatar_url" class="avatar-wrapper">
             <el-avatar :src="card.avatar_url" class="avatar" />
             <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
@@ -469,7 +471,6 @@ function placedLeft() {
           <!-- 当没有 avatar_url 时显示默认头像 -->
           <el-avatar v-else class="avatar">
             <el-icon><User /></el-icon>
-           
           </el-avatar>
 
           <h4 v-if="!openSidebar" class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
@@ -542,8 +543,9 @@ function placedLeft() {
         @click="!card.loading && selectCard(index, card)"
       >
         <el-badge
-          v-if="card.avatar_url && card.show_badge==='true'"
-          is-dot
+          v-if="card.avatar_url && (card.unread_count > 0 || card.show_badge === 'true')"
+          :value="card.unread_count > 0 ? card.unread_count : ''"
+          :is-dot="card.unread_count <= 0 && card.show_badge === 'true'"
           type="danger"
         >
           <el-avatar :size="32" :src="card.avatar_url" />
@@ -677,6 +679,15 @@ function placedLeft() {
 .avatar-wrapper {
   position: relative;
   display: inline-block;
+}
+
+:deep(.card-header .el-badge__content),
+:deep(.horizontal-card .el-badge__content) {
+  top: 5px;
+  right: auto;
+  left: 5px;
+  transform: translateY(-50%) translateX(-50%);
+  border: none;
 }
 
 .online-status {

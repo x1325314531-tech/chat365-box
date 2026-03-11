@@ -132,17 +132,54 @@ function printElementEvery5Seconds() {
                                 document.querySelector('div[role="button"] img');
             const url = avatarImg?.src || '';
             const myPhone = getMyPhone();
+            const unreadCount = getUnreadCount();
             
-            window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url, myPhone: myPhone}).then(res => {
-                console.log('🚀 [Chat365] 状态上报（已登录）：', {online: true, myPhone, res});
+            window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url, myPhone: myPhone, unreadCount: unreadCount}).then(res => {
+                console.log('🚀 [Chat365] 状态上报（已登录）：', {online: true, myPhone, unreadCount, res});
             });
         } else {
             console.log('🔍 [Chat365] 未检测到登录标志:', {hasPaneSide, hasSidePanel, hasMain, hasIntro});
-            window.electronAPI.sendMsg({platform:'WhatsApp', online: false, avatarUrl: '', myPhone: ''}).then(res => {
+            window.electronAPI.sendMsg({platform:'WhatsApp', online: false, avatarUrl: '', myPhone: '', unreadCount: 0}).then(res => {
                 console.log('🚀 [Chat365] 状态上报（离线）：', res);
             });
         }
     }, 5000);
+}
+
+/**
+ * 获取未读消息数量
+ * 优先从 document.title 获取，格式如 "(5) WhatsApp"
+ */
+function getUnreadCount() {
+    let titleCount = 0;
+    let domCount = 0;
+    try {
+        // 1. 解析标题 (通常反映未读会话数)
+        const title = document.title;
+        const match = title.match(/\((\d+)\)/);
+        if (match && match[1]) {
+            titleCount = parseInt(match[1], 10);
+        }
+
+        // 2. 累加消息列表中的徽标 (反映未读消息数)
+        // 必须限定在 #pane-side 内，以排除顶部功能区域（如：未读过滤器）产生的误报
+        const paneSide = document.getElementById('pane-side');
+        if (paneSide) {
+            // 查找带有数字且 aria-label 包含“unread”或“未读”的徽标 span
+            const badges = paneSide.querySelectorAll('span[aria-label*="unread"], span[aria-label*="未读"]');
+            badges.forEach(badge => {
+                const val = parseInt(badge.textContent || '', 10);
+                if (!isNaN(val)) {
+                    domCount += val;
+                }
+            });
+        }
+    } catch (e) {
+        // console.error('获取未读数失败:', e);
+    }
+    
+    // 取二者中的较大值，确保单个会话内有多条消息或滚动时依然准确
+    return Math.max(titleCount, domCount);
 }
 
 /**
@@ -902,7 +939,7 @@ function renderAdditionalTextBelow(span, text, className = 'original-text-result
     `;
     separator.innerHTML = `
         <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
-        <span style="margin: 0 10px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase;">chat365</span>
+        <span style="margin: 0px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase;"></span>
         <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
     `;
     node.appendChild(separator);
@@ -4621,7 +4658,7 @@ function displayVoiceTranslation(voiceContainer, translationData) {
     resultNode.innerHTML = `
         <div style="display: flex; align-items: center; color: rgba(37, 211, 102, 0.3); margin: 4px 0 8px 0; user-select: none;">
             <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
-            <span style="margin: 0 10px; font-size: 11px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase; font-style: normal;">chat365</span>
+            <span style="margin: 10px; font-size: 11px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase; font-style: normal;"></span>
             <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
         </div>
         ${sourceTextra ? `<div style="color: #666; font-size: 12px; margin-bottom: 6px; padding-bottom: 4px; font-style: normal; border-bottom: 1px solid rgba(0,0,0,0.03);">${sourceTextra}</div>` : ''}

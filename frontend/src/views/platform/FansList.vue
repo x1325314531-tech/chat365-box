@@ -11,9 +11,12 @@
       <el-form :inline="true" :model="searchForm" class="search-form" size="default">
         <el-form-item>
           <el-select v-model="searchForm.platform" placeholder="平台" style="width: 120px" clearable>
-            <el-option label="WhatsApp" value="whatsapp"></el-option>
-            <el-option label="Zalo" value="zalo"></el-option>
-            <el-option label="Telegram" value="telegram"></el-option>
+            <el-option 
+              v-for="item in platformOptions" 
+              :key="item.dictValue" 
+              :label="item.dictLabel" 
+              :value="item.dictValue">
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -217,6 +220,9 @@ const searchForm = reactive({
   keyword: ''
 })
 
+// 平台下拉列表
+const platformOptions = ref([])
+
 // 数据相关状态
 const loading = ref(false)
 const tableData = ref([])
@@ -255,6 +261,18 @@ const getAccounts = async () => {
     }
   } catch (err) {
     console.error('获取同步账号失败:', err)
+  }
+}
+//获取平台字典
+const getplatformList = async () => { 
+  try {
+    const res = await get(`/app/dict/listData`, { dictType: 'box_platform' })  
+    console.log('获取平台列表res', res);
+    if (res && res.code === 200) {
+      platformOptions.value = res.data || []
+    }
+  } catch (err) {
+    console.error('获取平台列表失败:', err)
   }
 }
 
@@ -338,7 +356,7 @@ const startAutoRefresh = () => {
 onMounted(() => {
   // 获取已有的账号列表
   getAccounts()
-
+  getplatformList()
   // 监听登录通知，实时更新账号列表
   ipc.on('online-notify', (event, args) => {
     console.log('FansList 收到登录通知:', args)

@@ -10,7 +10,9 @@
             :class="{ active: activeMenu === item.id }"
             @click="handleMenuSelect(item.id)"
         >
-          <el-icon><img :src="item.icon" class="platform-svg" draggable="false"></el-icon>
+          <el-badge :value="item.unreadCount" :hidden="item.unreadCount <= 0" type="danger" class="menu-badge">
+            <el-icon><img :src="item.icon" class="platform-svg" draggable="false"></el-icon>
+          </el-badge>
         </div>
       </div>
 
@@ -75,13 +77,30 @@ const ipcApiRoute = {
 };
 
 // 菜单项配置
-const menuItems = [
-  { id: 'home', icon: homeIcon, path: '/home' },
-  { id: 'whatsApp', icon: whatsappIcon, path: '/home/whatsapp' },
-  // {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
-  // { id: 'telegram', icon: telegramIcon, path: '/home/telegram' },
-  // { id: 'telegramK', icon: telegramKIcon, path: '/home/telegramK' },
-];
+const menuItems = ref([
+  { id: 'home', icon: homeIcon, path: '/home', unreadCount: 0 },
+  { id: 'whatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
+]);
+
+// 存储所有会话的未读数映射 { cardId: { platform, count } }
+const sessionCounts = ref({});
+
+// 计算并更新各平台的总未读数
+const updatePlatformUnreadCounts = () => {
+  // 先重置所有菜单项的未读数
+  menuItems.value.forEach(item => {
+    item.unreadCount = 0;
+  });
+
+  // 累加计算
+  Object.values(sessionCounts.value).forEach(info => {
+    const platformId = info.platform === 'WhatsApp' ? 'whatsApp' : info.platform;
+    const item = menuItems.value.find(m => m.id === platformId);
+    if (item) {
+      item.unreadCount += (info.count || 0);
+    }
+  });
+};
 
 const activeMenu = ref('home');
 const logoutDialogVisible = ref(false);
@@ -103,9 +122,40 @@ watch(() => route.path, () => {
   updateActiveMenu();
 });
 
-onMounted(() => {
+onMounted(async () => {
   updateActiveMenu();
   ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
+
+  // 初始化所有平台的未读数
+  const platforms = ['WhatsApp']; // 后续如有 Zalo/Telegram 可添加
+  for (const p of platforms) {
+    const res = await ipc.invoke('controller.window.getSessions', { platform: p });
+    if (res && res.data) {
+      res.data.forEach(card => {
+        sessionCounts.value[card.card_id] = {
+          platform: p,
+          count: card.unread_count || 0
+        };
+      });
+    }
+  }
+  updatePlatformUnreadCounts();
+
+  // 监听在线状态和未读数变化通知
+  ipc.on('online-notify', (event, args) => {
+    const { cardId, unreadCount, platform } = args;
+    // 动态记录或更新，确保新添加的会话也能被汇总
+    sessionCounts.value[cardId] = {
+      platform: platform || 'WhatsApp',
+      count: unreadCount || 0
+    };
+    updatePlatformUnreadCounts();
+  });
+
+  // 监听新消息通知（兜底）
+  ipc.on('new-message-notify', (event, data) => {
+     // 新消息产生时，通常 online-notify 会在 5s 内跟进，或者手动触发一次拉取
+  });
 });
 
 // 处理菜单点击
@@ -114,7 +164,7 @@ function handleMenuSelect(id) {
   ipc.invoke(ipcApiRoute.hideWindow, { platform: id });
   ipc.invoke(ipcApiRoute.changeSidebarWidth, { isShrunk: false });
   ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
-  const item = menuItems.find(item => item.id === id);
+  const item = menuItems.value.find(item => item.id === id);
   if (item) {
     router.push(item.path);
   }
@@ -184,6 +234,7 @@ async function confirmLogout() {
   padding: 20px 0;
   cursor: pointer;
   transition: background-color 0.3s, color 0.3s;
+  position: relative;
 }
 
 .nav-item:hover {
@@ -216,6 +267,14 @@ async function confirmLogout() {
 .platform-svg {
   height: 30px;
   width: 30px;
+}
+
+:deep(.menu-badge .el-badge__content) {
+  top: 5px;
+  right: auto;
+  left: 5px;
+  transform: translateY(-50%) translateX(-50%);
+  border: none;
 }
 
 /* 自定义滚动条样式 */

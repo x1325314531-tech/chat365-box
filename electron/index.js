@@ -50,6 +50,7 @@ class Index extends Application {
           show_badge: 'TEXT',
           session_id: 'TEXT',
           my_phone: 'TEXT',
+          unread_count: 'INTEGER',
         },
         constraints: []
       },
@@ -449,7 +450,7 @@ class Index extends Application {
     });
 
     ipcMain.handle('online-notify', async (event, args) => {
-      const {online,platform,avatarUrl,myPhone} = args;
+      const {online,platform,avatarUrl,myPhone, unreadCount} = args;
       // 获取发送消息的渲染进程的 webContents 对象
       const senderWebContents = event.sender;
       const processId = senderWebContents.id;
@@ -471,18 +472,36 @@ class Index extends Application {
           const status = String(online);
           const needsUpdate = (card.online_status !== status) || 
                               (myPhone && card.my_phone !== myPhone) ||
-                              (!card.my_phone && myPhone);
+                              (!card.my_phone && myPhone) ||
+                              (unreadCount !== undefined && card.unread_count !== unreadCount);
           
           if (needsUpdate) {
-            Log.info(`[online-notify] 更新卡片 ${cardId}: online=${status}, phone=${myPhone || card.my_phone}`);
+            Log.info(`[online-notify] 更新卡片 ${cardId}: online=${status}, unreadCount=${unreadCount}`);
+            const updateData = { 
+              online_status: status, 
+              avatar_url: avatarUrl, 
+              my_phone: myPhone || card.my_phone, 
+              window_id: processId 
+            };
+            if (unreadCount !== undefined) {
+              updateData.unread_count = unreadCount;
+            }
+
             const updateCount = await app.sdb.update('cards', 
-              { online_status: status, avatar_url: avatarUrl, my_phone: myPhone || card.my_phone, window_id: processId }, 
+              updateData, 
               { platform: platform, card_id: cardId }
             );
             Log.info(`[online-notify] 数据库更新完成，受影响行数: ${updateCount}`);
             
-            mainWin.webContents.send('online-notify', { cardId: cardId, onlineStatus: online, avatarUrl: avatarUrl, myPhone: myPhone || card.my_phone });
-            Log.info(`登录状态或号码发生改变已发送给渲染程序`);
+            mainWin.webContents.send('online-notify', { 
+              cardId: cardId, 
+              platform: platform,
+              onlineStatus: online, 
+              avatarUrl: avatarUrl, 
+              myPhone: myPhone || card.my_phone,
+              unreadCount: unreadCount
+            });
+            Log.info(`登录状态、号码或未读数发生改变已发送给渲染程序`);
           }
         } else {
           Log.warn(`[online-notify] 未找到与 processId ${processId} 匹配的卡片记录`);
