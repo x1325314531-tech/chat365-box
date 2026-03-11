@@ -518,10 +518,10 @@ async function syncGlobalConfig() {
             console.log('🔄 全局配置同步成功:', globalConfig);
 
             // 当同步配置发生变化时，重新初始化同步定时器粉丝模块
-            // if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
-            //     console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
-            //     initFansSyncTimer();
-            // }
+            if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
+                console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
+                initFansSyncTimer();
+            }
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -1861,16 +1861,43 @@ function scrollChatToBottomAggressive() {
 
     // 延迟 300ms 开始（等 WhatsApp 加载新联系人的会话面板）
     setTimeout(() => {
+        // 创建一个函数用于停止强力滚动逻辑并清理监听器
+        const stopAggressive = () => {
+            if (_scrollAggressiveTimer) {
+                console.log('🛑 [Scroll] 检测到用户交互，停止强力滚动定时器');
+                clearInterval(_scrollAggressiveTimer);
+                _scrollAggressiveTimer = null;
+            }
+            // 移除所有相关的交互监听器
+            const mainEl = document.querySelector('#main');
+            if (mainEl) {
+                mainEl.removeEventListener('wheel', stopAggressive);
+                mainEl.removeEventListener('mousedown', stopAggressive);
+                mainEl.removeEventListener('touchstart', stopAggressive);
+            }
+        };
+
+        // 绑定手动交互监听器：只要用户开始滑、点、摸，就停掉置底行为
+        const mainEl = document.querySelector('#main');
+        if (mainEl) {
+            mainEl.addEventListener('wheel', stopAggressive, { passive: true });
+            mainEl.addEventListener('mousedown', stopAggressive, { passive: true });
+            mainEl.addEventListener('touchstart', stopAggressive, { passive: true });
+        }
+
         doScroll();
 
-        // 每 200ms 再尝试一次，持续 3 秒（覆盖异步翻译插入）
+        // 每 200ms 再尝试一次，持续 1.5 秒
         let elapsed = 0;
         _scrollAggressiveTimer = setInterval(() => {
             elapsed += 200;
+            // 如果已经被外部或交互清除，则直接退出循环
+            if (!_scrollAggressiveTimer) return;
+
             doScroll();
+
             if (elapsed >= 1500) {
-                clearInterval(_scrollAggressiveTimer);
-                _scrollAggressiveTimer = null;
+                stopAggressive(); // 自然结束也清理监听器
             }
         }, 200);
     }, 300);
@@ -1897,7 +1924,7 @@ function monitorMainNode() {
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
-                    // setTimeout(() => fetchWhatsAppContacts(), 5000);
+                    setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
@@ -1960,7 +1987,6 @@ function monitorMainNode() {
                 .message-in span[dir="ltr"], 
                 .message-in span[dir="rtl"]
             `);
-              console.log('接收新消息',incomingMessages );
             if (incomingMessages.length > 0) {
                 // console.log('📨 扫描接收消息，找到数量:', incomingMessages.length);
             }
@@ -4999,7 +5025,7 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
 
             // 构造载荷 (按照用户示例格式)
             const payload = {
-                appId: walId || state.appId || 'unknown',
+                appId: myPhone || state.appId || 'unknown',
                 appPhone: myPhone,
                 appName: appName || state.appName || 'WhatsApp Account',
                 fans: fans
