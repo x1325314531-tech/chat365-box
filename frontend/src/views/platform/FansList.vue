@@ -17,7 +17,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-select v-model="searchForm.myAccounts" placeholder="我的账号(多选)" style="width: 180px" multiple collapse-tags clearable>
+          <el-select v-model="searchForm.appPhone" placeholder="我的账号(多选)" style="width: 180px" multiple collapse-tags clearable>
             <el-option 
               v-for="account in availableAccounts" 
               :key="account" 
@@ -28,8 +28,8 @@
         </el-form-item>
         <el-form-item>
           <el-select v-model="searchForm.fanType" placeholder="粉丝类型" style="width: 120px" clearable>
-            <el-option label="新粉" value="1"></el-option>
-            <el-option label="重粉" value="2"></el-option>
+            <el-option label="新粉" value="新粉"></el-option>
+            <el-option label="重粉" value="重粉"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -211,7 +211,7 @@ import { get} from '@/utils/request'
 const availableAccounts = ref([])
 const searchForm = reactive({
   platform: '',
-  myAccounts: [],
+  appPhone: [],
   fanType: '',
   dateRange: null,
   keyword: ''
@@ -249,8 +249,8 @@ const getAccounts = async () => {
       availableAccounts.value = Array.from(new Set(loggedInAccounts))
       
       // 如果当前没选，且有新账号，默认选中第一个
-      if (searchForm.myAccounts.length === 0 && availableAccounts.value.length > 0) {
-        searchForm.myAccounts = [availableAccounts.value[0]]
+      if (searchForm.appPhone.length === 0 && availableAccounts.value.length > 0) {
+        searchForm.appPhone = [availableAccounts.value[0]]
       }
     }
   } catch (err) {
@@ -269,7 +269,7 @@ const handleSearch = async () => {
       platform: searchForm.platform || undefined,
       keyword: searchForm.keyword || undefined,
       fanType: searchForm.fanType || undefined,
-      appPhones: searchForm.myAccounts.length > 0 ? searchForm.myAccounts : undefined
+      appPhones: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
     }
 
     // 处理时间范围
@@ -283,6 +283,8 @@ const handleSearch = async () => {
     }
 
     // 调用真实接口
+    console.log('params', params);
+    
     const res = await get('/app/fansStore/pageRecord', params)
     
     if (res && res.code === 200) {
@@ -307,7 +309,7 @@ const handleSearch = async () => {
 
 const resetSearch = () => {
   searchForm.platform = ''
-  searchForm.myAccounts = []
+  searchForm.appPhone = []
   searchForm.fanType = ''
   searchForm.dateRange = null
   searchForm.keyword = ''
