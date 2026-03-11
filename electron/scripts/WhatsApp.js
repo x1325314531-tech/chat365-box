@@ -1816,6 +1816,7 @@ function scrollChatToBottomAggressive() {
     if (_scrollAggressiveTimer) {
         clearInterval(_scrollAggressiveTimer);
         _scrollAggressiveTimer = null;
+         
     }
 
     function doScroll() {
@@ -1838,6 +1839,7 @@ function scrollChatToBottomAggressive() {
             const lastMsg = allMessages[allMessages.length - 1];
             lastMsg.scrollIntoView({ behavior: 'instant', block: 'end' });
             console.log('📜 [Scroll] 已通过 scrollIntoView 滚动到最后一条消息');
+           
             return true;
         }
 
@@ -1866,7 +1868,7 @@ function scrollChatToBottomAggressive() {
         _scrollAggressiveTimer = setInterval(() => {
             elapsed += 200;
             doScroll();
-            if (elapsed >= 3000) {
+            if (elapsed >= 1500) {
                 clearInterval(_scrollAggressiveTimer);
                 _scrollAggressiveTimer = null;
             }
@@ -1937,8 +1939,6 @@ function monitorMainNode() {
         if (state.isProcessingLock) return;
         
         state.isProcessingLock = true;
-          console.log('是否锁', state.isProcessingLock);
-          
         try {
             // 恢复发送消息的历史显示（包含原文/译文的双向还原与 API 补偿）
             await restoreSentMessageHistory();
@@ -2089,9 +2089,7 @@ function monitorMainNode() {
             const incomingMessages = document.querySelectorAll(`
                 .message-in .copyable-text span[dir],
                 .message-in .selectable-text span[dir]
-            `);
-              console.log('incomingMessages+++++++', incomingMessages);
-               
+            `); 
             if (incomingMessages.length === 0) return;
 
             const fromLang = getTargetLanguage(); // 对方语言 (通常是英文)
