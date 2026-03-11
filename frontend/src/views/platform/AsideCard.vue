@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Close,Delete,Setting ,Plus,User, Edit, SwitchButton,Select, VideoPlay, Moon} from '@element-plus/icons-vue';
 import importSvg from '@/assets/svgs/import.svg';
 import userportrait from '@/assets/svgs/userportrait.svg';
+import whatsappDefaultIcon from '@/assets/svgs/whatsapp.svg';
+import defaultAvatar from '@/assets/svgs/defaultAvatar.svg'
 import { nanoid } from 'nanoid'; // 用于生成唯一 ID
 import { ipc } from '@/utils/ipcRenderer';
 import ContactImporter from '../components/ContactImporter.vue';
@@ -452,26 +454,32 @@ function placedLeft() {
           
         </div>
         <div class="card-header" :class="{'is-shrunk': openSidebar}">
-          <!-- 根据 card.unread_count 控制徽标的显示 -->
+          <!-- 根据 card.unread_count 控制徽标的显示 (兼容有无 avatar_url) -->
           <el-badge
               style="margin-right: 0"
-              v-if="card.avatar_url && (card.unread_count > 0 || card.show_badge === 'true')"
+              v-if="card.unread_count > 0 || card.show_badge === 'true'"
               :value="card.unread_count > 0 ? card.unread_count : ''"
               :is-dot="card.unread_count <= 0 && card.show_badge === 'true'"
               type="danger"
           >
-            <el-avatar :src="card.avatar_url" class="avatar" />
+            <el-avatar v-if="card.avatar_url" :src="card.avatar_url" class="avatar" />
+            <el-avatar v-else class="avatar">
+               <img class="avatar-img" :src="card.online_status === 'true' ? whatsappDefaultIcon : defaultAvatar" />
+            </el-avatar>
           </el-badge>
 
-          <!-- 当 avatar_url 存在但没有未读提醒时 -->
-          <div v-else-if="card.avatar_url" class="avatar-wrapper">
-            <el-avatar :src="card.avatar_url" class="avatar" />
-            <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
-          </div>
-          <!-- 当没有 avatar_url 时显示默认头像 -->
-          <el-avatar v-else class="avatar">
-            <el-icon><User /></el-icon>
-          </el-avatar>
+          <!-- 当没有未读提醒时 -->
+          <template v-else>
+            <div v-if="card.avatar_url" class="avatar-wrapper">
+              <el-avatar :src="card.avatar_url" class="avatar" />
+              <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
+            </div>
+            <!-- 当没有 avatar_url 时显示默认头像 -->
+            <el-avatar v-else class="avatar">
+              <img class="avatar-img" :src="card.online_status === 'true' ? whatsappDefaultIcon : defaultAvatar" />
+              <span class="online-status" :class="{'online-status-online': card.online_status === 'true'}"></span>
+            </el-avatar>
+          </template>
 
           <h4 v-if="!openSidebar" class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
          <!--- <span v-if="card.card_name" class="subtitle">({{ props.title }})</span>-->
@@ -543,17 +551,23 @@ function placedLeft() {
         @click="!card.loading && selectCard(index, card)"
       >
         <el-badge
-          v-if="card.avatar_url && (card.unread_count > 0 || card.show_badge === 'true')"
+          v-if="card.unread_count > 0 || card.show_badge === 'true'"
           :value="card.unread_count > 0 ? card.unread_count : ''"
           :is-dot="card.unread_count <= 0 && card.show_badge === 'true'"
           type="danger"
         >
-          <el-avatar :size="32" :src="card.avatar_url" />
+          <el-avatar v-if="card.avatar_url" :size="32" :src="card.avatar_url" />
+          <el-avatar v-else :size="32">
+             <img class="avatar-img" :src="card.online_status === 'true' ? whatsappDefaultIcon : defaultAvatar" />
+          </el-avatar>
         </el-badge>
-        <el-avatar v-else-if="card.avatar_url" :size="32" :src="card.avatar_url" />
-        <el-avatar v-else :size="32">
-          <el-icon><User /></el-icon>
-        </el-avatar>
+        <!-- 当没有未读提醒时 -->
+        <template v-else>
+          <el-avatar v-if="card.avatar_url" :size="32" :src="card.avatar_url" />
+          <el-avatar v-else :size="32">
+            <img class="avatar-img" :src="card.online_status === 'true' ? whatsappDefaultIcon : defaultAvatar" />
+          </el-avatar>
+        </template>
         <span class="horizontal-title">{{ card.card_name || props.title }}</span>
       </div>
     </div>
@@ -674,8 +688,12 @@ function placedLeft() {
   width: 40px;
   height: 40px;
   transition: all 0.3s ease;
+  position: relative;
 }
-
+.avatar-img { 
+  width: 100%;
+  height: 100%;
+}
 .avatar-wrapper {
   position: relative;
   display: inline-block;

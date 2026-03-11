@@ -139,17 +139,20 @@ onMounted(async () => {
       });
     }
   }
-  updatePlatformUnreadCounts();
+  // updatePlatformUnreadCounts();
 
   // 监听在线状态和未读数变化通知
   ipc.on('online-notify', (event, args) => {
-    const { cardId, unreadCount, platform } = args;
+    const { cardId, unreadCount, platform, onlineStatus } = args;
     // 动态记录或更新，确保新添加的会话也能被汇总
+    // onlineStatus 可能是布尔值或字符串 'true'/'false'
+    const isOnline = onlineStatus === true || onlineStatus === 'true';
+    
     sessionCounts.value[cardId] = {
       platform: platform || 'WhatsApp',
-      count: unreadCount || 0
+      count: isOnline ? (Number(unreadCount) || 0) : 0
     };
-    updatePlatformUnreadCounts();
+    // updatePlatformUnreadCounts();
   });
 
   // 监听新消息通知（兜底）
@@ -173,6 +176,12 @@ function handleMenuSelect(id) {
 
 // 处理退出按钮点击
 async function handleLogout() {
+  // 立即重置未读计数，避免弹窗期间红点残留
+  menuItems.value.forEach(item => {
+    item.unreadCount = 0;
+  });
+  sessionCounts.value = {};
+  
   // 1. 隐藏所有活跃视图，防止遮挡弹窗
   await ipc.invoke(ipcApiRoute.hideWindow, {});
   
@@ -193,6 +202,12 @@ async function cancelLogout() {
 // 确认退出
 async function confirmLogout() {
   logoutDialogVisible.value = false;
+  
+  // 重置未读计数
+  menuItems.value.forEach(item => {
+    item.unreadCount = 0;
+  });
+  sessionCounts.value = {};
   
   del('/app/account/logout').then(res => {
     if (res.code === 200) {

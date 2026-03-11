@@ -133,7 +133,8 @@ function printElementEvery5Seconds() {
             const url = avatarImg?.src || '';
             const myPhone = getMyPhone();
             const unreadCount = getUnreadCount();
-            
+             console.log('url', url);
+             
             window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url, myPhone: myPhone, unreadCount: unreadCount}).then(res => {
                 console.log('🚀 [Chat365] 状态上报（已登录）：', {online: true, myPhone, unreadCount, res});
             });
@@ -555,10 +556,10 @@ async function syncGlobalConfig() {
             console.log('🔄 全局配置同步成功:', globalConfig);
 
             // 当同步配置发生变化时，重新初始化同步定时器粉丝模块
-            if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
-                console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
-                initFansSyncTimer();
-            }
+            // if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
+            //     console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
+            //     initFansSyncTimer();
+            // }
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -938,9 +939,9 @@ function renderAdditionalTextBelow(span, text, className = 'original-text-result
         opacity: 0.8;
     `;
     separator.innerHTML = `
-        <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
+        <div style="flex: 1; border-top: 2px dashed rgba(37, 211, 102, 0.25);"></div>
         <span style="margin: 0px; font-weight: 700; color: #25D366; letter-spacing: 1px; text-transform: lowercase;"></span>
-        <div style="flex: 1; border-top: 1px dashed rgba(37, 211, 102, 0.25);"></div>
+        <div style="flex: 1; border-top: 2px dashed rgba(37, 211, 102, 0.25);"></div>
     `;
     node.appendChild(separator);
 
@@ -1961,7 +1962,7 @@ function monitorMainNode() {
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
-                    setTimeout(() => fetchWhatsAppContacts(), 5000);
+                    // setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
