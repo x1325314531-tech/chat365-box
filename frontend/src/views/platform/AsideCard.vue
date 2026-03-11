@@ -1,6 +1,7 @@
 <script setup>
 import {onMounted, onUnmounted, reactive, ref, watch, nextTick} from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Close,Delete,Setting ,Plus,User, Edit, SwitchButton,Select, VideoPlay, Moon} from '@element-plus/icons-vue';
 import importSvg from '@/assets/svgs/import.svg';
 import userportrait from '@/assets/svgs/userportrait.svg';
@@ -12,6 +13,8 @@ import {post,get, del} from "@/utils/request";
 import Notification from "@/utils/notification";
 const addLoading = ref(false)
 const { t } = useI18n()
+const route = useRoute();
+const router = useRouter();
 const activeButtonLoading = ref(false)
 const jsCode = ref('')
 const executeCode = (card)=>{
@@ -80,6 +83,19 @@ onMounted(async () => {
   ipc.on('new-message-notify', (event, data) => {
     getAllSessions();
   });
+  
+  // 处理翻译设置返回后的刷新逻辑
+  if (route.query.refresh === 'true') {
+    // 等待会话数据加载完毕再执行
+    nextTick(() => {
+      const activeCard = conversations.find(card => card.active_status === 'true');
+      if (activeCard) {
+        handleRefresh(activeCard);
+      }
+      // 刷新后清除 query 参数，避免反复触发
+      router.replace({ path: route.path, query: { ...route.query, refresh: undefined } });
+    });
+  }
 });
 
 // 在组件卸载时，移除 'online-notify' 监听器，防止内存泄漏

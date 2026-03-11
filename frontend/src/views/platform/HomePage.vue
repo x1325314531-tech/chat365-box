@@ -318,7 +318,7 @@ const quickAccessList = ref([
   { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
   { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
   { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' },
-  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
+  { id: '', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
 ])
 
 const router = useRouter()
