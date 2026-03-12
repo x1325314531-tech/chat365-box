@@ -324,9 +324,20 @@ async function translateVoice(filePath, fromLang, targetLang, format, rate) {
                         finalData = parsedData.data || parsedData;
                     } else if (parsedData.error_code || (parsedData.code && parsedData.code !== 200)) {
                         Log.error('语音翻译服务内部错误 (parsed):', parsedData);
+                        // 错误码 → 中文提示映射
+                        const voiceErrorMap = {
+                            20200: '语音音频太低或语音文件损坏',
+                            20201:'音频数据大小超过限制',
+                            20202:'文件格式不支持',
+
+                        };
+                        const friendlyMsg = voiceErrorMap[parsedData.code] || voiceErrorMap[parsedData.error_code]
+                            || parsedData.error_msg || parsedData.msg 
+                            || `翻译接口内部错误(${parsedData.error_code || parsedData.code})`;
                         return { 
                             success: false, 
-                            msg: parsedData.error_msg || parsedData.msg || `翻译接口内部错误(${parsedData.error_code || parsedData.code})` 
+                            msg: friendlyMsg,
+                            code: parsedData.code || parsedData.error_code
                         };
                     } else {
                         finalData = parsedData;
@@ -338,7 +349,18 @@ async function translateVoice(filePath, fromLang, targetLang, format, rate) {
 
             return { success: true, data: finalData };
         } else {
-            return { success: false, msg: response.msg || '语音翻译请求失败' };
+            // code 非 200（如 20200），优先从 data 中提取具体中文错误信息
+            let detailMsg = '';
+            if (response.data) {
+                if (typeof response.data === 'string') {
+                    detailMsg = response.data;
+                } else if (typeof response.data === 'object') {
+                    detailMsg = response.data.error_msg || response.data.msg || response.data.message || '';
+                }
+            }
+            const finalMsg = detailMsg || response.msg || '语音翻译请求失败';
+            Log.info('语音翻译失败, code:', response.code, 'msg:', finalMsg);
+            return { success: false, msg: finalMsg, code: response.code };
         }
     } catch (error) {
         Log.error('语音翻译异常:', error);

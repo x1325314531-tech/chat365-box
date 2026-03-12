@@ -4575,15 +4575,14 @@ async function translateVoiceMessage(voiceContainer, playIcon, isOut) {
             console.log('✅ 语音翻译成功:', translateRes.data);
             displayVoiceTranslation(voiceContainer, translateRes.data);
         } else {
-            throw new Error(translateRes?.msg || '翻译服务返回失败');
+            const errMsg = translateRes?.msg || '翻译服务返回失败';
+            console.warn('⚠️ 语音翻译接口返回失败:', errMsg);
+            displayVoiceTranslationError(voiceContainer, errMsg);
         }
 
     } catch (error) {
         console.error('❌ 语音翻译流程出错:', error);
-        window.electronAPI.showNotification({
-            message: `语音翻译失败: ${error.message}`,
-            type: 'is-danger'
-        });
+        displayVoiceTranslationError(voiceContainer, `语音翻译失败: ${error.message}`);
     } finally {
         // 恢复按钮状态
         if (translateBtn && originalBtnHTML) {
@@ -4712,6 +4711,54 @@ function displayVoiceTranslation(voiceContainer, translationData) {
         voiceContainer.appendChild(resultNode);
     }
     console.log('✅ 翻译结果已显示');
+}
+
+// 显示语音翻译错误提示（在语音消息下方）
+function displayVoiceTranslationError(voiceContainer, errorMessage) {
+    // 移除旧的翻译结果/错误
+    const oldResult = voiceContainer.querySelector('.voice-translation-result');
+    if (oldResult) oldResult.remove();
+
+    const isOut = !!voiceContainer.closest('.message-out');
+
+    const errorNode = document.createElement('span');
+    errorNode.className = 'voice-translation-result';
+    errorNode.style.cssText = `
+        display: block;
+        font-size: 12px;
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.08);
+        border-${isOut ? 'right' : 'left'}: 3px solid #ef4444;
+        padding: 6px 10px;
+        margin-top: 6px;
+        border-radius: 4px;
+        word-break: break-word;
+        text-align: ${isOut ? 'right' : 'left'};
+        max-width: 80%;
+        margin-left: ${isOut ? '10px' : '64px'};
+        margin-right: ${isOut ? '0' : '10px'};
+    `;
+    errorNode.textContent = errorMessage || '语音翻译未知错误';
+
+    // 确保操作正确的容器
+    const containerKey = getCanonicalVoiceContainer(voiceContainer);
+    if (voiceContainer.tagName === 'AUDIO') {
+        const betterContainer = document.querySelector(`[data-id="${containerKey}"]`);
+        if (betterContainer) {
+            voiceContainer = betterContainer;
+        } else if (voiceContainer.parentElement) {
+            voiceContainer = voiceContainer.parentElement;
+        }
+    }
+
+    const translateBtn = voiceContainer.querySelector('.voice-translate-btn');
+    if (translateBtn) {
+        translateBtn.style.display = 'none'; // 隐藏翻译按钮
+        translateBtn.after(errorNode);
+    } else {
+        voiceContainer.appendChild(errorNode);
+    }
+    console.log('⚠️ 语音翻译错误提示已显示:', errorMessage);
 }
 
 console.log('🎤 语音翻译功能已加载');
