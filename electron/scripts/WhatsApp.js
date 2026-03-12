@@ -2049,6 +2049,11 @@ function monitorMainNode() {
             for (let i = incomingMessages.length - 1; i >= 0; i--) {
                 let span = incomingMessages[i];
                 
+                // 排除引用消息区域（如引用中的 "You"）
+                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+                    continue;
+                }
+
                 // 1. 深度复用检查
                 checkAndResetReusedNode(span);
                 
@@ -3752,6 +3757,11 @@ async function restoreSentMessageTranslations() {
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
             
+            // 排除引用消息区域（如引用中的 "You"）
+            if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+                continue;
+            }
+
             // 节点复用检查
             checkAndResetReusedNode(span);
 
