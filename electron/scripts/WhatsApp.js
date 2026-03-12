@@ -1632,10 +1632,15 @@ async function translateTextAPI(text, fromLang, toLang) {
 
     console.log(`调用翻译API: "${text.substring(0, 50)}..." ${fromLang} -> ${toLang}`);
 
-    // 保护逻辑：如果是一个纯钱包地址，直接返回原文
+    // 保护逻辑：如果是一个纯钱包地址或特定的系统关键词（如 WhatsApp 引用中的 "You"），直接返回原文
     const trimmedText = text.trim();
     if (/^0x[a-fA-F0-9]{40}$/i.test(trimmedText) || /^T[a-zA-Z0-9]{33}$/.test(trimmedText)) {
         console.log('🛡️ 检测到纯钱包地址，跳过翻译API调用，直接返回原文');
+        return { success: true, data: trimmedText };
+    }
+
+    if (trimmedText.toLowerCase() === 'you') {
+        console.log('🛡️ 检测到系统关键词 "You"，跳过翻译API调用，直接返回原文');
         return { success: true, data: trimmedText };
     }
 
