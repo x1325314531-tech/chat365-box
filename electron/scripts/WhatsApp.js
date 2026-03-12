@@ -2049,11 +2049,13 @@ function monitorMainNode() {
             for (let i = incomingMessages.length - 1; i >= 0; i--) {
                 let span = incomingMessages[i];
                 
-                // 排除引用消息区域（如引用中的 "You"）
-                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+                // 排除引用消息区域：
+                // 1. 之前基于 class 和 testid 的规则
+                // 2. 引用消息通常整体包裹在一个可点击的 button 内 (role="button")
+                // 3. aria-label 包含 Quoted, 引用 等多语言关键字
+                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"], [aria-label*="uoted"], [aria-label*="引用"], [aria-label*="Responder"], [role="button"]')) {
                     continue;
                 }
-
                 // 1. 深度复用检查
                 checkAndResetReusedNode(span);
                 
@@ -2184,8 +2186,8 @@ function monitorMainNode() {
             for (let i = incomingMessages.length - 1; i >= 0; i--) {
                 const span = incomingMessages[i];
                 
-                // 排除元数据和引用消息 (采用广泛匹配防混淆)
-                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+                // 排除元数据和引用消息
+                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"], [aria-label*="uoted"], [aria-label*="引用"], [aria-label*="Responder"], [role="button"]')) {
                     continue;
                 }
 
@@ -3447,8 +3449,8 @@ async function restoreSentMessageHistory() {
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
 
-            // 再次确认过滤元数据及引用消息 (采用广泛匹配防混淆)
-            if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+            // 排除元数据和引用消息
+            if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"], [aria-label*="uoted"], [aria-label*="引用"], [aria-label*="Responder"], [role="button"]')) {
                 continue;
             }
 
@@ -3757,8 +3759,8 @@ async function restoreSentMessageTranslations() {
         for (let i = sentMessages.length - 1; i >= 0; i--) {
             const span = sentMessages[i];
             
-            // 排除引用消息区域（如引用中的 "You"）
-            if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"]')) {
+            // 排除引用消息区域
+            if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"], [aria-label*="uoted"], [aria-label*="引用"], [aria-label*="Responder"], [role="button"]')) {
                 continue;
             }
 
