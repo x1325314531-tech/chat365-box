@@ -207,6 +207,7 @@ import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { Search, RefreshRight, Document } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
 import { get} from '@/utils/request'
+import{ getGlobalIdentification} from '@/utils/phone-identifier'
 
 
 
@@ -266,7 +267,8 @@ const getAccounts = async () => {
 //获取平台字典
 const getplatformList = async () => { 
   try {
-    const res = await get(`/app/dict/listData`, { dictType: 'box_platform' })  
+    const dictType='box_platform'
+    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
     console.log('获取平台列表res', res);
     if (res && res.code === 200) {
       platformOptions.value = res.data || []
@@ -287,7 +289,7 @@ const handleSearch = async () => {
       platform: searchForm.platform || undefined,
       keyword: searchForm.keyword || undefined,
       fanType: searchForm.fanType || undefined,
-      appPhones: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+      appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
     }
 
     // 处理时间范围
@@ -302,14 +304,43 @@ const handleSearch = async () => {
 
     // 调用真实接口
     console.log('params', params);
+    const queryString = new URLSearchParams();
     
-    const res = await get('/app/fansStore/pageRecord', params)
+    // 添加所有参数
+    Object.keys(params).forEach(key => {
+      const value = params[key];
+      
+      // 处理数组类型参数
+      if (Array.isArray(value)) {
+        value.forEach(item => {
+          queryString.append(key, item);
+        });
+      } else if (value !== undefined && value !== null && value !== '') {
+        queryString.append(key, value.toString());
+      }
+    });
+    
+    const res = await get(`/app/fansStore/pageRecord?${queryString.toString()}`)
     
     if (res && res.code === 200) {
       // 适配响应结构
       const data = res.data || {}
-      tableData.value = data|| data.records || data.list || []
-      pagination.total = data.total || 0
+      const records = data || data.records || data.list || []
+      
+      // 处理地区显示
+      tableData.value = records.map(item => {
+        if (!item.region || item.region === '未知') {
+          const fansPhone =  '+' +item.fansPhone
+          const regionData = getGlobalIdentification(fansPhone)
+          console.log('region', regionData);
+          
+          item.region = regionData.data.location
+
+        }
+        return item
+      })
+      
+      pagination.total = res.total || 0
     } else {
       console.error('获取粉丝列表失败:', res?.msg)
       tableData.value = []
@@ -491,6 +522,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin-top: 10px;
 }
 
 :deep(.fans-table-header th) {
