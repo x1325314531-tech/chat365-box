@@ -15,7 +15,9 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
     const updateTouch = (e) => { 
         window._wp_last_user_touch = Date.now(); 
         if (e && e.type === 'mousedown' && typeof getCanonicalVoiceContainer === 'function') {
-            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"]') : null;
+            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"], .html-button[aria-label="Play voice message"]') : null;
+            console.log('playIcon', playIcon);
+            
             if (playIcon) {
                 const key = getCanonicalVoiceContainer(playIcon);
                 if (typeof key === 'string') {
@@ -3956,7 +3958,7 @@ function setVoiceTranslateBtnState(containerKey, isEnabled) {
 // 处理语音消息列表，添加翻译按钮
 function processVoiceMessageList() {
     // 查找所有语音消息 - 使用更通用的选择器
-    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"]');
+    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"], .html-button[aria-label="Play voice message"]' );
     
     // console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
     

@@ -59,7 +59,7 @@
     "sendAutoTranslateDesc": "发送时是否自动翻译成目标语言",
     "channel": "翻译通道",
     "selectPlaceholder": "请选择",
-    "baidu": "百度",
+    "baidu": "谷歌",
     "targetLang": "目标语言",
     "sourceLang": "来源语言",
     "sendMsgSettings": "设置发送消息",

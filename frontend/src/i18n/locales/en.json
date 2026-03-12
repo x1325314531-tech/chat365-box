@@ -59,7 +59,7 @@
     "sendAutoTranslateDesc": "Automatically translate to target language when sending",
     "channel": "Translation Channel",
     "selectPlaceholder": "Select",
-    "baidu": "Baidu",
+    "baidu": "Google",
     "targetLang": "Target Language",
     "sourceLang": "Source Language",
     "sendMsgSettings": "Send Message Settings",
