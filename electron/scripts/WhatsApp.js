@@ -130,8 +130,17 @@ function printElementEvery5Seconds() {
         const loggedIn = hasPaneSide || hasSidePanel || hasMain || hasIntro;
 
         if (loggedIn) {
-            const avatarImg = document.querySelector('header img') || 
-                                document.querySelector('div[role="button"] img');
+            // 1. 尝试寻找真正的个人资料头像（通常带有特定 testid）
+            // 2. 排除 Meta AI 等功能图标（通常有特定的 aria-label 或 title）
+            const avatarImg = document.querySelector('header img[data-testid="profile-photo"]') || 
+                              document.querySelector('header img[src*="profile"]') ||
+                              Array.from(document.querySelectorAll('header img, div[role="button"] img')).find(img => {
+                                  const alt = img.getAttribute('alt') || '';
+                                  const title = img.getAttribute('title') || '';
+                                  const ariaLabel = img.closest('[aria-label]')?.getAttribute('aria-label') || '';
+                                  // 排除 Meta AI
+                                  return !ariaLabel.includes('Meta AI') && !alt.includes('Meta AI') && !title.includes('Meta AI');
+                              });
             const url = avatarImg?.src || '';
             const myPhone = getMyPhone();
             const unreadCount = getUnreadCount();
