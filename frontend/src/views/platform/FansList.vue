@@ -155,7 +155,7 @@
         <template #empty>
           <div class="empty-state">
             <div class="empty-icon-wrapper">
-              <el-icon class="empty-icon"><Document /></el-icon>
+              <el-empty description="暂无数据" :image-size="120" />
             </div>
             <div class="empty-text">当前账号未开启工单功能，如需使用，请前往中台重新添加激活码并开启工单功能。</div>
           </div>
@@ -208,7 +208,7 @@ import { Search, RefreshRight, Document } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
 import { get} from '@/utils/request'
 import{ getGlobalIdentification} from '@/utils/phone-identifier'
-
+import { formatDateTime }  from '@/utils/formatTime'
 
 
 // 搜索表单状态
@@ -245,8 +245,6 @@ let timer = null
 const getAccounts = async () => {
   try {
     const res = await ipc.invoke('controller.window.getSessions', { platform: 'WhatsApp' })
-    console.log('获取WhatsApp账号', res);
-    
     if (res && res.data) {
       const loggedInAccounts = res.data
         .filter(item => item.online_status === 'true' && (item.my_phone || item.myPhone))
@@ -269,7 +267,6 @@ const getplatformList = async () => {
   try {
     const dictType='box_platform'
     const res = await get(`/app/dict/listData?dictType=${dictType}`)  
-    console.log('获取平台列表res', res);
     if (res && res.code === 200) {
       platformOptions.value = res.data || []
     }
@@ -295,15 +292,15 @@ const handleSearch = async () => {
     // 处理时间范围
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       // 假设后端需要 YYYY-MM-DD HH:mm:ss 或时间戳
-      const startTime = new Date(searchForm.dateRange[0]);
-      const endTime = new Date(searchForm.dateRange[1]);
+      // const startTime = new Date(searchForm.dateRange[0]);
+      // const endTime = new Date(searchForm.dateRange[1]);
+      const [start, end] = searchForm.dateRange;
+      const startTime = formatDateTime(new Date(start).setHours(0, 0, 0, 0));
+      const endTime = formatDateTime(new Date(end).setHours(23, 59, 59, 999))
       // 如果后端要求是时间戳或者字符串（此处转换为常见的基础格式，具体可按需再调）
-      params.startTime = startTime.getTime();
-      params.endTime = endTime.getTime();
+      params.addTimeBegin = startTime;
+      params.addTimeEnd = endTime;
     }
-
-    // 调用真实接口
-    console.log('params', params);
     const queryString = new URLSearchParams();
     
     // 添加所有参数
@@ -331,9 +328,7 @@ const handleSearch = async () => {
       tableData.value = records.map(item => {
         if (!item.region || item.region === '未知') {
           const fansPhone =  '+' +item.fansPhone
-          const regionData = getGlobalIdentification(fansPhone)
-          console.log('region', regionData);
-          
+          const regionData = getGlobalIdentification(fansPhone)   
           item.region = regionData.data.location
 
         }
@@ -541,7 +536,6 @@ onUnmounted(() => {
 }
 
 .empty-icon-wrapper {
-  background-color: #f0f2f5;
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 16px;
@@ -582,4 +576,5 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
 }
+
 </style>
