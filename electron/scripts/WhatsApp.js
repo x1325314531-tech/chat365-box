@@ -15,7 +15,7 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
     const updateTouch = (e) => { 
         window._wp_last_user_touch = Date.now(); 
         if (e && e.type === 'mousedown' && typeof getCanonicalVoiceContainer === 'function') {
-            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"], .html-button[aria-label="Play voice message"]') : null;
+            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"], .html-button[aria-label="Play voice message"], .html-button[aria-label="播放语音消息"]' ) : null;
             console.log('playIcon', playIcon);
             
             if (playIcon) {
@@ -46,6 +46,26 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
         }
 
         if (isVoiceMessage) {
+             // 检查是否有其他语音正处于录制状态且非当前语音
+            try {
+                if (typeof currentRecorder !== 'undefined' && currentRecorder && currentRecorder.state !== 'inactive' && window._wp_playing_audio !== this) {
+                    console.log('🚫 [Sniffer] 拦截：有其它语音录制中:', this.src);
+                    window.electronAPI.showNotification({
+                        message: '⚠️ 有其它语音录制中',
+                        type: 'is-warning'
+                    });
+                    
+                    // 重置尝试播放的新语音的 UI 状态
+                    setTimeout(() => {
+                        try { this.pause(); } catch(e) {}
+                        try { this.currentTime = 0; } catch(e) {}
+                    }, 50);
+                    
+                    return Promise.resolve();
+                }
+            } catch (e) {
+                console.error('检查录音状态出错', e);
+            }
             console.log('🎵 [Sniffer] HTMLMediaElement.play() 捕获语音:', this.src);
             window._wp_playing_audio = this;
 
@@ -567,10 +587,10 @@ async function syncGlobalConfig() {
             console.log('🔄 全局配置同步成功:', globalConfig);
 
             // 当同步配置发生变化时，重新初始化同步定时器粉丝模块
-            if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
-                console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
-                initFansSyncTimer();
-            }
+            // if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
+            //     console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
+            //     initFansSyncTimer();
+            // }
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -1978,7 +1998,7 @@ function monitorMainNode() {
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
-                    setTimeout(() => fetchWhatsAppContacts(), 5000);
+                    // setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
@@ -3984,7 +4004,7 @@ function setVoiceTranslateBtnState(containerKey, isEnabled) {
 // 处理语音消息列表，添加翻译按钮
 function processVoiceMessageList() {
     // 查找所有语音消息 - 使用更通用的选择器
-    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"], .html-button[aria-label="Play voice message"]' );
+    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"], .html-button[aria-label="Play voice message"], .html-button[aria-label="播放语音消息"]'  );
     
     // console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
     
