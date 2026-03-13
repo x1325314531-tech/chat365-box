@@ -159,9 +159,10 @@ function printElementEvery5Seconds() {
                                   const title = img.getAttribute('title') || '';
                                   const ariaLabel = img.closest('[aria-label]')?.getAttribute('aria-label') || '';
                                   // 排除 Meta AI
-                                  return !ariaLabel.includes('Meta AI') && !alt.includes('Meta AI') && !title.includes('Meta AI');
+                                  return !ariaLabel.includes('Meta AI') && !alt.includes('Meta AI') && !title.includes('Meta AI') &&!ariaLabel.includes('打开图片')&&!ariaLabel.includes('Open picture') && !ariaLabel.includes('聊天列表')&& !ariaLabel.includes('Chat list');
                               });
-            const url = avatarImg?.src || '';
+            // const url = avatarImg?.src || '';
+            const url = ''
             const myPhone = getMyPhone();
             const unreadCount = getUnreadCount();
              console.log('url', url);
@@ -587,10 +588,10 @@ async function syncGlobalConfig() {
             console.log('🔄 全局配置同步成功:', globalConfig);
 
             // 当同步配置发生变化时，重新初始化同步定时器粉丝模块
-            // if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
-            //     console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
-            //     initFansSyncTimer();
-            // }
+            if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
+                console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
+                initFansSyncTimer();
+            }
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -1998,7 +1999,7 @@ function monitorMainNode() {
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
-                    // setTimeout(() => fetchWhatsAppContacts(), 5000);
+                    setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
