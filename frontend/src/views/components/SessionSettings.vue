@@ -1861,8 +1861,15 @@ const cancelClick = () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   margin: 0 auto;
+}
+
+.settings-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  height: 0; /* 强制 flex 子元素在溢出时正确显示滚动条 */
 }
 
 .settings-header {
@@ -1892,6 +1899,23 @@ const cancelClick = () => {
 
 .custom-tabs {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.el-tabs__content) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;
+}
+
+:deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 :deep(.el-tabs__header) {
@@ -1922,7 +1946,13 @@ const cancelClick = () => {
 .scroll-area {
   padding: 24px;
   overflow-y: auto;
-  height: calc(85vh - 50px - 58px - 72px);
+  flex: 1;
+}
+
+.overview-list {
+  overflow-y: auto;
+  flex: 1;
+  height: 0; /* 允许 flex 容器内的滚动条正常工作 */
 }
 
 .scroll-area::-webkit-scrollbar {

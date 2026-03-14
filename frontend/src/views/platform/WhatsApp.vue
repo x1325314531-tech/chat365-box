@@ -106,12 +106,9 @@ const receiveCardId = (card)=> {
 }
 
 .right-div {
-  height: 100vh;
   flex-grow: 1; /* 占据剩余空间 */
   background-color: #f5f7fa;
   display: flex; /* 使用 flex 布局 */
-  align-items: center; /* 垂直方向居中 */
-  justify-content: center; /* 水平方向居中 */
-  overflow-y: auto;
+  overflow: hidden; /* 关键：防止父容器产生滚动条，确保子容器内部滚动生效 */
 }
 </style>
