@@ -515,6 +515,11 @@ const fetchConfig = async () => {
       else if (key === 'proxy') configForm[key] = 'noProxy';
       else configForm[key] = '';
     });
+    
+    // 生成随机四位数的名称
+    const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    configForm.name = `chat_${randomNum}`;
+    
     configForm.cardId = nanoid();
     // Use detected OS as default
     configForm.os = currentOS.value;
