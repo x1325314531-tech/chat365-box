@@ -209,7 +209,7 @@ import { Search, RefreshRight } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
 import { get} from '@/utils/request'
 import{ getGlobalIdentification} from '@/utils/phone-identifier'
-import { formatDateTime }  from '@/utils/formatTime'
+import { formatDateTime, isToday }  from '@/utils/formatTime'
 
 
 // 搜索表单状态
@@ -352,7 +352,9 @@ const handleSearch = async () => {
           const fansPhone =  '+' +item.fansPhone
           const regionData = getGlobalIdentification(fansPhone)   
           item.region = regionData.data.location
-
+        }
+        if ((!item.fansType || item.fansType === '底粉') && isToday(item.createTime)) {
+          item.fansType = '新粉'
         }
         return item
       })
@@ -401,7 +403,36 @@ const startAutoRefresh = () => {
     }, refreshInterval.value * 60 * 1000)
   }
 }
-
+const initFansStatistics = () => {
+    // 显示加载状态
+    console.log('正在加载粉丝统计数据...');
+    
+    // 定义所有需要并行获取的异步请求
+    const promises = [
+       fetchNewFansToday(),   // 获取今日新增粉丝  
+    ];
+    
+    // 使用 Promise.all 并行执行所有请求
+    return Promise.all(promises)
+        .then(([todayNew, ]) => {
+            // 所有请求成功后，整理数据
+            const statisticsData = {
+                newFansToday: todayNew,
+                updateTime: new Date().toLocaleString()
+            };
+            
+            console.log('粉丝统计数据加载完成:', statisticsData);
+            return statisticsData;
+        })
+        .catch((error) => {
+            // 捕获任意一个请求失败的错误
+            console.error('加载粉丝统计数据失败:', error);
+            throw error;
+        });
+};
+const  fetchNewFansToday = async() => { 
+    
+}
 onMounted(() => {
   // 获取已有的账号列表
   getAccounts()
@@ -413,6 +444,7 @@ onMounted(() => {
   })
 
   handleSearch()
+  initFansStatistics()
   startAutoRefresh()
 })
 

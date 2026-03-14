@@ -42,3 +42,15 @@
         const pad = n => n.toString().padStart(2, '0')
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
       }
+//判断时间是今天
+ export function isToday(dateString) {
+    const inputDate = new Date(dateString);
+    const today = new Date();
+    const isToday =inputDate.getFullYear() === today.getFullYear() &&
+           inputDate.getMonth() === today.getMonth() &&
+           inputDate.getDate() === today.getDate();
+           console.log('是否今天', isToday);
+           
+    return  isToday
+}
+     
