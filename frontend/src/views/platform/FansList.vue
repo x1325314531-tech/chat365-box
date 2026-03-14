@@ -10,7 +10,7 @@
     <div class="search-section">
       <el-form :inline="true" :model="searchForm" class="search-form" size="default">
         <el-form-item>
-          <el-select v-model="searchForm.platform" placeholder="平台" style="width: 120px" clearable>
+          <el-select v-model="searchForm.platform" @change="handlePlatform" placeholder="平台" style="width: 120px" clearable>
             <el-option 
               v-for="item in platformOptions" 
               :key="item.dictValue" 
@@ -20,7 +20,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-select v-model="searchForm.appPhone" placeholder="我的账号(多选)" style="width: 180px" multiple collapse-tags clearable>
+          <el-select v-model="searchForm.appPhone" :disabled="appPHONEDisable" placeholder="我的账号(多选)" style="width: 180px" multiple collapse-tags clearable>
             <el-option 
               v-for="account in availableAccounts" 
               :key="account" 
@@ -65,7 +65,7 @@
     <div class="summary-section">
       <el-row :gutter="10">
         <!-- 第一个卡片：当前账号 -->
-        <el-col :span="12">
+        <el-col :span="24">
           <div class="summary-card">
             <div class="card-top">
             <div class="card-header">
@@ -104,7 +104,7 @@
         </el-col>
 
         <!-- 第二个卡片：当前工单 -->
-        <el-col :span="12">
+        <!-- <el-col :span="12">
           <div class="summary-card">
               <div class="card-top">
             <div class="card-header">
@@ -140,7 +140,7 @@
               </div>
             </div>
           </div>
-        </el-col>
+        </el-col> -->
       </el-row>
     </div>
 
@@ -199,13 +199,13 @@
         />
       </div>
     </div>
-    </div>
   </div>
+</div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { Search, RefreshRight, Document } from '@element-plus/icons-vue'
+import { Search, RefreshRight } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
 import { get} from '@/utils/request'
 import{ getGlobalIdentification} from '@/utils/phone-identifier'
@@ -232,7 +232,7 @@ const searchForm = reactive({
  })
 // 平台下拉列表
 const platformOptions = ref([])
-
+const appPHONEDisable= ref(false)
 // 数据相关状态
 const loading = ref(false)
 const tableData = ref([])
@@ -249,12 +249,19 @@ const pagination = reactive({
 })
 
 let timer = null
-
+const handlePlatform = (e) => { 
+  console.log('选择平台', e);
+  searchForm.platform = e
+  getAccounts()
+}
 // 获取所有 WhatsApp 账号（已登录且有号码的）
 const getAccounts = async () => {
+  
   try {
-    const res = await ipc.invoke('controller.window.getSessions', { platform: 'WhatsApp' })
-    if (res && res.data) {
+    const res = await ipc.invoke('controller.window.getSessions', { platform: searchForm.platform? searchForm.platform: 'WhatsApp' })
+     console.log('res',res);
+      console.log('res111',res && res.data);
+    if (res && Array.isArray(res.data) && res.data.length > 0) {
       const loggedInAccounts = res.data
         .filter(item => item.online_status === 'true' && (item.my_phone || item.myPhone))
         .map(item => item.my_phone || item.myPhone)
@@ -266,6 +273,12 @@ const getAccounts = async () => {
       if (searchForm.appPhone.length === 0 && availableAccounts.value.length > 0) {
         searchForm.appPhone = [availableAccounts.value[0]]
       }
+      appPHONEDisable.value = false
+    } else { 
+      availableAccounts.value = []
+      appPHONEDisable.value = true
+      searchForm.appPhone = []
+      console.log('⚠️ [Debug] 未找到可用账号或数据格式不正确');
     }
   } catch (err) {
     console.error('获取同步账号失败:', err)

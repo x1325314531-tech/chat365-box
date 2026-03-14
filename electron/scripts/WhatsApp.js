@@ -5035,6 +5035,100 @@ let _isSyncingFans = false;   // 防止同步冲突
 /**
  * 格式化日期为 YYYY-MM-DD HH:mm:ss
  */
+/**
+ * 节流函数，限制函数执行频率
+ */
+function throttle(func, wait) {
+    let timeout = null;
+    return function() {
+        if (!timeout) {
+            const context = this;
+            const args = arguments;
+            timeout = setTimeout(() => {
+                func.apply(context, args);
+                timeout = null;
+            }, wait);
+        }
+    }
+}
+
+/**
+ * 监控 html 标签的 lang 属性变化
+ */
+function initPageAttributeObserver() {
+    try {
+        const currentLang = document.documentElement.lang;
+        const currentDir = document.documentElement.dir;
+        console.log(`🔍 [Observer] 语言监控启动，当前状态: lang="${currentLang}", dir="${currentDir}"`);
+
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                console.log(`🔔 [Observer] 属性变更检测: ${mutation.attributeName}`, mutation);
+                
+                if (mutation.type === 'attributes') {
+                    if (mutation.attributeName === 'lang' || mutation.attributeName === 'dir') {
+                        const newLang = document.documentElement.lang;
+                        const newDir = document.documentElement.dir;
+                        console.log(`🌐 [Observer] 页面属性已更新: lang="${newLang}", dir="${newDir}"`);
+                        if (typeof getLanguageList === 'function') getLanguageList();
+                    }
+                }
+            });
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['lang', 'dir'] // 同时监控 dir，因为有些翻译会影响布局方向
+        });
+        console.log('✅ [Observer] 页面属性监控已成功绑定到 html 节点');
+    } catch (e) {
+        console.error('❌ [Observer] 启动语言监控失败:', e);
+    }
+}
+
+/**
+ * 监控全局 DOM 变化 (带节流处理以保证性能)
+ */
+function initGlobalDomObserver() {
+    try {
+        const throttledHandler = throttle((mutations) => {
+            let hasSignificantChange = false;
+            
+            for (const mutation of mutations) {
+                // 检查是否有新节点增加
+                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                    hasSignificantChange = true;
+                    // 也可以在这里进行更细致的节点过滤，例如只在检测到 message 相关类名时触发
+                    break;
+                }
+            }
+
+            if (hasSignificantChange) {
+                console.log('⚡ [Observer] 检测到显著 DOM 变化，执行自动扫描...');
+                // 触发核心业务逻辑
+                if (typeof processMessageList === 'function') processMessageList();
+                if (typeof processImageMessageList === 'function') processImageMessageList();
+                if (typeof processVoiceMessageList === 'function') processVoiceMessageList();
+                if (typeof initSidebarResize === 'function') initSidebarResize();
+            }
+        }, 800); // 800ms 节流，平衡灵敏度与性能
+
+        const observer = new MutationObserver(throttledHandler);
+        
+        // 监控 body 下的所有子节点及子树
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        console.log('✅ [Observer] 全局 DOM 监控已启动 (自动处理逻辑就绪)');
+    } catch (e) {
+        console.error('❌ [Observer] 启动全局 DOM 监控失败:', e);
+    }
+}
+
+/**
+ * 初始同步日期格式化函数
+ */
 function formatSyncDate(date) {
     const pad = (n) => n.toString().padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
@@ -5112,6 +5206,7 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
             // 过滤并转换数据格式
             const nowStr = formatSyncDate(new Date());
             const fans = [];
+            console.log('联系人', contactsRaw);
             
             contactsRaw.forEach(c => {
                 // 仅同步有手机号且是联系人的项 (或者有名字的)
@@ -5215,3 +5310,7 @@ setInterval(() => {
     monitorMyProfile();
     monitorNewContactPanel();
 }, 2000);
+
+// 3. 启动高效页面监控 (MutationObserver)
+initPageAttributeObserver();
+initGlobalDomObserver();
