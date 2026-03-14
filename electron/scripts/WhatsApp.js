@@ -15,7 +15,7 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
     const updateTouch = (e) => { 
         window._wp_last_user_touch = Date.now(); 
         if (e && e.type === 'mousedown' && typeof getCanonicalVoiceContainer === 'function') {
-            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"], .html-button[aria-label="Play voice message"], .html-button[aria-label="播放语音消息"]' ) : null;
+            const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"], .html-button[aria-label="Play voice message"],.html-button[aria-label="Pause voice message"], .html-button[aria-label="播放语音消息"]' ) : null;
             console.log('playIcon', playIcon);
             
             if (playIcon) {
@@ -96,6 +96,22 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
         }
 
         return originalPlay.apply(this, arguments);
+    };
+
+    // 拦截 HTMLMediaElement.pause - 录制期间禁止暂停语音
+    const originalPause = HTMLMediaElement.prototype.pause;
+    HTMLMediaElement.prototype.pause = function() {
+        const isVoiceMessage = this.src && this.src.startsWith('blob:');
+        if (isVoiceMessage && this === window._wp_playing_audio && 
+            typeof currentRecorder !== 'undefined' && currentRecorder && currentRecorder.state === 'recording') {
+            console.log('🚫 [Sniffer] 拦截暂停：录制进行中，请等待播放完成');
+            window.electronAPI.showNotification({
+                message: '语音录制中，请等待播放完成后自动翻译',
+                type: 'is-warning'
+            });
+            return;
+        }
+        return originalPause.apply(this, arguments);
     };
 
     // 拦截 window.Audio 构造函数
@@ -588,10 +604,10 @@ async function syncGlobalConfig() {
             console.log('🔄 全局配置同步成功:', globalConfig);
 
             // 当同步配置发生变化时，重新初始化同步定时器粉丝模块
-            // if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
-            //     console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
-            //     initFansSyncTimer();
-            // }
+            if (oldInterval !== globalConfig.refreshInterval || oldAuto !== globalConfig.autoRefresh) {
+                console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
+                initFansSyncTimer();
+            }
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -1999,7 +2015,7 @@ function monitorMainNode() {
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
-                    // setTimeout(() => fetchWhatsAppContacts(), 5000);
+                    setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
@@ -4005,7 +4021,7 @@ function setVoiceTranslateBtnState(containerKey, isEnabled) {
 // 处理语音消息列表，添加翻译按钮
 function processVoiceMessageList() {
     // 查找所有语音消息 - 使用更通用的选择器
-    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"], .html-button[aria-label="Play voice message"], .html-button[aria-label="播放语音消息"]'  );
+    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"],.html-button[aria-label="Pause voice message"],.html-button[aria-label="播放语音消息"]'  );
     
     // console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
     
@@ -5102,7 +5118,8 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
                 const phone = (c.phoneNumber || '').replace(/[^\d+]/g, '');
                 if (phone && phone.length > 2) {
                     fans.push({
-                        fansId: c.id?.toString() || c.contactHash || '',
+                        // fansId: phone|| c.id?.toString() || c.contactHash || '',
+                        fansId:phone,
                         fansPhone: phone,
                         fansName: c.name || c.pushname || c.verifiedName || 'WhatsApp用户',
                         platform: 'WhatsAPP',

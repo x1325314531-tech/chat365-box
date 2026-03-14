@@ -77,27 +77,27 @@
             <div class="stats-grid">
               <div class="stat-item">
                 <div class="stat-label">总进粉</div>
-                <div class="stat-value">0</div>
+                <div class="stat-value"> {{ fansData.newFansTotal }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-label">总留存</div>
-                <div class="stat-value">0</div>
+                <div class="stat-value">{{ fansData.retentionTotal }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-label">分流粉</div>
-                <div class="stat-value">0</div>
+                <div class="stat-value">{{ fansData.trafficDiverters }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-label">今日进粉</div>
-                <div class="stat-value">0</div>
+                <div class="stat-value">{{ fansData.newFansGainedToday }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-label">今日留存</div>
-                <div class="stat-value">0</div>
+                <div class="stat-value">{{ fansData.retentionToday }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-label">今日新粉</div>
-                <div class="stat-value">0</div>
+                <div class="stat-value">{{ fansData.newFansToday }}</div>
               </div>
             </div>
           </div>
@@ -164,6 +164,7 @@
         <el-table-column prop="platform" label="平台" align="center" />
         <el-table-column prop="appPhone" label="我的账号" align="center" />
         <el-table-column prop="fansPhone" label="粉丝账号" align="center" />
+        <el-table-column prop="fansName" label="粉丝昵称" align="center" />
         <el-table-column prop="source" label="来源" align="center" />
         <el-table-column prop="region" label="地区" align="center" />
         <el-table-column prop="addTime" label="进粉时间" align="center" min-width="120" />
@@ -220,7 +221,15 @@ const searchForm = reactive({
   dateRange: null,
   keyword: ''
 })
+ const  fansData= reactive({
+   newFansTotal:0,
+   retentionTotal:0,
+   trafficDiverters:0,
+   newFansGainedToday:0,
+   retentionToday:0,
+   newFansToday:0
 
+ })
 // 平台下拉列表
 const platformOptions = ref([])
 
@@ -336,6 +345,7 @@ const handleSearch = async () => {
       })
       
       pagination.total = res.total || 0
+      fansData.newFansTotal = res.total
     } else {
       console.error('获取粉丝列表失败:', res?.msg)
       tableData.value = []

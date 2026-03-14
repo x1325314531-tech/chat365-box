@@ -35,3 +35,10 @@
     return '';
   }
 }
+
+// 转换为 ISO 8601 格式（YYYY-MM-DDTHH:mm:ss）
+ export function    formatToISO (date)  {
+        const d = new Date(date)
+        const pad = n => n.toString().padStart(2, '0')
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+      }
