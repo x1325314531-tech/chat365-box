@@ -124,7 +124,6 @@ watch(() => route.path, () => {
 
 onMounted(async () => {
   updateActiveMenu();
-  ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
 
   // 初始化所有平台的未读数
   const platforms = ['WhatsApp']; // 后续如有 Zalo/Telegram 可添加
@@ -166,7 +165,6 @@ function handleMenuSelect(id) {
   if (activeMenu.value === id) return;
   ipc.invoke(ipcApiRoute.hideWindow, { platform: id });
   ipc.invoke(ipcApiRoute.changeSidebarWidth, { isShrunk: false });
-  ipc.invoke(ipcApiRoute.changeSidebarLayout, { isPlacedTop: false });
   const item = menuItems.value.find(item => item.id === id);
   if (item) {
     router.push(item.path);

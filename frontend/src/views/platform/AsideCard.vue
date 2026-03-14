@@ -68,6 +68,8 @@ onMounted(async () => {
     if (res) {
       openSidebar.value = res.isShrunk;
       isPlacedTop.value = res.isPlacedTop;
+      // 初始加载时也要通知父组件同步布局状态
+      emits('layout-change', res.isPlacedTop);
     }
   });
   // 页面加载时获取所有会话

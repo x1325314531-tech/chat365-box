@@ -133,9 +133,7 @@ class UpdaterService extends Service {
                 });
 
                 // 准备安装
-                setTimeout(() => {
-                  this.installApp(filePath);
-                }, 1000);
+                this.installApp(filePath);
             });
 
             writer.on('error', (err) => {
@@ -181,9 +179,7 @@ class UpdaterService extends Service {
             }
             await shell.openPath(filePath);
             Log.info('安装程序已启动，即将退出当前应用');
-            setTimeout(() => {
-                electronApp.quit();
-            }, 1500);
+            electronApp.quit();
         } catch (err) {
             Log.error('调起安装程序失败:', err);
         }

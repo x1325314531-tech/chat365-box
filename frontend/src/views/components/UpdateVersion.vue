@@ -92,7 +92,8 @@ const totalSize = ref('0MB');
 const releaseNotes = ref([
   "全平台翻译配置新增 源语言功能，翻译更准确",
   "切换联系人后，所有历史消息和接收消息的翻译（只要本地有缓存）都会立即恢复显示",
-  "更新检查版本功能上线"
+  "更新检查版本功能上线",
+  "修复语音翻译问题"
 ]);
 
 onMounted(() => {
@@ -119,11 +120,7 @@ function init() {
         totalSize.value = total || '0MB';
       } else if (status === 4) { // 下载完成
         showProgressDialog.value = false;
-        ElMessage.success("下载完成，准备安装重启");
-        // 延迟执行重启
-        setTimeout(() => {
-          ipc.invoke(ipcRoute.relaunchApp);
-        }, 1500);
+        ElMessage.success("下载完成，正在准备安装...");
       } else if (status === -1) { // 错误
         showProgressDialog.value = false;
         ElMessage.error(error || "下载失败");
@@ -166,7 +163,7 @@ function handleStartUpdate() {
   showUpdateDialog.value = false;
   showProgressDialog.value = true;
   // 调用主进程下载，传入目标地址
-  const downloadUrl = 'https://github.com/AinLGe/Chat365-Release/releases/download/V1.0.1_Release/Chat365-win-1.0.1-x64.exe';
+  const downloadUrl = `https://github.com/AinLGe/Chat365-Release/releases/download/V${latestVersion.value}/Chat365-win-${latestVersion.value}-x64.exe`;
   ipc.invoke(ipcRoute.downloadApp, { url: downloadUrl });
 }
 
