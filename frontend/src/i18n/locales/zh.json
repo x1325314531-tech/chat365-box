@@ -44,6 +44,8 @@
     "newSession": "新建会话",
     "startAll": "一键启动",
     "deleteSuccess": "删除会话成功",
+    "deleteSession": "提示",
+    "deleteConfirm": "确定 是否 删除",
     "online": "在线",
     "offline": "未登录"
   },

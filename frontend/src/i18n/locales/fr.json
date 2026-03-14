@@ -44,6 +44,8 @@
     "newSession": "Nouvelle session",
     "startAll": "Tout démarrer",
     "deleteSuccess": "Session supprimée",
+    "deleteSession": "Conseils",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer?",
     "online": "En ligne",
     "offline": "Hors ligne"
   },

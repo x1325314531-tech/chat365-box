@@ -353,24 +353,30 @@ const handleShrink=() => {
 }
 // 处理关闭按钮点击
 function handleClose(card) {
-  card.loading = true;
-  ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.cardId }).then((res) => {
-    if (res.status) {
-      card.loading = false;
-    }
-    del(`/app/session/${card.sessionId}`).then(res=> { 
-      if(res.code==200) { 
-           Notification.message({ message: t('aside.deleteSuccess'), type: 'success' });
-            setActiveStatus(); 
-            getAllSessions()
-          
+  // 弹出确认框前先隐藏当前 WhatsApp 窗口，避免遮挡
+  ipc.invoke(ipcApiRoute.hideWindow);
+  
+  Notification.confirm({
+    message: t('aside.deleteConfirm'),
+    title: t('aside.deleteSession'),
+    type: 'warning'
+  }).then(() => {
+    card.loading = true;
+    ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.cardId }).then((res) => {
+      if (res.status) {
+        card.loading = false;
       }
-
-    })
-    // 使用 reactive 数组时，直接操作即可，不需要 .value
-    // conversations.splice(0, conversations.length, ...conversations.filter((c) => c.card_id !== card.card_id));
-    // setActiveStatus(); // 更新选中状态
-    // ipc.send('receive-notify', { type: 'success', message: '删除成功!' });
+      del(`/app/session/${card.sessionId}`).then(res=> { 
+        if(res.code==200) { 
+             Notification.message({ message: t('aside.deleteSuccess'), type: 'success' });
+              setActiveStatus(); 
+              getAllSessions()
+        }
+      })
+    });
+  }).catch(() => {
+    // 用户取消删除，恢复激活显示
+    setActiveStatus();
   });
 }
 // 会话置于顶部

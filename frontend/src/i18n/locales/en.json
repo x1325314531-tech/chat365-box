@@ -44,6 +44,8 @@
     "newSession": "New Session",
     "startAll": "Start All",
     "deleteSuccess": "Session deleted",
+    "deleteSession": "Tips",
+    "deleteConfirm": "Are you sure you want to delete?",
     "online": "Online",
     "offline": "Offline"
   },
