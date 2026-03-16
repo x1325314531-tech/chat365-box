@@ -34,9 +34,10 @@
         </div>
         
         <div class="update-body">
-          <ul class="release-notes">
+          <!-- <ul >
             <li v-for="(note, index) in releaseNotes" :key="index">{{ note }}</li>
-          </ul>
+          </ul> -->
+            <div  class="release-notes" v-html="releaseNotes"></div>
         </div>
         
         <div class="update-footer">
@@ -77,7 +78,7 @@ import { ipcRoute, specialIpcRoute } from '@/api';
 import { ipc } from '@/utils/ipcRenderer';
 import { ElMessage } from 'element-plus';
 import { get } from '@/utils/request';
-
+import {toQueryString} from '@/utils/utils'
 const appVersion = ref('');
 const latestVersion = ref('');
 const available = ref(false);
@@ -89,13 +90,13 @@ const downloadSpeed = ref('0.0MB/秒');
 const transferredSize = ref('0MB');
 const totalSize = ref('0MB');
 
-const releaseNotes = ref([
-  "全平台翻译配置新增 源语言功能，翻译更准确",
-  "切换联系人后，所有历史消息和接收消息的翻译（只要本地有缓存）都会立即恢复显示",
-  "更新检查版本功能上线",
-  "修复语音翻译问题"
-]);
-
+// const releaseNotes = ref([
+//   "全平台翻译配置新增 源语言功能，翻译更准确",
+//   "切换联系人后，所有历史消息和接收消息的翻译（只要本地有缓存）都会立即恢复显示",
+//   "更新检查版本功能上线",
+//   "修复语音翻译问题"
+// ]);
+const releaseNotes = ref('');
 onMounted(() => {
   init();
 });
@@ -141,11 +142,12 @@ function init() {
  * 检查更新
  * @param {boolean} showTips 是否显示“已是最新”提示
  */
-async function checkForUpdate(showTips = false) {
+async function checkForUpdate() {
   try {
-    const res = await get('/app/version', { skipToken: true });
+    const res = await get('/app/version');
     if (res.code === 200 && res.data) {
       latestVersion.value = res.data;
+      getVersionIntroduction()
       if (latestVersion.value && latestVersion.value !== appVersion.value) {
         available.value = true;
         showUpdateDialog.value = true;
@@ -158,12 +160,35 @@ async function checkForUpdate(showTips = false) {
     if (showTips) ElMessage.error("检查更新失败");
   }
 }
+  const getVersionIntroduction = async() => { 
+    const  params = { 
+         noticeTitle: `V${latestVersion.value}`
+    }
+    const queryString = toQueryString(params)
+    const  res = await get(`/app/notice/list?${queryString.toString()}` )
+    if(res.code===200) {
+       const baseUrl = import.meta.env.MODE === 'development'
+      ? 'http://192.168.3.18'
+      : 'https://chat365.cc';
 
+    // 将 /dev-api 替换成 完整域名 + /dev-api
+    let htmlContent = res.data[0].noticeContent;
+   const fullDevApiPath = `${baseUrl}/dev-api`;
+    htmlContent = htmlContent.replace(/\/dev-api/g, fullDevApiPath);
+
+    releaseNotes.value = htmlContent;
+    }else{
+
+    }
+    
+    
+  }
 function handleStartUpdate() {
   showUpdateDialog.value = false;
   showProgressDialog.value = true;
   // 调用主进程下载，传入目标地址
-  const downloadUrl = `https://github.com/AinLGe/Chat365-Release/releases/download/V${latestVersion.value}/Chat365-win-${latestVersion.value}-x64.exe`;
+  // const downloadUrl = `https://github.com/AinLGe/Chat365-Release/releases/download/V${latestVersion.value}/Chat365-win-${latestVersion.value}-x64.exe`;
+  const   downloadUrl =`https://pub-e800306e538c4dc3a15baef9bd281c8b.r2.dev/Chat365-win-${latestVersion.value}-x64.exe`
   ipc.invoke(ipcRoute.downloadApp, { url: downloadUrl });
 }
 
