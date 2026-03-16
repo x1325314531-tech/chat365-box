@@ -154,10 +154,10 @@
       >
         <template #empty>
           <div class="empty-state">
-            <div class="empty-icon-wrapper">
+            <div class="empty-icon-wrapper"> 
               <el-empty description="暂无数据" :image-size="120" />
             </div>
-            <div class="empty-text">当前账号未开启工单功能，如需使用，请前往中台重新添加激活码并开启工单功能。</div>
+            <!-- <div class="empty-text">当前账号未开启工单功能，如需使用，请前往中台重新添加激活码并开启工单功能。</div> -->
           </div>
         </template>
         <el-table-column type="index" label="序号" width="80" align="center" />
@@ -170,7 +170,13 @@
         <el-table-column prop="addTime" label="进粉时间" align="center" min-width="120" />
         <el-table-column prop="createTime" label="记录时间" align="center" min-width="120" />
         <el-table-column prop="repeatCount" label="重复次数" align="center" />
-        <el-table-column prop="fansType" label="粉丝类型" align="center" />
+        <el-table-column prop="fansType" label="粉丝类型" align="center" >
+          <template #default="scope">
+      <el-tag :type="getTagType(scope.row.fansType)">
+        {{ scope.row.fansType }}
+      </el-tag>
+    </template>
+        </el-table-column>
       </el-table>
     </div>
 
@@ -315,6 +321,15 @@ function toQueryString(params) {
     });
     return queryString
 }
+const getTagType = (type) => {
+  const map = {
+    '新粉': 'success',   // 绿色
+    '底粉': 'primary',   // 蓝色
+    '重粉': 'danger', 
+    '活跃粉': 'warning'
+  }
+  return map[type] || 'info' // 默认灰色
+}
 const handleSearch = async () => {
   loading.value = true
   
@@ -424,7 +439,7 @@ const initFansStatistics = () => {
     ];
     // 使用 Promise.all 并行执行所有请求
     return Promise.all(promises)
-        .then(([newFansTotal,todayNew, fansCountValue,trafficDivertersCount,newFansGainedTodayCount]) => {
+        .then(([newFansTotal,todayNew, fansCountValue,trafficDivertersCount, newFansGainedTodayCount,retentionTodayTotal]) => {
             // 所有请求成功后，整理数据
             const statisticsData = {
                 newFansTotal:newFansTotal,// 总进粉
@@ -437,8 +452,9 @@ const initFansStatistics = () => {
             fansData.newFansTotal = statisticsData.newFansTotal;
             fansCount.value =  Number(fansCountValue); //底粉数量
             fansData.retentionTotal =   fansData.newFansTotal - fansCount.value
-            fansData.trafficDiverters = trafficDivertersCount
-            fansData.newFansGainedToday = newFansGainedTodayCount    
+            fansData.trafficDiverters = trafficDivertersCount;
+            fansData.newFansGainedToday = newFansGainedTodayCount;
+            fansData.retentionToday  =retentionTodayTotal    
             console.log('粉丝统计数据加载完成:', statisticsData);
             return statisticsData;
         })
@@ -561,7 +577,7 @@ const fetchrRetentionToday= async()=> {
    const params= { 
         pageSize:10000,
         pasgeNum:1,
-        // addTimeBegin : formatDateTime(startOfYesterday),
+        addTimeBegin : formatDateTime(startOfYesterday),
         addTimeEnd : formatDateTime(endOfYesterday),
         appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined,
         fansType:'底粉'  
@@ -572,8 +588,8 @@ const fetchrRetentionToday= async()=> {
       const queryString = toQueryString(params)
      const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
       console.log('今日留存粉丝数量', res)
-     const todayNew = res.total 
-     return todayNew   
+     const retentionTodayTotal = res.total || 0
+     return retentionTodayTotal   
 }
 onMounted(async () => {
   // 获取已有的账号列表

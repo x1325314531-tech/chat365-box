@@ -178,10 +178,7 @@ async function checkForUpdate() {
 
     releaseNotes.value = htmlContent;
     }else{
-
     }
-    
-    
   }
 function handleStartUpdate() {
   showUpdateDialog.value = false;
@@ -259,25 +256,36 @@ function handleStartUpdate() {
     padding: 30px;
     
     .release-notes {
-      list-style: none;
-      padding: 0;
-      margin: 0;
+      font-size: 15px;
+      color: #475569;
+      line-height: 1.6;
+      
+      ul {
+        padding-left: 22px;
+        margin: 0 0 12px 0;
+        list-style-type: disc;
+      }
+      
+      ol {
+        padding-left: 22px;
+        margin: 0 0 12px 0;
+        list-style-type: decimal;
+      }
       
       li {
-        position: relative;
-        padding-left: 20px;
-        font-size: 15px;
-        color: #475569;
-        margin-bottom: 12px;
-        line-height: 1.6;
-        
-        &::before {
-          content: '•';
-          position: absolute;
-          left: 0;
-          color: #334155;
-          font-weight: bold;
-        }
+        margin-bottom: 8px;
+      }
+      
+      li::marker {
+        color: #334155;
+      }
+      
+      p {
+        margin: 0 0 8px 0;
+      }
+      
+      > *:last-child {
+        margin-bottom: 0;
       }
     }
   }
