@@ -70,7 +70,7 @@
             <div class="card-top">
             <div class="card-header">
               <span class="card-title">当前账号</span> 
-              <span class="sub-text">(数据已当前工单去重)</span>
+              <span class="sub-text">(数据已当前工单去重) </span>
             </div>
             <div class="card-sub-header">所属工单: --</div>
             </div>
@@ -204,7 +204,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted,watch } from 'vue'
 import { Search, RefreshRight } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
 import { get} from '@/utils/request'
@@ -221,6 +221,7 @@ const searchForm = reactive({
   dateRange: null,
   keyword: ''
 })
+
  const  fansData= reactive({
    newFansTotal:0,
    retentionTotal:0,
@@ -228,8 +229,8 @@ const searchForm = reactive({
    newFansGainedToday:0,
    retentionToday:0,
    newFansToday:0
-
  })
+ const fansCount = ref(0)
 // 平台下拉列表
 const platformOptions = ref([])
 const appPHONEDisable= ref(false)
@@ -296,7 +297,24 @@ const getplatformList = async () => {
     console.error('获取平台列表失败:', err)
   }
 }
-
+function toQueryString(params) { 
+  const queryString = new URLSearchParams();
+    
+    // 添加所有参数
+    Object.keys(params).forEach(key => {
+      const value = params[key];
+      
+      // 处理数组类型参数
+      if (Array.isArray(value)) {
+        value.forEach(item => {
+          queryString.append(key, item);
+        });
+      } else if (value !== undefined && value !== null && value !== '') {
+        queryString.append(key, value.toString());
+      }
+    });
+    return queryString
+}
 const handleSearch = async () => {
   loading.value = true
   
@@ -323,22 +341,8 @@ const handleSearch = async () => {
       params.addTimeBegin = startTime;
       params.addTimeEnd = endTime;
     }
-    const queryString = new URLSearchParams();
-    
-    // 添加所有参数
-    Object.keys(params).forEach(key => {
-      const value = params[key];
-      
-      // 处理数组类型参数
-      if (Array.isArray(value)) {
-        value.forEach(item => {
-          queryString.append(key, item);
-        });
-      } else if (value !== undefined && value !== null && value !== '') {
-        queryString.append(key, value.toString());
-      }
-    });
-    
+   
+     const queryString = toQueryString(params)
     const res = await get(`/app/fansStore/pageRecord?${queryString.toString()}`)
     
     if (res && res.code === 200) {
@@ -360,7 +364,7 @@ const handleSearch = async () => {
       })
       
       pagination.total = res.total || 0
-      fansData.newFansTotal = res.total
+      
     } else {
       console.error('获取粉丝列表失败:', res?.msg)
       tableData.value = []
@@ -399,28 +403,42 @@ const startAutoRefresh = () => {
   if (timer) clearInterval(timer)
   if (autoRefresh.value) {
     timer = setInterval(() => {
-      handleSearch()
+      // handleSearch()
     }, refreshInterval.value * 60 * 1000)
   }
 }
+
 const initFansStatistics = () => {
     // 显示加载状态
     console.log('正在加载粉丝统计数据...');
     
     // 定义所有需要并行获取的异步请求
     const promises = [
+        fetchNewFansTotal(), //获取总进粉
        fetchNewFansToday(),   // 获取今日新增粉丝  
+       fetchReferenceFans(),  //获取底粉数量
+       fetchTrafficDiverters(), //获取分流粉
+       fetchNewFansGainedToday(), //获取今日进粉粉丝
+       fetchrRetentionToday(),
+       fetchCurrentReferenceFans() //获取今日库底粉丝
     ];
-    
     // 使用 Promise.all 并行执行所有请求
     return Promise.all(promises)
-        .then(([todayNew, ]) => {
+        .then(([newFansTotal,todayNew, fansCountValue,trafficDivertersCount,newFansGainedTodayCount]) => {
             // 所有请求成功后，整理数据
             const statisticsData = {
-                newFansToday: todayNew,
+                newFansTotal:newFansTotal,// 总进粉
+                newFansToday: todayNew, // 今日新增粉丝 
                 updateTime: new Date().toLocaleString()
             };
             
+            // 同步到 fansData 和全局 ref
+            fansData.newFansToday = statisticsData.newFansToday;
+            fansData.newFansTotal = statisticsData.newFansTotal;
+            fansCount.value =  Number(fansCountValue); //底粉数量
+            fansData.retentionTotal =   fansData.newFansTotal - fansCount.value
+            fansData.trafficDiverters = trafficDivertersCount
+            fansData.newFansGainedToday = newFansGainedTodayCount    
             console.log('粉丝统计数据加载完成:', statisticsData);
             return statisticsData;
         })
@@ -430,13 +448,137 @@ const initFansStatistics = () => {
             throw error;
         });
 };
-const  fetchNewFansToday = async() => { 
-    
+//获取总进粉 （注：不包含平台，子账号所有粉丝）
+const fetchNewFansTotal = async()=>{ 
+  const params=  {
+       pageSize:1,
+       pageNum:10000
+  }
+ const queryString = toQueryString(params)
+  const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+   const  newFansTotal = res.total || 0
+  return newFansTotal
 }
-onMounted(() => {
+//获取今日新增粉丝 今日新粉 （注：账号今日新增粉丝，过滤底粉）
+const  fetchNewFansToday = async() => { 
+      const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        addTimeBegin : formatDateTime(new Date().setHours(0, 0, 0, 0)),
+        addTimeEnd : formatDateTime(new Date().setHours(23, 59, 59, 999)),
+        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined,
+        fansType:'底粉'
+
+      }
+      console.log('新粉粉丝', params);
+      
+      const queryString = toQueryString(params)
+     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      console.log('新粉粉丝数量', res)
+     const todayNew = res.total 
+     return todayNew   
+}
+//获取今日进粉粉丝 （注：账号今日进粉粉丝， 不过滤底粉）
+const  fetchNewFansGainedToday = async() => { 
+      const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        addTimeBegin : formatDateTime(new Date().setHours(0, 0, 0, 0)),
+        addTimeEnd : formatDateTime(new Date().setHours(23, 59, 59, 999)),
+        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+
+      }
+      console.log('今日进粉粉丝', params);
+      
+      const queryString = toQueryString(params)
+     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      console.log('新粉粉丝数量', res)
+     const newFansGainedTodayCount= res.total 
+     return newFansGainedTodayCount   
+}
+//获取底库粉丝 （注：获取分流粉）
+const  fetchTrafficDiverters= async()=>{ 
+  console.log('当前手机号', searchForm.appPhone);
+  const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        fansType: '底粉',
+        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+      }
+      console.log('底粉粉丝', params);
+      
+      const queryString = toQueryString(params)
+     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      console.log('底库粉丝数量', res)
+     const trafficDivertersCount = res.total 
+     return trafficDivertersCount  
+}
+//获取所有底库粉丝 
+const  fetchReferenceFans= async()=>{
+  console.log('当前手机号', searchForm.appPhone);
+  const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        fansType: '底粉',
+        // appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+      }
+      console.log('所有底库粉丝 参数', params);
+      
+      const queryString = toQueryString(params)
+     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      console.log('所有底库粉丝数量', res)
+     const fansCount = res.total 
+     return fansCount  
+}
+//获取当前账号底库粉丝 
+const  fetchCurrentReferenceFans= async()=>{
+  console.log('当前手机号', searchForm.appPhone);
+  const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        addTimeBegin : formatDateTime(new Date().setHours(0, 0, 0, 0)),
+        addTimeEnd : formatDateTime(new Date().setHours(23, 59, 59, 999)),
+        fansType: '底粉',
+        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+      }
+      console.log('底粉粉丝', params);
+      
+      const queryString = toQueryString(params)
+     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      console.log('今日底粉粉丝数量', res)
+     const currentReferenceFans = res.total  || 0
+     return currentReferenceFans
+}
+//获取今日留存
+const fetchrRetentionToday= async()=> { 
+  // 获取昨天的日期范围
+  const yesterday = new Date(); // 今天
+  yesterday.setDate(yesterday.getDate() - 1); // 昨天
+  const startOfYesterday = new Date(yesterday);
+  startOfYesterday.setHours(0, 0, 0, 0); // 昨天 00:00:00
+  const endOfYesterday = new Date(yesterday);
+  endOfYesterday.setHours(23, 59, 59, 999); // 昨天 23:59:59
+   const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        // addTimeBegin : formatDateTime(startOfYesterday),
+        addTimeEnd : formatDateTime(endOfYesterday),
+        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined,
+        fansType:'底粉'  
+
+      }
+      console.log('今日留存粉丝参数', params);
+      
+      const queryString = toQueryString(params)
+     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      console.log('今日留存粉丝数量', res)
+     const todayNew = res.total 
+     return todayNew   
+}
+onMounted(async () => {
   // 获取已有的账号列表
-  getAccounts()
-  getplatformList()
+  await getAccounts()
+  await getplatformList()
   // 监听登录通知，实时更新账号列表
   ipc.on('online-notify', (event, args) => {
     console.log('FansList 收到登录通知:', args)
