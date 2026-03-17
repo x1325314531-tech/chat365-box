@@ -5104,7 +5104,17 @@ function initGlobalDomObserver() {
             }
 
             if (hasSignificantChange) {
-                console.log('⚡ [Observer] 检测到显著 DOM 变化，执行自动扫描...');
+                const addedNodesCount = mutations.reduce((sum, m) => sum + (m.addedNodes?.length || 0), 0);
+                console.log(`⚡ [Observer] 检测到显著 DOM 变化 (新增节点数: ${addedNodesCount})，执行自动扫描...`);
+                
+                // 记录显著变化的详细摘要
+                const sampleNodes = mutations.find(m => m.addedNodes?.length > 0)?.addedNodes;
+                if (sampleNodes && sampleNodes.length > 0) {
+                    const nodeName = sampleNodes[0].nodeName || 'Unknown';
+                    const className = (sampleNodes[0] instanceof HTMLElement) ? sampleNodes[0].className : '';
+                    console.log(`📝 [Observer] 变化记录摘要: 节点类型=${nodeName}, 类名=${className}`);
+                }
+
                 // 触发核心业务逻辑
                 if (typeof processMessageList === 'function') processMessageList();
                 if (typeof processImageMessageList === 'function') processImageMessageList();
