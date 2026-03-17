@@ -258,6 +258,82 @@ async function initLanguageList() {
     }
 }
 
+// ========== 状态上报与采集模块 (对标 WhatsApp) ==========
+
+/**
+ * 获取未读计数
+ */
+function getUnreadCount() {
+    let titleCount = 0;
+    let domCount = 0;
+    try {
+        // 1. 从标题获取 (数字) Zalo
+        const title = document.title;
+        const match = title.match(/\((\d+)\)/);
+        if (match && match[1]) {
+            titleCount = parseInt(match[1], 10);
+        }
+
+        // 2. 从 DOM 获取 (侧边栏红色徽标)
+        const badges = document.querySelectorAll('.v2-badge, .tab-unread, .nav-item-unread');
+        badges.forEach(badge => {
+            const val = parseInt(badge.textContent || '', 10);
+            if (!isNaN(val)) domCount += val;
+        });
+    } catch (e) {}
+    return Math.max(titleCount, domCount);
+}
+
+/**
+ * 获取账号标识 (Zalo 手机号或 ID)
+ */
+function getMyId() {
+    try {
+        // 尝试从本地存储或 DOM 提取
+        return localStorage.getItem('last_user_id') || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * 启动状态心跳
+ */
+function startStatusHeartbeat() {
+    console.log('💓 [Zalo] 启动状态上报心跳...');
+    setInterval(() => {
+        const isLogged = !!querySelectorAny(SELECTORS.SIDE_PANEL) || !!querySelectorAny(SELECTORS.MESSAGE_INPUT);
+        
+        if (isLogged) {
+            // 尝试获取头像
+            const avatarImg = document.querySelector('.my-avatar img, .setting-info img, img[src*="avatar"]');
+            const avatarUrl = avatarImg?.src || '';
+            const myId = getMyId();
+            const unreadCount = getUnreadCount();
+
+            window.electronAPI.sendMsg({
+                platform: 'Zalo',
+                online: true,
+                avatarUrl: avatarUrl,
+                myPhone: myId,
+                unreadCount: unreadCount
+            }).then(res => {
+                console.log('🚀 [Zalo] 状态上报（在线）:', { unreadCount, myId });
+            });
+        } else {
+            window.electronAPI.sendMsg({
+                platform: 'Zalo',
+                online: false,
+                avatarUrl: '',
+                myPhone: '',
+                unreadCount: 0
+            }).then(res => {
+                console.log('🚀 [Zalo] 状态上报（离线）');
+            });
+        }
+    }, 5000);
+}
+
 // ========== 核心工具函数实现 ==========
 
 /**
@@ -408,6 +484,60 @@ function sendMsg() {
 }
 
 /**
+ * 显示/隐藏“翻译中”状态
+ */
+function toggleTranslatingStatus(show) {
+    let statusNode = document.getElementById('zlTranslatingStatus');
+    if (show) {
+        if (!statusNode) {
+            statusNode = document.createElement('span');
+            statusNode.id = 'zlTranslatingStatus';
+            statusNode.style.cssText = `
+                color: #0084ff;
+                font-size: 13px;
+                margin-left: 10px;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                animation: zlFadeIn 0.3s ease;
+            `;
+            statusNode.innerHTML = `
+                <svg class="zl-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="animation: zlRotate 1s linear infinite;">
+                    <line x1="12" y1="2" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="22"></line>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                    <line x1="2" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="22" y2="12"></line>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                </svg>
+                <span>正在翻译...</span>
+            `;
+            
+            // 注入动画样式
+            if (!document.getElementById('zlStatusStyles')) {
+                const style = document.createElement('style');
+                style.id = 'zlStatusStyles';
+                style.textContent = `
+                    @keyframes zlRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                    @keyframes zlFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                `;
+                document.head.appendChild(style);
+            }
+
+            const leftLayout = document.querySelector('.chat-input-container__left-layout');
+            if (leftLayout) {
+                leftLayout.appendChild(statusNode);
+            }
+        }
+        statusNode.style.display = 'flex';
+    } else {
+        if (statusNode) statusNode.style.display = 'none';
+    }
+}
+
+/**
  * 更新预览 UI
  */
 function updatePreviewUI(text) {
@@ -475,14 +605,16 @@ async function executeTranslationFlow(inputText) {
         }
 
         // 2. 调用翻译
+        toggleTranslatingStatus(true);
         const res = await translateTextAPI(inputText, getLocalLanguage(), getTargetLanguage());
+        toggleTranslatingStatus(false);
         
         if (isAutoTranslate) {
-            // 模式 1: 替换为译文并发送
+            // 模式 1: 组合译文+原文
             let finalInput = inputText;
             let success = false;
             if (res && res.success) {
-                finalInput = res.data;
+                finalInput = `${res.data}\n${inputText}`; // 格式：译文 \n 原文
                 success = true;
             }
 
@@ -511,6 +643,7 @@ async function executeTranslationFlow(inputText) {
             sendMsg();
         }
     } catch (e) {
+        toggleTranslatingStatus(false);
         console.error('❌ [Zalo] 翻译流程异常:', e);
     }
 }
@@ -597,8 +730,9 @@ async function restoreSentMessageOriginals() {
 
         const record = await getSentMessage(msgText);
         if (record && record.originalText) {
-            if (normalizeText(record.originalText) === msgText) {
-                msgContainer.setAttribute('data-zl-restored', 'same');
+            // 如果译文本身就包含了原文（例如“译文\n原文”格式），则不重复添加
+            if (msgText.includes(normalizeText(record.originalText))) {
+                msgContainer.setAttribute('data-zl-restored', 'already-included');
                 continue;
             }
             
@@ -630,40 +764,38 @@ async function restoreSentMessageOriginals() {
  * 扫描消息列表并翻译
  */
 async function processMessageList() {
+    // 1. 恢复发送消息的原文/译文状态
     await restoreSentMessageOriginals();
 
+    // 2. 处理接收消息
     const incomingItems = querySelectorAllAny(SELECTORS.INCOMING_MSG, ':not([data-zl-trans])');
     
-    if (incomingItems.length > 0) {
-        console.log(`🔍 [Zalo] 发现 ${incomingItems.length} 条待处理新消息`);
-    }
-
     for (let msgContainer of incomingItems) {
+        // 防止由于异步导致的重复处理
+        if (msgContainer.getAttribute('data-zl-trans')) continue;
+        msgContainer.setAttribute('data-zl-trans', 'processing');
+
         const textSpan = querySelectorAny(SELECTORS.MSG_TEXT_SPAN, msgContainer);
         if (!textSpan) {
-            // 兜底寻找 container 下所有文本内容
-            console.log('⚠️ [Zalo] 未找到标准文本容器，尝试遍历内容...');
+            msgContainer.setAttribute('data-zl-trans', 'no-text');
             continue;
         }
 
         const originalText = normalizeText(textSpan.innerText || textSpan.textContent);
         if (!originalText || originalText.length < 1) {
-            msgContainer.setAttribute('data-zl-trans', 'skipped-empty');
+            msgContainer.setAttribute('data-zl-trans', 'empty');
             continue;
         }
 
-        // 标记已处理
-        msgContainer.setAttribute('data-zl-trans', 'processing');
-
         try {
-            const fromLang = getTargetLanguage(); // 通常对方发英文
-            const toLang = getLocalLanguage();    // 我收中文
+            const fromLang = getTargetLanguage(); 
+            const toLang = getLocalLanguage();    
             
-            // 尝试读取缓存
-            let translated = await getTranslationCache(originalText, fromLang, toLang);
+            // 优先查询缓存
+            let cachedResult = await getTranslationCache(originalText, fromLang, toLang);
             
-            if (translated) {
-                const node = createTranslationNode(translated);
+            if (cachedResult) {
+                const node = createTranslationNode(cachedResult);
                 textSpan.appendChild(node);
                 msgContainer.setAttribute('data-zl-trans', 'cached');
             } else if (globalConfig?.receiveAutoTranslate) {
@@ -673,18 +805,18 @@ async function processMessageList() {
                     const node = createTranslationNode(res.data);
                     textSpan.appendChild(node);
                     await saveTranslationCache(originalText, res.data, fromLang, toLang);
-                    msgContainer.setAttribute('data-zl-trans', 'translated');
+                    msgContainer.setAttribute('data-zl-trans', 'done');
                 } else {
-                    msgContainer.setAttribute('data-zl-trans', 'failed');
                     addManualTranslateIcon(textSpan, originalText);
+                    msgContainer.setAttribute('data-zl-trans', 'manual-ready');
                 }
             } else {
-                // 仅显示图标
-                msgContainer.setAttribute('data-zl-trans', 'manual');
+                // 未开启自动翻译，提供手动按钮
                 addManualTranslateIcon(textSpan, originalText);
+                msgContainer.setAttribute('data-zl-trans', 'manual-only');
             }
         } catch (e) {
-            console.error('❌ [Zalo] 处理消息翻译异常:', e);
+            console.error('❌ [Zalo] 翻译处理失败:', e);
             msgContainer.setAttribute('data-zl-trans', 'error');
         }
     }
@@ -725,14 +857,19 @@ function monitorConversationChange() {
             const text = input?.innerText?.trim();
             
             if (text && (globalConfig?.sendAutoTranslate || globalConfig?.sendAutoNotTranslate)) {
-                // 如果是预览确认
+                // 如果是预览确认状态
                 if (previewNode?.style.display === 'block' && text === lastPreviewedTranslation) {
-                    return; // 放行，由 handleKeyDown 的逻辑或原生的逻辑处理，由于我们劫持了 click，所以这里需要小心
+                    console.log('✅ [Zalo] 预览已确认，放行发送');
+                    lastPreviewedTranslation = '';
+                    lastPreviewedSource = '';
+                    updatePreviewUI(null);
+                    return; 
                 }
                 
-                console.log('拦截到发送按钮点击，执行翻译流程...');
+                console.log('🚫 [Zalo] 拦截发送按钮点击，启动翻译流程...');
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
                 executeTranslationFlow(text);
             }
         }
@@ -772,6 +909,9 @@ async function initZaloFeatures() {
     
     // 4. 定时同步配置
     setInterval(syncGlobalConfig, 10000);
+
+    // 5. 启动状态上报
+    startStatusHeartbeat();
 
     console.log('✅ [Zalo] 翻译特性初始化完成');
 }

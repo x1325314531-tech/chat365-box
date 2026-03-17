@@ -11,7 +11,8 @@ const platforms = [
     { platform: 'Telegram', url: 'https://web.telegram.org/a/' },
     { platform: 'TelegramK', url: 'https://web.telegram.org/k/' },
     { platform: 'WhatsApp', url: 'https://web.whatsapp.com/' },
-    { platform: 'Zalo', url: 'https://chat.zalo.me/' },
+    { platform: 'FaceBook', url: 'https://www.facebook.com/' },
+    // { platform: 'Zalo', url: 'https://chat.zalo.me/' },
     // { platform: 'Telegram', url: 'https://www.browserscan.net/zh/' },
     // { platform: 'WhatsApp', url: 'https://ipcs.vip/' },
 ];
@@ -31,7 +32,7 @@ class WindowService extends Service {
 
     async addCard(args, event) {
         const {cardId, platform, online, name, sessionId} = args;
-        const url = platforms.find(item => item.platform === platform)?.url;
+        const url = platforms.find(item => item.platform.toLowerCase() === platform.toLowerCase())?.url;
         if (!url) return {message:'未找到对应平台的URL',status:false};
         // const mainId = Addon.get('window').getMWCid();
         // const mainWin = BrowserWindow.fromId(mainId);
@@ -65,6 +66,14 @@ class WindowService extends Service {
     async refreshCard(args, event) {
         const { platform, cardId } = args;
         const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId,platform:platform})
+        if (!cardInfo) {
+            // 尝试不区分大小写匹配
+            const allCards = await app.sdb.select('cards', {card_id: cardId});
+            const matchedCard = allCards.find(c => c.platform.toLowerCase() === platform.toLowerCase());
+            if (matchedCard) {
+                return this.refreshCard({ ...args, platform: matchedCard.platform }, event);
+            }
+        }
         if (cardInfo) {
             try{
                 // 销毁原有的 view
@@ -91,7 +100,15 @@ class WindowService extends Service {
     async deleteCard(args, event) {
         const { platform, cardId } = args;
         try {
-            const count = await app.sdb.delete('cards',{card_id:cardId,platform:platform})
+            let count = await app.sdb.delete('cards',{card_id:cardId,platform:platform})
+            if (count === 0) {
+                 // 尝试不区分大小写匹配
+                 const allCards = await app.sdb.select('cards', {card_id: cardId});
+                 const matchedCard = allCards.find(c => c.platform.toLowerCase() === platform.toLowerCase());
+                 if (matchedCard) {
+                     count = await app.sdb.delete('cards', {card_id: cardId, platform: matchedCard.platform});
+                 }
+            }
             await app.sdb.delete('card_config',{card_id:cardId})
             await app.sdb.delete('number_record',{card_id:cardId,platform:platform})
             if (count >0) {

@@ -278,6 +278,10 @@
     "title": "WhatsApp",
     "noSessions": "没有打开任何会话"
   },
+  "facebook": { 
+      "title": "FaceBook",
+    "noSessions": "没有打开任何会话"
+  },
   "login": {
     "usernamePlaceholder": "请输入用户名",
     "passwordPlaceholder": "请输入密码",

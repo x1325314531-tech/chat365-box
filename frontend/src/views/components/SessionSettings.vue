@@ -1167,15 +1167,25 @@ const confirmClick = async () => {
         };
         console.log('addIPC', addArgs);
         
-        await ipc.invoke(ipcApiRoute.addSession, addArgs);
+        const addRes = await ipc.invoke(ipcApiRoute.addSession, addArgs);
+        if (addRes && addRes.status === false) {
+           ElMessage.error(addRes.message || t('session.messages.saveFailed'));
+           return;
+        }
       }
 
       // 无论新建还是编辑，都同步配置信息
-      await ipc.invoke(ipcApiRoute.addConfigInfo, argsConfig);
+      const configRes = await ipc.invoke(ipcApiRoute.addConfigInfo, argsConfig);
+      if (configRes && configRes.status === false) {
+          ElMessage.error(configRes.message || t('session.messages.saveFailed'));
+          return;
+      }
       
       ElMessage.success(props.isEdit ? t('session.messages.updateSuccess') : t('session.messages.addSuccess'));
       // 触发 confirm 事件，父组件（如 WhatsApp.vue）会监听到并调用 getAllSessions() 刷新列表
       emit('confirm', { cardId: configForm.cardId, isNew: !props.isEdit });
+    } else {
+      ElMessage.error(res.msg || t('session.messages.saveFailed'));
     }
   } catch (error) {
     console.error('保存会话失败:', error);

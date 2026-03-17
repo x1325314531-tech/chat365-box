@@ -277,6 +277,10 @@
     "title": "WhatsApp",
     "noSessions": "Aucune session ouverte"
   },
+  "facebook": {
+    "title": "FaceBook",
+    "noSessions": "Aucune session ouverte"
+  },
   "login": {
     "usernamePlaceholder": "Saisir l'utilisateur",
     "passwordPlaceholder": "Saisir le mot de passe",

@@ -278,6 +278,10 @@
     "title": "WhatsApp",
     "noSessions": "No sessions opened"
   },
+  "facebook": { 
+      "title": "FaceBook",
+    "noSessions": "No sessions opened"
+  },
   "login": {
     "usernamePlaceholder": "Enter username",
     "passwordPlaceholder": "Enter password",

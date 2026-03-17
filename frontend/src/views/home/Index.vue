@@ -58,6 +58,7 @@ import { useRouter, useRoute } from 'vue-router';
 // 导入图标文件
 import homeIcon from '@/assets/svgs/index.svg';
 import whatsappIcon from '@/assets/svgs/whatsapp.svg';
+import facebookIcon from '@/assets/svgs/facebook.svg';
 import zaloIcon from '@/assets/svgs/zalo.svg';
 import telegramIcon from '@/assets/svgs/telegram.svg';
 import telegramKIcon from '@/assets/svgs/telegramK.svg';
@@ -80,6 +81,8 @@ const ipcApiRoute = {
 const menuItems = ref([
   { id: 'home', icon: homeIcon, path: '/home', unreadCount: 0 },
   { id: 'whatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
+  { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
+   {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
 ]);
 
 // 存储所有会话的未读数映射 { cardId: { platform, count } }
@@ -111,6 +114,7 @@ const updateActiveMenu = () => {
   const path = route.path;
   if (path === '/home' || path === '/home/') activeMenu.value = 'home';
   else if (path.includes('whatsapp')) activeMenu.value = 'whatsApp';
+  else if (path.includes('facebook')) activeMenu.value = 'faceBook';
   else if(path.includes('zalo')) activeMenu.value = 'zalo';
   else if (path.includes('telegramK')) activeMenu.value = 'telegramK';
   else if (path.includes('telegram')) activeMenu.value = 'telegram';

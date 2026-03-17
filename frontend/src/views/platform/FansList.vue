@@ -267,7 +267,6 @@ const getAccounts = async () => {
   try {
     const res = await ipc.invoke('controller.window.getSessions', { platform: searchForm.platform? searchForm.platform: 'WhatsApp' })
      console.log('res',res);
-      console.log('res111',res && res.data);
     if (res && Array.isArray(res.data) && res.data.length > 0) {
       const loggedInAccounts = res.data
         .filter(item => item.online_status === 'true' && (item.my_phone || item.myPhone))

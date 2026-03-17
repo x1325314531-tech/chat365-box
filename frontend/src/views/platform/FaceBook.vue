@@ -1,0 +1,114 @@
+<template>
+  <div class="container" :class="{ 'is-placed-top': isPlacedTop }">
+    <div class="left-div">
+      <AsideCard 
+        ref="asideCardRef"
+        :title="$t('facebook.title')" 
+        @open-settings="handleOpenSettings"
+        @layout-change="handleLayoutChange"
+      ></AsideCard>
+    </div>
+    <div class="right-div">
+      <SessionSettings 
+        v-if="showSettings"
+        :is-edit="isEditSettings"
+        :card="currentSettingCard"
+        :platform="$t('facebook.title')"
+        @confirm="handleSettingsConfirm"
+        @cancel="handleSettingsCancel"
+      />
+      <el-empty v-else :description="$t('facebook.noSessions')" />
+    </div>
+  </div>
+</template>
+<script setup>
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import AsideCard from "@/views/platform/AsideCard.vue";
+import SessionSettings from "@/views/components/SessionSettings.vue";
+import { ipc } from '@/utils/ipcRenderer';
+
+const { t } = useI18n();
+
+const asideCardRef = ref(null);
+const showSettings = ref(false);
+const isEditSettings = ref(false);
+const currentSettingCard = ref(null);
+const isPlacedTop = ref(false);
+
+const handleLayoutChange = (val) => {
+  isPlacedTop.value = val;
+};
+
+const handleOpenSettings = (data) => {
+  if (data) {
+    isEditSettings.value = data.isEdit;
+    currentSettingCard.value = data.card || null;
+    showSettings.value = true;
+    if (asideCardRef.value) {
+      asideCardRef.value.hideWindow();
+    }
+  } else {
+    showSettings.value = false;
+    if (asideCardRef.value) {
+      asideCardRef.value.setActiveStatus();
+    }
+  }
+};
+
+const handleSettingsConfirm = async (payload) => {
+  showSettings.value = false;
+  if (asideCardRef.value) {
+    await asideCardRef.value.getAllSessions();
+    if (payload && payload.isNew && payload.cardId) {
+      asideCardRef.value.selectAndRefreshCard(payload.cardId);
+    }
+  }
+};
+const handleSettingsCancel = () => {
+  showSettings.value = false;
+  if (asideCardRef.value) {
+    asideCardRef.value.setActiveStatus();
+  }
+};
+
+// # 定义通信频道，即路由
+const ipcApiRoute = {
+  addSession: 'controller.window.addSession',
+}
+const receiveCardId = (card)=> {
+  const args = {cardId:card.cardId,title:card.title,online:card.online,platform:t('facebook.title'),activeStatus:true}
+  //初始化机器码
+  ipc.invoke(ipcApiRoute.addSession, args).then(res => {
+    // console.log('收到数据：',res)
+  })
+}
+
+</script>
+<style scoped>
+.container {
+  display: flex; /* 使用 flex 布局 */
+  height: 100vh; /* 高度占满视口 */
+}
+
+.container.is-placed-top {
+  flex-direction: column;
+}
+
+.left-div {
+  border-right: 1px solid #e0e0e0;
+}
+
+.is-placed-top .left-div {
+  width: 100% !important;
+  border-right: none;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.right-div {
+  flex-grow: 1; /* 占据剩余空间 */
+  background-color: #f5f7fa;
+  display: flex; /* 使用 flex 布局 */
+  overflow: hidden; /* 关键：防止父容器产生滚动条，确保子容器内部滚动生效 */
+}
+</style>

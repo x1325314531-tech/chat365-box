@@ -22,6 +22,11 @@ const constantRouterMap = [
         name: 'WhatsApp',
         component: () => import('@/views/platform/WhatsApp.vue')
       },
+        {
+        path: 'facebook',
+        name: 'faceBook',
+        component: () => import('@/views/platform/FaceBook.vue')
+      },
       {
         path: 'fans',
         name: 'FansList',
