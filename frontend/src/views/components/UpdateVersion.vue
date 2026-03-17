@@ -185,7 +185,8 @@ function handleStartUpdate() {
   showProgressDialog.value = true;
   // 调用主进程下载，传入目标地址
   // const downloadUrl = `https://github.com/AinLGe/Chat365-Release/releases/download/V${latestVersion.value}/Chat365-win-${latestVersion.value}-x64.exe`;
-  const   downloadUrl =`https://pub-e800306e538c4dc3a15baef9bd281c8b.r2.dev/Chat365-win-${latestVersion.value}-x64.exe`
+  const isPro = import.meta.env.MODE==='development' ?  'test':  ''
+  const   downloadUrl =`https://pub-e800306e538c4dc3a15baef9bd281c8b.r2.dev/Chat365-win-${latestVersion.value}${isPro}-x64.exe`
   ipc.invoke(ipcRoute.downloadApp, { url: downloadUrl });
 }
 
