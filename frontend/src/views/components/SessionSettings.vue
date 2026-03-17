@@ -1118,7 +1118,7 @@ const confirmClick = async () => {
         proxy_port: configForm.port || '',
         proxy_username: configForm.username || '',
         proxy_password: configForm.password || '',
-        fingerprint_switch: configForm.fingerprintSwitch,
+        fingerprint_switch: String(configForm.fingerprintSwitch),
         browser: configForm.browser,
         os: configForm.os,
         webgl_metadata: configForm.webglMetadata,
@@ -1129,8 +1129,8 @@ const confirmClick = async () => {
         webrtc: configForm.webrtc,
         timezone: configForm.timezone,
         geolocation: configForm.geolocation,
-        geolocation_custom: configForm.geolocationCustom,
-        language: configForm.language,
+        geolocation_custom: String(configForm.geolocationCustom),
+        language: Array.isArray(configForm.language) ? JSON.stringify(configForm.language) : String(configForm.language || ''),
         resolution: configForm.resolution,
         resolution_width: configForm.resolutionWidth,
         resolution_height: configForm.resolutionHeight,
@@ -1145,13 +1145,16 @@ const confirmClick = async () => {
         cpu_cores_custom: configForm.cpuCoresCustom,
         memory: configForm.memory,
         memory_custom: configForm.memoryCustom,
-        do_not_track: configForm.doNotTrack,
+        do_not_track: String(configForm.doNotTrack),
         screen: configForm.screen,
         bluetooth: configForm.Bluetooth,
         battery: configForm.battery,
         battery_custom: configForm.batteryCustom,
-        port_scan_protection: configForm.portScanProtection,
-        port_scan_protection_custom: configForm.portScanProtectionCustom
+        port_scan_protection: String(configForm.portScanProtection),
+        port_scan_protection_custom: configForm.portScanProtectionCustom,
+        geolocation_latitude: String(configForm.geolocationLatitude || ''),
+        geolocation_longitude: String(configForm.geolocationLongitude || ''),
+        geolocation_accuracy: String(configForm.geolocationAccuracy || '1000')
       };
 
       // 如果是新建会话，先通过 IPC 添加

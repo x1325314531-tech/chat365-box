@@ -176,29 +176,35 @@ class WindowService extends Service {
 
     async saveCardConfig(args, event) {
         const { card_id, name } = args;
-        const config = await app.sdb.selectOne('card_config', { card_id: card_id })
+        const config = await app.sdb.selectOne('card_config', { card_id: card_id });
         
         if (config) {
-            // Create a copy of args to modify for card_config update
-            const configArgs = { ...args };
-            // Remove fields that don't belong to card_config table to avoid SQL errors
-            delete configArgs.name;
-            delete configArgs.card_id; // card_id is used in where clause, not set clause usually, or if it is, better to be safe if it's primary key
-
-            const count = await app.sdb.update('card_config', configArgs, { card_id: card_id })
+            // 获取数据库中 card_config 表的实际字段
+            const existingColumns = app.sdb.getExistingColumns('card_config') || {};
             
-            // Update session name in cards table if provided
+            // 过滤 args，只保留数据库中存在的字段
+            const configArgs = {};
+            for (const key in args) {
+                if (key in existingColumns && key !== 'card_id') {
+                    configArgs[key] = args[key];
+                }
+            }
+
+            // 执行更新
+            const count = await app.sdb.update('card_config', configArgs, { card_id: card_id });
+            
+            // 更新 cards 表中的名称
             if (name !== undefined && name !== '') {
-                await app.sdb.update('cards', { card_name: name }, { card_id: card_id })
+                await app.sdb.update('cards', { card_name: name }, { card_id: card_id });
             }
             
             if (count > 0 || (name !== undefined && name !== '')) {
-                return { status: true, message: '保存成功' }
+                return { status: true, message: '保存成功' };
             } else {
-                return { status: false, message: '没有数据被修改' }
+                return { status: false, message: '没有数据被修改' };
             }
         }
-        return { status: false, message: '找不到对应配置数据' }
+        return { status: false, message: '找不到对应配置数据' };
     }
 
     async getCardConfig(args, event) {

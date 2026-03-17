@@ -27,7 +27,7 @@ class DatabaseUtils {
     insert(tableName, data) {
         const columns = Object.keys(data).join(', ');
         const placeholders = Object.keys(data).map(() => '?').join(', ');
-        const values = Object.values(data);
+        const values = Object.values(data).map(val => this._formatValue(val));
         const sql = `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`;
 
         const stmt = this.db.prepare(sql);
@@ -56,7 +56,7 @@ class DatabaseUtils {
     selectOne(tableName, conditions = {}) {
         let sql = `SELECT * FROM ${tableName}`;
         const keys = Object.keys(conditions);
-        const values = Object.values(conditions);
+        const values = Object.values(conditions).map(val => this._formatValue(val));
 
         if (keys.length > 0) {
             const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
@@ -71,14 +71,16 @@ class DatabaseUtils {
     // 更新数据
     update(tableName, data, conditions = {}) {
         const updates = Object.keys(data).map((key) => `${key} = ?`).join(', ');
-        const values = [...Object.values(data)];
+        const dataValues = Object.values(data).map(val => this._formatValue(val));
+        const values = [...dataValues];
 
         let whereClause = '';
         if (Object.keys(conditions).length > 0) {
             whereClause = 'WHERE ' + Object.keys(conditions)
                 .map((key) => `${key} = ?`)
                 .join(' AND ');
-            values.push(...Object.values(conditions));
+            const conditionValues = Object.values(conditions).map(val => this._formatValue(val));
+            values.push(...conditionValues);
         }
 
         const sql = `UPDATE ${tableName} SET ${updates} ${whereClause}`;
@@ -151,6 +153,20 @@ class DatabaseUtils {
             // 表已存在，检查字段并更新
             await this.updateTableColumns(tableName, definedColumns, existingColumns);
         }
+    }
+
+    // 格式化绑定值，确保 SQLite 兼容性
+    _formatValue(val) {
+        if (val === undefined) return null;
+        if (typeof val === 'boolean') return val ? 'true' : 'false';
+        if (typeof val === 'object' && val !== null) {
+            try {
+                return JSON.stringify(val);
+            } catch (e) {
+                return String(val);
+            }
+        }
+        return val;
     }
 
     // 关闭数据库

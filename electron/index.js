@@ -96,6 +96,7 @@ class Index extends Application {
           do_not_track: 'TEXT',
           screen: 'TEXT',
           battery: 'TEXT',
+          battery_custom: 'TEXT',
           port_scan_protection: 'TEXT',
           geolocation_latitude: 'TEXT',
           geolocation_longitude: 'TEXT',

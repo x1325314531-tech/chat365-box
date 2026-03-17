@@ -84,7 +84,7 @@ const latestVersion = ref('');
 const available = ref(false);
 const showUpdateDialog = ref(false);
 const showProgressDialog = ref(false);
-
+const installationPackageAddress = ref('')
 const downloadPercent = ref(0);
 const downloadSpeed = ref('0.0MB/秒');
 const transferredSize = ref('0MB');
@@ -134,7 +134,7 @@ function init() {
   // 获取当前版本
   ipc.invoke(ipcRoute.getAppInfo).then(result => {
     appVersion.value = result.currentVersion;
-    // checkForUpdate(false);
+    checkForUpdate(false);
   });
 }
 
@@ -142,7 +142,7 @@ function init() {
  * 检查更新
  * @param {boolean} showTips 是否显示“已是最新”提示
  */
-async function checkForUpdate() {
+async function checkForUpdate(showTips = false) {
   try {
     const res = await get('/app/version');
     if (res.code === 200 && res.data) {
@@ -175,8 +175,8 @@ async function checkForUpdate() {
     let htmlContent = res.data[0].noticeContent;
    const fullDevApiPath = `${baseUrl}/dev-api`;
     htmlContent = htmlContent.replace(/\/dev-api/g, fullDevApiPath);
-
     releaseNotes.value = htmlContent;
+    installationPackageAddress.value = res.data[0].noticeFile
     }else{
     }
   }
@@ -184,9 +184,8 @@ function handleStartUpdate() {
   showUpdateDialog.value = false;
   showProgressDialog.value = true;
   // 调用主进程下载，传入目标地址
-  // const downloadUrl = `https://github.com/AinLGe/Chat365-Release/releases/download/V${latestVersion.value}/Chat365-win-${latestVersion.value}-x64.exe`;
-  const isPro = import.meta.env.MODE==='development' ?  'test':  ''
-  const   downloadUrl =`https://pub-e800306e538c4dc3a15baef9bd281c8b.r2.dev/Chat365-win-${latestVersion.value}${isPro}-x64.exe`
+  // const   downloadUrl =`https://pub-e800306e538c4dc3a15baef9bd281c8b.r2.dev/Chat365-win-${latestVersion.value}-x64.exe`
+ const downloadUrl =installationPackageAddress.value
   ipc.invoke(ipcRoute.downloadApp, { url: downloadUrl });
 }
 
