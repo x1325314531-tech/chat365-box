@@ -17,7 +17,10 @@
         @confirm="handleSettingsConfirm"
         @cancel="handleSettingsCancel"
       />
-      <el-empty v-else description="没有打开任何会话" />
+       <div class="empty-box" v-else>
+        <el-empty  description="没有打开任何会话" />
+       </div>
+      
     </div>
   </div>
 </template>
@@ -114,4 +117,11 @@ const receiveCardId = (card)=> {
   justify-content: center; /* 水平方向居中 */
   overflow-y: auto;
 }
+.empty-box  { 
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+ 
 </style>

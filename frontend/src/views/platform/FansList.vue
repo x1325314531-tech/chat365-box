@@ -371,9 +371,9 @@ const handleSearch = async () => {
           const regionData = getGlobalIdentification(fansPhone)   
           item.region = regionData.data.location
         }
-        if ((!item.fansType || item.fansType === '底粉') && isToday(item.createTime)) {
-          item.fansType = '新粉'
-        }
+        // if ((!item.fansType || item.fansType === '底粉') && isToday(item.createTime)) {
+        //   item.fansType = '新粉'
+        // }
         return item
       })
       
