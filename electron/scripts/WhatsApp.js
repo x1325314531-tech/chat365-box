@@ -269,6 +269,7 @@ let languages = []
 let globalConfig = null;
 let lastPreviewedTranslation = '';
 let lastPreviewedSource = '';
+let currentPreviewText = '';
 let previewNode = null;
 
 // 钱包地址正则 (ETH/BNB/TRON等)
@@ -518,20 +519,49 @@ async function autoCaptureVoice(audioElement) {
 // ==========================================================
 
 // 更新预览UI
-function updatePreviewUI(text) {
+function updatePreviewUI(text, isLoading = false) {
     if (!previewNode) {
         previewNode = document.createElement('div');
         previewNode.id = 'translationPreviewNode';
         
-        // 添加动画样式
+        // 添加增强的动画和样式
         const style = document.createElement('style');
         style.textContent = `
             @keyframes slideUpPreview {
                 from { transform: translateY(100%); opacity: 0; }
                 to { transform: translateY(0); opacity: 1; }
             }
+            @keyframes previewSpinner {
+                to { transform: rotate(360deg); }
+            }
             .preview-show {
                 animation: slideUpPreview 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            }
+            .preview-spinner {
+                width: 14px;
+                height: 14px;
+                border: 2px solid rgba(46, 211, 106, 0.2);
+                border-top-color: #2ed36a;
+                border-radius: 50%;
+                animation: previewSpinner 0.8s linear infinite;
+                display: inline-block;
+            }
+            .preview-action-btn {
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 4px;
+                transition: background 0.2s;
+                color: #8696a0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .preview-action-btn:hover {
+                background: rgba(0, 0, 0, 0.05);
+                color: #2ed36a;
+            }
+            .preview-action-btn:active {
+                background: rgba(0, 0, 0, 0.1);
             }
         `;
         document.head.appendChild(style);
@@ -541,21 +571,21 @@ function updatePreviewUI(text) {
             bottom: 100%;
             left: 10px;
             right: 10px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
             color: #1c1e21;
-            padding: 12px 16px;
+            padding: 10px 16px;
             font-size: 14px;
-            border: 1px solid rgba(46, 211, 106, 0.3);
+            border: 1px solid rgba(0, 0, 0, 0.08);
             border-bottom: none;
             border-radius: 12px 12px 0 0;
             z-index: 999;
-            box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.06);
             display: none;
             word-break: break-all;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
         `;
         const footer = document.querySelector('footer');
         if (footer) {
@@ -564,25 +594,105 @@ function updatePreviewUI(text) {
         }
     }
 
-    if (text) {
-        previewNode.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2ed36a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M5 8l6 6"></path>
-                    <path d="M4 14l6-6 2-3"></path>
-                    <path d="M2 5h12"></path>
-                    <path d="M7 2h1"></path>
-                    <path d="M22 22l-5-10-5 10"></path>
-                    <path d="M14 18h6"></path>
-                </svg>
-                <span style="font-size: 11px; font-weight: 600; color: #2ed36a; text-transform: uppercase; letter-spacing: 0.5px;">译文预览</span>
+    if (isLoading || text) {
+        currentPreviewText = text || '';
+        
+        let headerHtml = `
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 12px; font-weight: 600; color: #2ed36a;">翻译预览</span>
+                    <span style="font-size: 10px; color: #8696a0; margin-top: 4px;"> 双击译文区域即可进行修改，在消息输入框按 Enter 发送最终译文</span>
+                    ${isLoading ? '<div class="preview-spinner"></div>' : ''}
+                </div>
+                ${!isLoading && text ? `
+                    <div style="display: flex; gap: 4px;">
+                        <div class="preview-action-btn" id="previewRestoreBtn" title="恢复文本">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                <path d="M3 3v5h5"></path>
+                            </svg>
+                        </div>
+                        <div class="preview-action-btn" id="previewCopyBtn" title="复制文本">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </div>
+                        <div class="preview-action-btn" id="previewEditBtn" title="修改文本">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
-            <div style="color: #3b3c3e; line-height: 1.4; font-weight: 450;">${text}</div>
-            <div style="font-size: 10px; color: #8696a0; margin-top: 4px;">按 Enter 确认发送，修改内容取消预览</div>
         `;
+
+        let contentHtml = isLoading ? 
+            `<div style="color: #8696a0; font-style: italic;">...</div>` :
+            `<div id="previewTextContainer" style="color: #3b3c3e; line-height: 1.4; font-weight: 450; cursor: pointer; min-height: 20px;" title="双击进行修改">${text}</div>`;
+
+        previewNode.innerHTML = headerHtml + contentHtml;
         previewNode.style.display = 'flex';
+        
+        if (!isLoading && text) {
+            // 绑定事件
+            const textContainer = previewNode.querySelector('#previewTextContainer');
+            const restoreBtn = previewNode.querySelector('#previewRestoreBtn');
+            const copyBtn = previewNode.querySelector('#previewCopyBtn');
+            const editBtn = previewNode.querySelector('#previewEditBtn');
+
+            const startEditing = () => {
+                textContainer.contentEditable = 'true';
+                textContainer.style.background = '#f0f2f5';
+                textContainer.style.padding = '4px 8px';
+                textContainer.style.borderRadius = '4px';
+                textContainer.style.border ='1px solid #2ed36a'
+                textContainer.style.outline = 'none';
+                textContainer.focus();
+                
+                // 聚焦及全选
+                const range = document.createRange();
+                range.selectNodeContents(textContainer);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                textContainer.onblur = () => {
+                    textContainer.contentEditable = 'false';
+                    textContainer.style.background = 'transparent';
+                    textContainer.style.padding = '0';
+                    currentPreviewText = textContainer.innerText;
+                };
+
+                textContainer.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        textContainer.blur();
+                        // 结束编辑，但不立即发送，让用户在主输入框回车确认
+                    }
+                };
+            };
+
+            textContainer.ondblclick = startEditing;
+            editBtn.onclick = startEditing;
+
+            restoreBtn.onclick = () => {
+                textContainer.innerText = lastPreviewedTranslation;
+                currentPreviewText = lastPreviewedTranslation;
+                window.electronAPI.showNotification({ message: '已恢复初始译文', type: 'is-info' });
+            };
+
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(currentPreviewText).then(() => {
+                    window.electronAPI.showNotification({ message: '已复制到剪贴板', type: 'is-success' });
+                });
+            };
+        }
+
         previewNode.classList.remove('preview-show');
-        void previewNode.offsetWidth; // 触发回流以重启动画
+        void previewNode.offsetWidth;
         previewNode.classList.add('preview-show');
     } else {
         previewNode.style.display = 'none';
@@ -733,6 +843,78 @@ function sendMsg() {
     }
 }
 
+// 标志位：防止重复触发预览确认
+let _isConfirmingPreview = false;
+
+// 确认并发送预览的最终内容
+async function confirmPreviewAndSend() {
+    if (_isConfirmingPreview || !lastPreviewedSource || !currentPreviewText) {
+        console.log('🚫 [Confirm] 确认跳过:', { 
+            isConfirming: _isConfirmingPreview, 
+            hasSource: !!lastPreviewedSource, 
+            hasCurrent: !!currentPreviewText 
+        });
+        return;
+    }
+
+    _isConfirmingPreview = true;
+    const finalTranslated = currentPreviewText;
+    const original = lastPreviewedSource;
+
+    // --- 新增：翻译结果中文拦截逻辑 ---
+    if (globalConfig?.blockChineseTranslation && /[\u4e00-\u9fa5]/.test(finalTranslated)) {
+        console.warn('🚫 [Confirm] 译文包含中文，拦截发送');
+        window.electronAPI.showNotification({
+            message: '翻译后消息包含中文无法发送',
+            type: 'is-danger'
+        });
+        _isConfirmingPreview = false;
+        return;
+    }
+
+    console.log('🚀 [Confirm] 开始发送最终内容:', finalTranslated.substring(0, 30));
+
+    try {
+        // 1. 立即清除预览 UI
+        updatePreviewUI(null);
+
+        // 2. 模拟原生键盘输入最终译文
+        const result = await window.electronAPI.simulateTyping({
+            text: finalTranslated,
+            clearFirst: true
+        });
+
+        if (result && result.success) {
+            // 给 WhatsApp/Lexical 一点点处理 DOM 的时间
+            setTimeout(() => {
+                sendMsg();
+                console.log('📤 [Confirm] 最终内容已发送');
+
+                // 3. 延迟添加原文对照显示（等待 DOM 渲染出新消息）
+                setTimeout(() => {
+                    addOriginalTextToSentMessage(original, finalTranslated);
+                }, 500);
+
+                // 4. 重置状态
+                lastPreviewedTranslation = '';
+                lastPreviewedSource = '';
+                currentPreviewText = '';
+            }, 150);
+        } else {
+            console.error('❌ [Confirm] 模拟输入失败:', result?.error);
+            window.electronAPI.showNotification({
+                message: '发送失败，请手动尝试',
+                type: 'is-danger'
+            });
+        }
+    } catch (e) {
+        console.error('❌ [Confirm] 异常:', e);
+    } finally {
+        // 稍微延迟重置锁，防止由于输入事件导致的竞态
+        setTimeout(() => { _isConfirmingPreview = false; }, 500);
+    }
+}
+
 function startMonitor() {
     console.log('✅ 进入 startMonitor 函数');
 
@@ -785,19 +967,11 @@ function startMonitor() {
                         return;
                     }
 
-                    // 翻译预览逻辑
+                    // 翻译预览确认发送逻辑
                     if (globalConfig?.translatePreview && lastPreviewedTranslation) {
-                        if (inputText.trim() === lastPreviewedTranslation.trim()) {
-                            console.log('✅ 预览已确认,发送消息');
-                            sendMsg();
-                            const original = lastPreviewedSource;
-                            const translated = lastPreviewedTranslation;
-                            setTimeout(() => {
-                                addOriginalTextToSentMessage(original, translated);
-                            }, 500);
-                            updatePreviewUI(null);
-                            lastPreviewedTranslation = '';
-                            lastPreviewedSource = '';
+                        // 如果当前输入框内容仍是产生该预览的原文，则发送当前预览的译文
+                        if (inputText.trim() === lastPreviewedSource.trim()) {
+                            confirmPreviewAndSend();
                             return;
                         }
                     }
@@ -847,10 +1021,13 @@ function startMonitor() {
 function handleInput(event) {
     if (lastPreviewedTranslation) {
         const inputText = getInputContent();
-        if (inputText !== lastPreviewedTranslation) {
+        // 预览模式下，输入框显示的是原文，所以这里应该检查原文是否变化
+        if (inputText.trim() !== lastPreviewedSource.trim()) {
             console.log('📝 内容已更改，清除预览');
             updatePreviewUI(null);
             lastPreviewedTranslation = '';
+            lastPreviewedSource = '';
+            currentPreviewText = '';
         }
     }
 }
@@ -1088,23 +1265,11 @@ async function handleKeyDown(event) {
 
             // --- 翻译预览逻辑 ---
             if (globalConfig?.translatePreview && lastPreviewedTranslation) {
-                if (inputText.trim() === lastPreviewedTranslation.trim()) {
-                    console.log('✅ 预览已确认,发送消息');
+                // 如果当前输入框内容是上次生成预览的原文，第二次按下 Enter 则发送预览内容
+                if (inputText.trim() === lastPreviewedSource.trim()) {
                     event.preventDefault();
                     event.stopPropagation();
-                    
-                    sendMsg();
-                    
-                    // 确保发送后也能持久化原文显示
-                    const original = lastPreviewedSource;
-                    const translated = lastPreviewedTranslation;
-                    setTimeout(() => {
-                        addOriginalTextToSentMessage(original, translated);
-                    }, 500);
-
-                    updatePreviewUI(null);
-                    lastPreviewedTranslation = '';
-                    lastPreviewedSource = '';
+                    confirmPreviewAndSend();
                     return;
                 }
             }
@@ -1203,29 +1368,23 @@ async function executeTranslationFlow(inputText) {
         console.log('🔄 开始翻译流程，原文:', inputText);
         
         // ===== 敏感词检测 =====
-        
         const sensitiveCheck = await checkSensitiveContent(inputText);
-        
         if (sensitiveCheck.isSensitive) {
             console.warn('🚫 检测到敏感内容，阻止发送');
-            
-            // 显示警告通知
             window.electronAPI.showNotification({
                 message: `⚠️ ${sensitiveCheck.reason}`,
                 type: 'is-danger'
             });
-            
-            // 可选：在输入框下方显示警告提示
             showSensitiveWarning(sensitiveCheck.reason);
-            
-            return; // 阻止发送
+            return;
         }
 
+        // --- 翻译预览加载状态 ---
+        if (globalConfig?.translatePreview) {
+            updatePreviewUI('', true); 
+        }
 
-        
-        // =====================
-
-        // 显示加载状态
+        // 显示显示加载状态 (输入框级别的 loading)
         const loadingNode = generateLoadingNode();
         loadingNode.id = 'editDivLoadingNode';
         operationNode('add', loadingNode, document.querySelector('footer div[contenteditable="true"]')?.parentNode?.parentNode);
@@ -1239,74 +1398,58 @@ async function executeTranslationFlow(inputText) {
 
         if (result && result.success) {
             finalInput = result.data;
-            // 将自动翻译结果存入本地翻译缓存，以便刷新后能恢复历史译文
             await saveTranslationCache(inputText, finalInput, getLocalLanguage(), getTargetLanguage());
         } else {
             console.warn('⚠️ 翻译失败:', result?.msg);
-            // 显示通知告诉用户为什么翻译失败
             window.electronAPI.showNotification({
                 message: `翻译失败: ${result?.msg || '服务异常'}，将发送原文`,
                 type: 'is-warning'
             });
-            // 翻译失败，保留原文继续流程
-        }
-
-        // 确保输入框有焦点
-        let editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
-        if (editableDiv) {
-            editableDiv.focus();
-        }
-
-        // 使用 Electron 原生键盘模拟 - 这会绕过 Lexical 的 DOM 保护
-        console.log('⌨️ 使用原生键盘模拟输入...');
-        const typResult = await window.electronAPI.simulateTyping({
-            text: finalInput,
-            clearFirst: true  // 先清空（Ctrl+A + Backspace）
-        });
-
-        if (typResult && typResult.success) {
-            console.log('✅ 原生键盘输入成功');
-        } else {
-            console.error('❌ 原生键盘输入失败:', typResult?.error);
+            // 如果开启了预览且失败，关闭预览显示
+            if (globalConfig?.translatePreview) {
+                updatePreviewUI(null);
+            }
         }
 
         // 移除加载状态
         operationNode('remove', loadingNode);
 
-        // 检查输入框内容
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // 处理预览逻辑
+        // --- 核心翻译预览逻辑 ---
         if (globalConfig?.translatePreview && result && result.success) {
-            console.log('👀 开启了翻译预览，显示译文并不发送');
-            updatePreviewUI(finalInput);
-            lastPreviewedTranslation = finalInput;
+            console.log('👀 开启了翻译预览，显示译文并保留原文');
+            lastPreviewedTranslation = result.data;
+            currentPreviewText = result.data;
             lastPreviewedSource = inputText;
-            
-            // 消息已替换，但不调用 sendMsg
+            updatePreviewUI(result.data);
             return;
         }
 
-        // 发送消息
-        setTimeout(() => {
-            sendMsg();
-            console.log('📤 消息已发送');
-            
-            // 消息发送后，如果是翻译成功的，则添加原文显示
-            if (result && result.success) {
-                setTimeout(() => {
-                    addOriginalTextToSentMessage(inputText, finalInput);
-                }, 500);
-            }
-        }, 200);
+        // 非预览模式或翻译失败，替换内容并发送
+        let editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
+        if (editableDiv) {
+            editableDiv.focus();
+        }
 
+        console.log('⌨️ 使用原生键盘模拟输入并发送...');
+        const typResult = await window.electronAPI.simulateTyping({
+            text: finalInput,
+            clearFirst: true  
+        });
+
+        if (typResult && typResult.success) {
+            setTimeout(() => {
+                sendMsg();
+                if (result && result.success) {
+                    setTimeout(() => {
+                        addOriginalTextToSentMessage(inputText, finalInput);
+                    }, 500);
+                }
+            }, 200);
+        }
     } catch (error) {
         console.error('❌ 翻译过程出错:', error);
-
-        // 移除加载状态
         operationNode('remove', document.getElementById('editDivLoadingNode'));
-
-        // 翻译失败，直接发送原文
+        updatePreviewUI(null);
         sendMsg();
     }
 }
