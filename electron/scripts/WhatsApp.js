@@ -831,7 +831,7 @@ function syncAllImageLangSelects(type, value) {
 // 标志位：当程序内部调用 sendMsg() 时，跳过发送按钮的翻译拦截
 let _isSendingProgrammatically = false;
 
-function sendMsg() {
+function sendMsg(retryCount = 0) {
     let sendButton = document.querySelector('footer span[data-icon="wds-ic-send-filled"]')?.parentNode;
     if (sendButton) {
         _isSendingProgrammatically = true;
@@ -839,7 +839,12 @@ function sendMsg() {
         _isSendingProgrammatically = false;
         console.log('消息已发送');
     } else {
-        console.log('发送按钮不存在！');
+        if (retryCount < 10) {
+            console.log(`发送按钮目前尚不存在，延迟 100ms 重试 (${retryCount + 1}/10)...`);
+            setTimeout(() => sendMsg(retryCount + 1), 100);
+        } else {
+            console.log('❌ 发送按钮最终未找到！放弃点击发送。');
+        }
     }
 }
 
@@ -900,10 +905,12 @@ async function confirmPreviewAndSend() {
                     sendMsg();
                     console.log('📤 [Confirm] 最终内容已发送');
                     
-                    // 恢复可见性
+                    // 恢复可见性 (如果用户没有删除，则恢复；保险起见)
                     setTimeout(() => {
-                        editableDiv.style.opacity = originalOpacity;
-                        editableDiv.style.caretColor = '';
+                        if (editableDiv) {
+                            editableDiv.style.opacity = '';
+                            editableDiv.style.caretColor = '';
+                        }
                     }, 50);
 
                     // 3. 延迟添加原文对照显示（等待 DOM 渲染出新消息）
@@ -911,10 +918,19 @@ async function confirmPreviewAndSend() {
                         addOriginalTextToSentMessage(original, finalTranslated);
                     }, 150);
 
-                    // 4. 重置状态
+                    // 4. 彻底重置状态，并再次强制隐藏UI
                     lastPreviewedTranslation = '';
                     lastPreviewedSource = '';
                     currentPreviewText = '';
+                    updatePreviewUI(null);
+                    
+                    // 为防止异步事件导致重新弹出，延迟再清一次
+                    setTimeout(() => {
+                        lastPreviewedTranslation = '';
+                        lastPreviewedSource = '';
+                        currentPreviewText = '';
+                        updatePreviewUI(null);
+                    }, 600);
                 }, 500);
             }
             return;
@@ -1488,7 +1504,6 @@ async function executeTranslationFlow(inputText) {
 
             setTimeout(() => {
                 sendMsg();
-                
                 // 恢复可见性
                 setTimeout(() => {
                     editableDiv.style.opacity = originalOpacity;
