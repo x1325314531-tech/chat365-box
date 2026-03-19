@@ -877,13 +877,54 @@ async function confirmPreviewAndSend() {
     try {
         // 1. 立即清除预览 UI
         updatePreviewUI(null);
+         if(globalConfig?.sendAutoTranslate && globalConfig?.translatePreview) { 
+            const editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
+            if (editableDiv) {
+                 // 彻底无感隐藏：避免全选、删除和插入时文字闪烁
+                 const originalOpacity = editableDiv.style.opacity || '1';
+                 editableDiv.style.opacity = '0';
+                 editableDiv.style.caretColor = 'transparent';
 
+                 editableDiv.focus();
+                 setTimeout(()=> { 
+                    document.execCommand('selectAll', false, null);
+                    setTimeout(()=> {
+                        document.execCommand('delete', false, null);
+                          setTimeout(()=> {
+                          document.execCommand('insertText', false, finalTranslated);
+                      }, 50)
+                    }, 100)
+                 }, 150)
+                console.log('wwwwwwwww 无感注入', finalTranslated);   
+                  setTimeout(() => {
+                    sendMsg();
+                    console.log('📤 [Confirm] 最终内容已发送');
+                    
+                    // 恢复可见性
+                    setTimeout(() => {
+                        editableDiv.style.opacity = originalOpacity;
+                        editableDiv.style.caretColor = '';
+                    }, 50);
+
+                    // 3. 延迟添加原文对照显示（等待 DOM 渲染出新消息）
+                    setTimeout(() => {
+                        addOriginalTextToSentMessage(original, finalTranslated);
+                    }, 150);
+
+                    // 4. 重置状态
+                    lastPreviewedTranslation = '';
+                    lastPreviewedSource = '';
+                    currentPreviewText = '';
+                }, 500);
+            }
+            return;
+         }
         // 2. 模拟原生键盘输入最终译文
         const result = await window.electronAPI.simulateTyping({
             text: finalTranslated,
             clearFirst: true
         });
-
+        
         if (result && result.success) {
             // 给 WhatsApp/Lexical 一点点处理 DOM 的时间
             setTimeout(() => {
@@ -893,7 +934,7 @@ async function confirmPreviewAndSend() {
                 // 3. 延迟添加原文对照显示（等待 DOM 渲染出新消息）
                 setTimeout(() => {
                     addOriginalTextToSentMessage(original, finalTranslated);
-                }, 500);
+                }, 200);
 
                 // 4. 重置状态
                 lastPreviewedTranslation = '';
@@ -1426,10 +1467,41 @@ async function executeTranslationFlow(inputText) {
             return;
         }
 
-        // 非预览模式或翻译失败，替换内容并发送
+        // 非预览模式或翻译失败，彻底无感隐藏：避免文字闪烁
         let editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
         if (editableDiv) {
+            const originalOpacity = editableDiv.style.opacity || '1';
+            editableDiv.style.opacity = '0';
+            editableDiv.style.caretColor = 'transparent';
+
             editableDiv.focus();
+            setTimeout(()=> { 
+                document.execCommand('selectAll', false, null);
+                setTimeout(()=> {
+                    document.execCommand('delete', false, null);
+                    setTimeout(()=> {
+                        document.execCommand('insertText', false, finalInput);
+                        console.log('⌨️ [Execute] 无感注入最终译文');
+                    }, 50)
+                }, 100)
+            }, 150)
+
+            setTimeout(() => {
+                sendMsg();
+                
+                // 恢复可见性
+                setTimeout(() => {
+                    editableDiv.style.opacity = originalOpacity;
+                    editableDiv.style.caretColor = '';
+                }, 50);
+
+                if (result && result.success) {
+                    setTimeout(() => {
+                        addOriginalTextToSentMessage(inputText, finalInput);
+                    }, 300);
+                }
+            }, 500);
+            return;
         }
 
         console.log('⌨️ 使用原生键盘模拟输入并发送...');
