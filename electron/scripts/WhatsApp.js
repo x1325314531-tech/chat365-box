@@ -1402,13 +1402,15 @@ async function executeTranslationFlow(inputText) {
         } else {
             console.warn('⚠️ 翻译失败:', result?.msg);
             window.electronAPI.showNotification({
-                message: `翻译失败: ${result?.msg || '服务异常'}，将发送原文`,
-                type: 'is-warning'
+                message: `翻译失败: ${result?.msg || '服务异常'}，将无法发送译文`,
+                type: 'is-danger'
             });
             // 如果开启了预览且失败，关闭预览显示
             if (globalConfig?.translatePreview) {
                 updatePreviewUI(null);
             }
+             operationNode('remove', document.getElementById('editDivLoadingNode'));
+            return
         }
 
         // 移除加载状态

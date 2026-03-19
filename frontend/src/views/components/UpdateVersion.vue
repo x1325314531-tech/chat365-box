@@ -18,7 +18,6 @@
     <el-dialog
       v-model="showUpdateDialog"
       :show-close="false"
-      width="560px"
       class="update-dialog-custom"
       :align-center="true"
     >
@@ -54,7 +53,6 @@
       :show-close="false"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
-      width="480px"
       class="progress-dialog-custom"
     >
       <div class="progress-content">
@@ -194,6 +192,8 @@ function handleStartUpdate() {
 <style lang="less">
 /* 全局覆盖弹窗样式，因为 el-dialog 会被挂载到 body 下 */
 .update-dialog-custom {
+  width: 90% !important;
+  max-width: 560px !important;
   .el-dialog__header {
     display: none;
   }
@@ -319,6 +319,8 @@ function handleStartUpdate() {
 }
 
 .progress-dialog-custom {
+  width: 90% !important;
+  max-width: 480px !important;
   .el-dialog__header {
     padding-bottom: 10px;
     border-bottom: 1px solid #f1f5f9;

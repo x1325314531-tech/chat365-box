@@ -307,7 +307,10 @@ const handleAccountLogin = async () => {
     }
   } catch (error) {
     console.error('登录异常:', error);
-    Notification.message({ message: '网络请求失败，请稍后重试', type: 'error' });
+    // request.js 已经处理了大部分错误提示，除非是非请求类错误或者明确未处理的错误
+    if (!error.isHandled) {
+      Notification.message({ message: '网络请求失败，请稍后重试', type: 'error' });
+    }
   } finally {
     submitLoading.value = false;
   }

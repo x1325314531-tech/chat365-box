@@ -20,7 +20,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-select v-model="searchForm.appPhone" :disabled="appPHONEDisable" placeholder="我的账号(多选)" style="width: 180px" multiple collapse-tags clearable>
+          <el-select v-model="searchForm.appPhone" :disabled="appPHONEDisable" placeholder="我的账号(多选)" style="width: 180px"  collapse-tags clearable>
             <el-option 
               v-for="account in availableAccounts" 
               :key="account" 
@@ -69,10 +69,10 @@
           <div class="summary-card">
             <div class="card-top">
             <div class="card-header">
-              <span class="card-title">当前账号</span> 
-              <span class="sub-text">(数据已当前工单去重) </span>
+              <span class="card-title">当前账号：{{userInfo.name  }}</span> 
+              <span class="sub-text">(数据已当前子账号) </span>
             </div>
-            <div class="card-sub-header">所属工单: --</div>
+            <!-- <div class="card-sub-header">所属工单: --</div> -->
             </div>
             <div class="stats-grid">
               <div class="stat-item">
@@ -213,7 +213,7 @@
 import { ref, reactive, onMounted, onUnmounted,watch } from 'vue'
 import { Search, RefreshRight } from '@element-plus/icons-vue'
 import { ipc } from '@/utils/ipcRenderer'
-import { get} from '@/utils/request'
+import { get,post} from '@/utils/request'
 import{ getGlobalIdentification} from '@/utils/phone-identifier'
 import { formatDateTime, isToday }  from '@/utils/formatTime'
 
@@ -222,12 +222,12 @@ import { formatDateTime, isToday }  from '@/utils/formatTime'
 const availableAccounts = ref([])
 const searchForm = reactive({
   platform: '',
-  appPhone: [],
+  appPhone: '',
   fanType: '',
   dateRange: null,
   keyword: ''
 })
-
+ const userInfo = ref({})
  const  fansData= reactive({
    newFansTotal:0,
    retentionTotal:0,
@@ -277,7 +277,7 @@ const getAccounts = async () => {
       
       // 如果当前没选，且有新账号，默认选中第一个
       if (searchForm.appPhone.length === 0 && availableAccounts.value.length > 0) {
-        searchForm.appPhone = [availableAccounts.value[0]]
+        searchForm.appPhone = availableAccounts.value[0]
       }
       appPHONEDisable.value = false
     } else { 
@@ -340,7 +340,8 @@ const handleSearch = async () => {
       platform: searchForm.platform || undefined,
       keyword: searchForm.keyword || undefined,
       fanType: searchForm.fanType || undefined,
-      appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+      appPhone: searchForm.appPhone || undefined,
+      // appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
     }
 
     // 处理时间范围
@@ -356,9 +357,7 @@ const handleSearch = async () => {
       params.addTimeEnd = endTime;
     }
    
-     const queryString = toQueryString(params)
-    const res = await get(`/app/fansStore/pageRecord?${queryString.toString()}`)
-    
+     const  res = await post(`/app/fansStore/pageRecord`, params)
     if (res && res.code === 200) {
       // 适配响应结构
       const data = res.data || {}
@@ -396,7 +395,7 @@ const handleSearch = async () => {
 
 const resetSearch = () => {
   searchForm.platform = ''
-  searchForm.appPhone = []
+  searchForm.appPhone = ''
   searchForm.fanType = ''
   searchForm.dateRange = null
   searchForm.keyword = ''
@@ -434,11 +433,12 @@ const initFansStatistics = () => {
        fetchTrafficDiverters(), //获取分流粉
        fetchNewFansGainedToday(), //获取今日进粉粉丝
        fetchrRetentionToday(),
-       fetchCurrentReferenceFans() //获取今日库底粉丝
+       fetchCurrentReferenceFans(), //获取今日库底粉丝
+       fetchrSevenDaysRetentionToday() //获取T日新增用户T:7天
     ];
     // 使用 Promise.all 并行执行所有请求
     return Promise.all(promises)
-        .then(([newFansTotal,todayNew, fansCountValue,trafficDivertersCount, newFansGainedTodayCount,retentionTodayTotal]) => {
+        .then(([newFansTotal,todayNew, fansCountValue,trafficDivertersCount, newFansGainedTodayCount,retentionTodayTotal,retentionSevenDaysTotal]) => {
             // 所有请求成功后，整理数据
             const statisticsData = {
                 newFansTotal:newFansTotal,// 总进粉
@@ -468,9 +468,8 @@ const fetchNewFansTotal = async()=>{
   const params=  {
        pageSize:1,
        pageNum:10000
-  }
- const queryString = toQueryString(params)
-  const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+  } 
+  const  res = await post(`/app/fansStore/pageRecord`, params)
    const  newFansTotal = res.total || 0
   return newFansTotal
 }
@@ -481,14 +480,12 @@ const  fetchNewFansToday = async() => {
         pasgeNum:1,
         addTimeBegin : formatDateTime(new Date().setHours(0, 0, 0, 0)),
         addTimeEnd : formatDateTime(new Date().setHours(23, 59, 59, 999)),
-        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined,
+         appPhone: searchForm.appPhone || undefined,
         fansType:'底粉'
 
       }
       console.log('新粉粉丝', params);
-      
-      const queryString = toQueryString(params)
-     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+      const  res = await post(`/app/fansStore/pageRecord`, params)
       console.log('新粉粉丝数量', res)
      const todayNew = res.total 
      return todayNew   
@@ -500,13 +497,11 @@ const  fetchNewFansGainedToday = async() => {
         pasgeNum:1,
         addTimeBegin : formatDateTime(new Date().setHours(0, 0, 0, 0)),
         addTimeEnd : formatDateTime(new Date().setHours(23, 59, 59, 999)),
-        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+        appPhone: searchForm.appPhone || undefined,
 
       }
       console.log('今日进粉粉丝', params);
-      
-      const queryString = toQueryString(params)
-     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+    const  res = await post(`/app/fansStore/pageRecord`, params)
       console.log('新粉粉丝数量', res)
      const newFansGainedTodayCount= res.total 
      return newFansGainedTodayCount   
@@ -518,12 +513,10 @@ const  fetchTrafficDiverters= async()=>{
         pageSize:10000,
         pasgeNum:1,
         fansType: '底粉',
-        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+         appPhone: searchForm.appPhone || undefined,
       }
       console.log('底粉粉丝', params);
-      
-      const queryString = toQueryString(params)
-     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+    const  res = await post(`/app/fansStore/pageRecord`, params)
       console.log('底库粉丝数量', res)
      const trafficDivertersCount = res.total 
      return trafficDivertersCount  
@@ -535,12 +528,10 @@ const  fetchReferenceFans= async()=>{
         pageSize:10000,
         pasgeNum:1,
         fansType: '底粉',
-        // appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+        //  appPhone: searchForm.appPhone || undefined,
       }
       console.log('所有底库粉丝 参数', params);
-      
-      const queryString = toQueryString(params)
-     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+    const  res = await post(`/app/fansStore/pageRecord`, params)
       console.log('所有底库粉丝数量', res)
      const fansCount = res.total 
      return fansCount  
@@ -554,12 +545,10 @@ const  fetchCurrentReferenceFans= async()=>{
         addTimeBegin : formatDateTime(new Date().setHours(0, 0, 0, 0)),
         addTimeEnd : formatDateTime(new Date().setHours(23, 59, 59, 999)),
         fansType: '底粉',
-        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
+        appPhone: searchForm.appPhone || undefined,
       }
       console.log('底粉粉丝', params);
-      
-      const queryString = toQueryString(params)
-     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+    const  res = await post(`/app/fansStore/pageRecord`, params)
       console.log('今日底粉粉丝数量', res)
      const currentReferenceFans = res.total  || 0
      return currentReferenceFans
@@ -578,20 +567,51 @@ const fetchrRetentionToday= async()=> {
         pasgeNum:1,
         addTimeBegin : formatDateTime(startOfYesterday),
         addTimeEnd : formatDateTime(endOfYesterday),
-        appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined,
+         appPhone: searchForm.appPhone || undefined,
         fansType:'底粉'  
 
       }
       console.log('今日留存粉丝参数', params);
-      
-      const queryString = toQueryString(params)
-     const res= await get(`/app/fansStore/pageRecord?${queryString.toString()}`) 
+    const  res = await post(`/app/fansStore/pageRecord`, params)
       console.log('今日留存粉丝数量', res)
      const retentionTodayTotal = res.total || 0
      return retentionTodayTotal   
 }
+//获取T日新增用户 T:7天
+  const fetchrSevenDaysRetentionToday= async()=> { 
+  // 获取昨天的日期范围
+  const sevenday = new Date(); // 今天
+  const yesterday = new Date(); // 今天
+  yesterday.setDate(yesterday.getDate() - 1); // 昨天
+  sevenday.setDate(sevenday.getDate() - 7); // 七天前
+  const startOfYesterday = new Date(sevenday);
+  startOfYesterday.setHours(0, 0, 0, 0); // 七天前 00:00:00
+  const endOfYesterday = new Date(yesterday);
+  endOfYesterday.setHours(23, 59, 59, 999); // 昨天 23:59:59
+   const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        addTimeBegin : formatDateTime(startOfYesterday),
+        addTimeEnd : formatDateTime(endOfYesterday),
+         appPhone: searchForm.appPhone || undefined,
+        fansType:'底粉'  
+
+      }
+      console.log('T7日留存粉丝参数', params);
+    const  res = await post(`/app/fansStore/pageRecord`, params)
+      console.log('T7日留存粉丝数量', res)
+     const retentionSevenDaysTotal = res.total || 0
+     return retentionSevenDaysTotal   
+}
+const loadUserInfo = () => {
+  const info = localStorage.getItem('userInfo')
+  if (info) {
+    userInfo.value = JSON.parse(info)
+  }
+}
 onMounted(async () => {
   // 获取已有的账号列表
+  loadUserInfo()
   await getAccounts()
   await getplatformList()
   // 监听登录通知，实时更新账号列表
@@ -678,6 +698,9 @@ onUnmounted(() => {
   font-weight: bold;
   color: #333;
   margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: baseline;
 }
 
 .card-title {

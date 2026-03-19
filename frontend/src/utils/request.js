@@ -47,14 +47,24 @@ service.interceptors.response.use(
                 router.push('/login');
                 return Promise.reject(new Error('Auth failed'));
             }
-            ElMessage.error(res.msg || '请求失败'); // 使用 Element Plus 显示错误信息
-            console.error('请求失败:', res.msg);
-            return Promise.reject(new Error(res.msg || 'Error'));
+            const errorMsg = res.msg || '请求失败';
+            ElMessage.error(errorMsg); // 使用 Element Plus 显示错误信息
+            console.error('请求失败:', errorMsg);
+            const error = new Error(errorMsg);
+            error.isHandled = true; // 标记已处理，避免外部再次处理
+            return Promise.reject(error);
         }
         
         return res;
     },
     (error) => {
+        console.log('异常', error, error.response);
+        
+        // 如果是已经在上面处理过的业务错误，直接 reject
+        if (error.isHandled) {
+            return Promise.reject(error);
+        }
+
         // 对响应错误做点什么
         if (error.response) {
             // 根据响应状态码自定义错误提示
@@ -66,10 +76,14 @@ service.interceptors.response.use(
                 router.push('/login');
                 return Promise.reject(error);
             }
-            const errorMessage = data.message || `请求失败，状态码: ${status}`;
+            // 支持 msg 或 message 字段
+            const errorMessage = data.msg || data.message || `请求失败，状态码: ${status}`;
             ElMessage.error(errorMessage);
         } else {
-            ElMessage.error('网络错误，请检查您的网络连接');
+            // 排除取消请求或已处理的错误
+            if (error.code !== 'ERR_CANCELED') {
+                ElMessage.error('网络错误，请检查您的网络连接');
+            }
         }
         console.error('响应错误:', error);
         return Promise.reject(error);
