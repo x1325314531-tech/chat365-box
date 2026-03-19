@@ -14,6 +14,12 @@ class Index extends Application {
     super();
     app.sdb = new Database();
     app.viewsMap = new Map();
+    app.platforms = [
+        { platform: 'Telegram', url: 'https://web.telegram.org/a/' },
+        { platform: 'TelegramK', url: 'https://web.telegram.org/k/' },
+        { platform: 'WhatsApp', url: 'https://web.whatsapp.com/' },
+        { platform: 'Zalo', url: 'https://chat.zalo.me/' },
+    ];
     this.initializeDatabase();
 
     // ========== 主进程全局异常捕获 ==========
@@ -521,7 +527,8 @@ class Index extends Application {
         // 先精确匹配，再前缀匹配（兼容子路径 / 哈希路由），按 URL 长度从长到短优先
         const sortedPlatforms = [...platforms].sort((a, b) => b.url.length - a.url.length);
         const fileName = sortedPlatforms.find(item => url === item.url || url.startsWith(item.url))?.platform;
-        Log.info('fileName:', fileName,' url:',url);
+        Log.info(`[execute-js-operation] url: ${url}, identified platform: ${fileName}, total platforms: ${platforms.length}`);
+        
         if (fileName) {
           // 获取要执行的 JavaScript 文件内容
           const scriptPath = path.join(__dirname, 'scripts', `${fileName}.js`);

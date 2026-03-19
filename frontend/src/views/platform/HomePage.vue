@@ -202,7 +202,10 @@ import LineChart from '../components/LineChart.vue'
 import Notification from "@/utils/notification";
 import UpdateVersion from '@/views/components/UpdateVersion.vue'
 import { get } from '@/utils/request'
+import useSocketIO from '@/utils/useSocketIO'
 
+// WebSocket 
+const { socket, isConnected, on, off } = useSocketIO()
 // i18n
 const { t, locale } = useI18n()
 
@@ -278,9 +281,16 @@ const updateTime = () => {
 // 组件挂载时启动定时器
 onMounted(() => {
   loadUserInfo() // 加载用户信息
-  getCurrentCharUsage()
   updateTime() // 立即更新一次
   timer = setInterval(updateTime, 1000) // 每秒更新
+
+  // 监听 WebSocket 的 message 响应
+  on('message', (res) => {
+    // 解析心跳包返回的具体数据格式
+    if (res && res.code === 200 && res.data === 'pong') {
+      getCurrentCharUsage()
+    }
+  })
 })
 
 // 组件卸载时清除定时器
@@ -288,6 +298,7 @@ onUnmounted(() => {
   if (timer) {
     clearInterval(timer)
   }
+  off('message')
 })
 
 // 模拟轮播图色块数据

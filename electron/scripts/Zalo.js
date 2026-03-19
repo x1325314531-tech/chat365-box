@@ -4,6 +4,23 @@
  */
 
 // ========== 全局变量与常量 ==========
+console.error("🚀🚀🚀 ZALO SCRIPT STARTING 🚀🚀🚀");
+try {
+    const div = document.createElement('div');
+    div.innerHTML = 'Zalo Script Injected!';
+    div.style.cssText = 'position:fixed;top:0;left:0;z-index:999999;background:red;color:white;padding:10px;font-size:20px;font-weight:bold;';
+    if (document.body) document.body.appendChild(div);
+} catch(e) {}
+
+(function() {
+if (window._zalo_injected) return;
+window._zalo_injected = true;
+
+// 劫持 console.log 以绕过 Zalo 的屏蔽
+const _log = console.warn.bind(console);
+const consoleLog = _log; // 将内部所有用到 console.log 的地方如果需要可以改掉，或者直接重写
+console.log = console.warn;
+
 let globalConfig = null;
 let languages = [];
 let processingMessages = new Set();
@@ -13,10 +30,10 @@ let lastPreviewedSource = '';
 
 // DOM 选择器配置 (Zalo Web 增强版)
 const SELECTORS = {
-    MAIN_PANEL: ['#layout-container', '#main-page', '.main-container', 'body'],
+    MAIN_PANEL: ['#layout-container', '#main-page','#chatView', '.main-container', 'body'],
     SIDE_PANEL: ['#contact-list', '.contact-list', '#side-nav', '.side-panel', 'aside', '#nav-tab-contact'],
-    MESSAGE_INPUT: ['#rich-input', '.chat-input', '[contenteditable="true"]', '#input_pc'],
-    SEND_BUTTON: ['[icon*="Sent"]', '.send-msg-btn', '[title*="Send"]', '[title*="Gửi"]', '[translate-title*="SEND"]', '.btn-send-msg', '.send-btn', 'button.btn-send', '.chat-input__send-btn', '[zalo-test-id="send-btn"]', '.fa-paper-plane-o', '.it-send-msg', '.fa-Sent-msg_24_Line'],
+    MESSAGE_INPUT: ['#rich-input', '#richInput', '.chat-input', '[contenteditable="true"]', '#input_pc', '[data-trailer="Zalo"]'],
+    SEND_BUTTON: ['[icon*="Sent"]', '[icon="Sent-msg_24_Line"]', '.send-msg-btn', '[title*="Send"]', '[title*="Gửi"]', '[translate-title*="SEND"]', '.btn-send-msg', '.send-btn', 'button.btn-send', '.chat-input__send-btn', '[zalo-test-id="send-btn"]', '.fa-paper-plane-o', '.it-send-msg', '.fa-Sent-msg_24_Line'],
     INCOMING_MSG: ['.msg-item.fan-receiver', '.message-in', '.msg-info-received', '[class*="msg-item"][class*="receiver"]'],
     OUTGOING_MSG: ['.msg-item.fan-sender', '.message-out', '.msg-info-sent', '[class*="msg-item"][class*="sender"]'],
     MSG_TEXT_SPAN: ['.text', '.message-text', '.content-text', '.msg-content', '.plain-text', 'div[class*="content"] > span'],
@@ -424,13 +441,15 @@ function sendMsg() {
     console.log('🚀 [Zalo] 开始尝试激发发送...');
     
     // 1. 尝试从全局选择器池中查找
-    let btn = querySelectorAny(SELECTORS.SEND_BUTTON);
-    
+    // let btn = querySelectorAny(SELECTORS.SEND_BUTTON);
+     let btn = document.querySelector('#chat-box-input-container-id div[icon="Sent-msg_24_Line"]')?.parentNode;
+    console.log('🚀 [Zalo] 开始尝试激发发送按钮...1',btn );
     // 2. 尝试从特定的输入容器内查找 (修正类名: .chat-input-container)
     if (!btn) {
         const footers = document.querySelectorAll('.chat-input-container, #chat-input-container, footer');
         for (const f of footers) {
             btn = f.querySelector('[icon*="Sent"]') || f.querySelector('.send-msg-btn') || f.querySelector('[title*="Send"]');
+            console.log('🚀 [Zalo] 开始尝试激发发送按钮...2',btn );
             if (btn) break;
         }
     }
@@ -449,12 +468,13 @@ function sendMsg() {
             
             if (keywords.includes(txt) || keywords.includes(title) || keywords.includes(label) || 
                 iconAttr.includes('Sent') || cls.includes('Sent-msg')) {
+                    console.log('🚀 [Zalo] 开始尝试激发发送按钮...3',btn );
                 btn = c;
                 break;
             }
         }
     }
-
+    console.log('🚀 [Zalo] 存在发送按钮',btn );
     if (btn) {
         // 自动向上寻找真正的点击容器 (button 或 role="button")
         const actualBtn = btn.closest('button, div[role="button"]') || btn;
@@ -603,7 +623,7 @@ async function executeTranslationFlow(inputText) {
             sendMsg();
             return;
         }
-
+       
         // 2. 调用翻译
         toggleTranslatingStatus(true);
         const res = await translateTextAPI(inputText, getLocalLanguage(), getTargetLanguage());
@@ -614,7 +634,8 @@ async function executeTranslationFlow(inputText) {
             let finalInput = inputText;
             let success = false;
             if (res && res.success) {
-                finalInput = `${res.data}\n${inputText}`; // 格式：译文 \n 原文
+                // finalInput = `${res.data}\n${inputText}`; // 格式：译文 \n 原文
+                finalInput = `${res.data}`
                 success = true;
             }
 
@@ -631,6 +652,7 @@ async function executeTranslationFlow(inputText) {
                 } else {
                     setTimeout(() => {
                         sendMsg();
+                         debugger
                         if (success) saveSentMessage(finalInput, inputText);
                     }, 200);
                 }
@@ -653,15 +675,18 @@ async function executeTranslationFlow(inputText) {
  */
 async function handleKeyDown(e) {
     // 仅处理 Enter 且不带 Shift
+
     if (e.key === 'Enter' && !e.shiftKey) {
         const input = document.querySelector(SELECTORS.MESSAGE_INPUT);
         const text = input?.innerText?.trim();
+      
         if (!text) return;
 
         // 如果处于预览状态且按下 Enter
         if (previewNode && previewNode.style.display === 'block') {
             if (text === lastPreviewedTranslation) {
                 e.preventDefault();
+                
                 sendMsg();
                 saveSentMessage(lastPreviewedTranslation, lastPreviewedSource);
                 updatePreviewUI(null);
@@ -676,7 +701,7 @@ async function handleKeyDown(e) {
             e.preventDefault();
             executeTranslationFlow(text);
             return;
-        }
+        }       
     } else {
         // 输入变化时关闭预览
         if (previewNode?.style.display === 'block') {
@@ -943,3 +968,6 @@ function monitorMainNode() {
 
 // 启动
 monitorMainNode();
+console.log('Zalo');
+})();
+

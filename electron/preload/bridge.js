@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // 在 contextBridge 中暴露 API 给渲染进程
+console.log('🌉 [Chat365] Bridge loaded for:', window.location.href);
 contextBridge.exposeInMainWorld('electronAPI', {
   ipcRenderer: ipcRenderer,
   // 号码过滤通知
