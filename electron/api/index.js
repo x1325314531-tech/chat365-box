@@ -394,6 +394,34 @@ async function batchAddFans(data) {
     }
 }
 
+// 获取重粉数据
+async function getHeavyFans(data) {
+    try {
+        Log.info('🚀 开始获取重粉数据:', data);
+        const params = {
+            pageSize: data.pageSize || 10000,
+            pageNum: data.pageNum || 1,
+            addTimeBegin: data.addTimeBegin || '',
+            addTimeEnd: data.addTimeEnd || '',
+            appPhone: data.appPhone || '',
+            fansType: data.fansType || '重粉'
+        };
+        // 这里可以直接将 params 扔给 request.post，如果是 GET 请求则一般拼接到 url
+        // 根据要求它是通过 params 的 json 请求，或者拼接？根据 FansList.vue 里面的是 post 请求并且拼接了 queryString，但第二个参数也传了 params
+        // let's pass query directly in post or as body.
+        const queryString = new URLSearchParams({
+            pageSize: params.pageSize,
+            pageNum: params.pageNum
+        }).toString();
+        const response = await request.post(`/app/fansStore/pageRecord?${queryString}`, params);
+        Log.info('🚀 获取重粉响应总量:', response.total);
+        return response;
+    } catch (error) {
+        Log.error('❌ getHeavyFans 接口请求失败:', error);
+        return { success: false, msg: error.message || '网络请求失败' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
@@ -403,5 +431,6 @@ module.exports = {
     translateVoice,
     getTenantSetting,
     syncNewFan,
-    batchAddFans
+    batchAddFans,
+    getHeavyFans
 };

@@ -148,7 +148,8 @@ if (typeof window._chat365_state === 'undefined') {
         fansSyncTimer: null,                   // 粉丝同步定时器
         lastFansSyncTime: 0,                   // 上次同步时间
         appId: '',                             // 当前账户ID
-        appName: ''                            // 当前账户名
+        appName: '',                            // 当前账户名
+        contactPersonList:[]                       //whatsAPP的联系人
     };
 }
 // ==========================================================
@@ -2248,6 +2249,9 @@ function monitorMainNode() {
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
                     setTimeout(() => fetchWhatsAppContacts(), 5000);
+                    // 初始拉取重粉信息及设置定时更新
+                    setTimeout(() => fetchHeavyFansData(), 5000);
+                    setInterval(fetchHeavyFansData, 60000); // 1 分钟拉取一次重粉名单
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
@@ -5407,6 +5411,7 @@ function initFansSyncTimer() {
  * @param {boolean} isAutoSync 是否为自动同步模式
  */
 async function fetchWhatsAppContacts(isAutoSync = false) {
+    const state = window._chat365_state;
     if (!isAutoSync && _contactsFetched) {
         console.log('📇 [Contacts] 初始联系人已读取过，跳过');
         return;
@@ -5441,7 +5446,7 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
             request.onsuccess = (event) => resolve(event.target.result || []);
             request.onerror = (event) => reject('读取 contact 失败: ' + event.target.error);
         });
-        
+           
         db.close();
         
         if (contactsRaw.length > 0) {
@@ -5454,24 +5459,27 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
                 // 仅同步有手机号且是联系人的项 (或者有名字的)
                 const phone = (c.phoneNumber || '').replace(/[^\d+]/g, '');
                 if (phone && phone.length > 2) {
+                    const name = c.name || c.pushname || c.verifiedName || 'WhatsApp用户';
                     fans.push({
                         // fansId: phone|| c.id?.toString() || c.contactHash || '',
                         fansId:phone,
                         fansPhone: phone,
-                        fansName: c.name || c.pushname || c.verifiedName || 'WhatsApp用户',
+                        fansName: name,
                         platform: 'WhatsAPP',
                         addTime: nowStr,
                         source: '自动扫描'
                     });
+                    
+                    // 缓冲名称到号码的映射，供重粉打标等功能快速匹配
+                    window._contactNameToPhoneMap = window._contactNameToPhoneMap || new Map();
+                    window._contactNameToPhoneMap.set(name, phone.replace(/[^\d]/g, ''));
                 }
             });
-
+            state.contactPersonList = fans
             console.log(`📇 [Contacts] 有效粉丝数量: ${fans.length} / 总计: ${contactsRaw.length}`);
 
             // 获取当前账户信息
             const myPhone = getMyPhone();
-            const state = window._chat365_state;
-            
             // 优先获取用户提到的 WALId 缓存
             const walId = localStorage.getItem('WALid');
              console.log('WHATSPP', walId );
@@ -5551,8 +5559,155 @@ printElementEvery5Seconds();
 setInterval(() => {
     monitorMyProfile();
     monitorNewContactPanel();
+    renderHeavyFansTags(); // 轮询渲染侧边栏重粉标签
 }, 2000);
 
 // 3. 启动高效页面监控 (MutationObserver)
 initPageAttributeObserver();
 initGlobalDomObserver();
+
+// ==================== 重粉标签拉取与渲染 ====================
+window._heavyFansSet = new Set();
+window._contactNameToPhoneMap = window._contactNameToPhoneMap || new Map();
+
+async function fetchHeavyFansData() {
+    try {
+        const myPhone = getMyPhone();
+        if (!myPhone) return;
+        
+        const res = await window.electronAPI.getHeavyFans({
+            // appPhone: myPhone.replace(/[^\d]/g, ''),
+            appPhone:'',
+            fansType: '重粉',
+            pageSize: 10000,
+            pageNum: 1
+        });
+        
+        if (res && res.code === 200 && res.data) {
+            const records = res.data.records || res.data.list || res.data || [];
+            const newSet = new Set();
+            records.forEach(item => {
+                if (item.fansPhone) {
+                    newSet.add(item.fansPhone.replace(/[^\d]/g, ''));
+                }
+            });
+            window._heavyFansSet = newSet;
+            console.log('✅ 重粉数据已更新，共:', window._heavyFansSet.size, '条');
+            renderHeavyFansTags(); // 数据就绪后立即渲染
+        }
+    } catch (e) {
+        console.error('❌ 获取重粉数据报错:', e);
+    }
+}
+function getNameToPhone(name){
+  const state = window._chat365_state;
+  if (!state || !state.contactPersonList) return null;
+   
+  if (state.contactPersonList.length > 0) { 
+     const contact = state.contactPersonList.find(item => item.fansName === name);
+     return contact ? contact.fansPhone : null;
+  }
+  return null;
+}
+function renderHeavyFansTags() {
+    if (!window._heavyFansSet || window._heavyFansSet.size === 0) return;
+     const chatListContainer = document.querySelector('div[aria-label="聊天列表"]');
+
+// 2. 提取所有 role="row" 的元素
+    const listItems = chatListContainer ? chatListContainer.querySelectorAll('[role="row"]') : [];
+    // 筛选出侧边栏聊天列表的所有项
+    // const listItems = document.querySelectorAll('#pane-side div[role="listitem"]', '#pane-side div[role="row"]');
+    listItems.forEach(item => {
+        // WhatsApp 的联系人名字通常保存在拥有 title 属性的 span 中
+        const titleSpan = item.querySelector('span[title][dir="auto"], span[title]');
+        if (!titleSpan) return;
+        
+        const title = titleSpan.getAttribute('title');
+        if (!title) return;
+        // 尝试从 title 中提取手机号（如果没存联系人）
+        let phoneMatch = getNameToPhone(title)|| title.replace(/[^\d]/g, '')  ;
+        let phone = phoneMatch.length > 5 ? phoneMatch : null;
+        
+        // 如果是已存的名称，从映射表中匹配
+        if (!phone && window._contactNameToPhoneMap) {
+            phone = window._contactNameToPhoneMap.get(title);
+        }
+      
+        if (phone && window._heavyFansSet.has(phone)) {
+            // 如果成功匹配重粉且节点尚未添加重粉标签，则追加
+            if (!item.querySelector('.heavy-fan-tag')) {
+                
+                const createTag = () => {
+                    const tag = document.createElement('span'); // 改用 span 防止块级元素折行
+                    tag.className = 'heavy-fan-tag';
+                    tag.textContent = '重粉';
+                    tag.title = '该联系人已被标记为重粉';
+                    tag.style.cssText = `
+                        color: #f56c6c;
+                        background-color: #fef0f0;
+                        font-size: 12px;
+                        border-radius: 4px;
+                        padding: 4px 5px;
+                        flex-shrink: 0;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 1px solid #fde2e2;
+                        height: 16px;
+                        line-height: normal;
+                        font-weight: 500;
+                        margin-right: 6px;
+                    `;
+                    return tag;
+                };
+
+                let current = titleSpan;
+                let targetContainer = null;
+                
+                // 向上遍历DOM，寻找负责垂直排列(上下两行)的容器
+                while (current && current !== item) {
+                    const parent = current.parentElement;
+                    if (parent && window.getComputedStyle(parent).flexDirection === 'column') {
+                        // current 是第一行(Top Row)，它的下一个兄弟节点就是第二行(Bottom Row)
+                        if (current.nextElementSibling) {
+                            targetContainer = current.nextElementSibling;
+                        }
+                        break;
+                    }
+                    current = parent;
+                }
+
+                if (targetContainer) {
+                    // 我们要把标签插在该行容器的最后，并确保它另起一行
+                    // 1. 确保父容器是垂直布局，或者让标签自占一行
+                    const tag = createTag();
+                    tag.style.marginTop = '4px'; // 与上方消息文本增加一点间距
+                    tag.style.display = 'flex';  // 确保它是块级/弹性布局以占位
+                    tag.style.width = 'fit-content';
+                    
+                    // 移除之前可能存在的 margin-right
+                    tag.style.marginRight = '0';
+
+                    targetContainer.appendChild(tag);
+                } else {
+                    // Fallback：如果没有找到 bottom row，就按原样加在 titleSpan 后面
+                    const container = titleSpan.parentElement;
+                    if (window.getComputedStyle(container).display !== 'flex') {
+                        container.style.display = 'flex';
+                        container.style.alignItems = 'center';
+                    }
+                    const tag = createTag();
+                    tag.style.marginRight = '0';
+                    tag.style.marginLeft = '6px';
+                    container.appendChild(tag);
+                }
+            }
+        } else {
+            // 如果不再是重粉，则移除可能已存在的标签
+            const existingTag = item.querySelector('.heavy-fan-tag');
+            if (existingTag) {
+                existingTag.remove();
+            }
+        }
+    });
+}

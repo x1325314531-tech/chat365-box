@@ -30,7 +30,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-select v-model="searchForm.fanType" placeholder="粉丝类型" style="width: 120px" clearable>
+          <el-select v-model="searchForm.fansType" placeholder="粉丝类型" style="width: 120px" clearable>
             <el-option label="新粉" value="新粉"></el-option>
             <el-option label="重粉" value="重粉"></el-option>
           </el-select>
@@ -223,7 +223,7 @@ const availableAccounts = ref([])
 const searchForm = reactive({
   platform: '',
   appPhone: '',
-  fanType: '',
+  fansType: '',
   dateRange: null,
   keyword: ''
 })
@@ -339,7 +339,7 @@ const handleSearch = async () => {
       pageSize: pagination.size,
       platform: searchForm.platform || undefined,
       keyword: searchForm.keyword || undefined,
-      fanType: searchForm.fanType || undefined,
+      fansType: searchForm.fansType || undefined,
       appPhone: searchForm.appPhone || undefined,
       // appPhone: searchForm.appPhone.length > 0 ? searchForm.appPhone : undefined
     }
@@ -356,7 +356,8 @@ const handleSearch = async () => {
       params.addTimeBegin = startTime;
       params.addTimeEnd = endTime;
     }
-   
+     console.log('粉丝记录params', params);
+     
      const  res = await post(`/app/fansStore/pageRecord`, params)
     if (res && res.code === 200) {
       // 适配响应结构
@@ -396,7 +397,7 @@ const handleSearch = async () => {
 const resetSearch = () => {
   searchForm.platform = ''
   searchForm.appPhone = ''
-  searchForm.fanType = ''
+  searchForm.fansType = ''
   searchForm.dateRange = null
   searchForm.keyword = ''
   handleSearch()

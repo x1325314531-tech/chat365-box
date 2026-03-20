@@ -171,6 +171,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getSessions: (args) => {
     return ipcRenderer.invoke('controller.window.getSessions', args);
+  },
+  getHeavyFans: (args) => {
+    return ipcRenderer.invoke('get-heavy-fans', args);
   }
 
 });

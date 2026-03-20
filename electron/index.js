@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans, getHeavyFans} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -666,6 +666,17 @@ class Index extends Application {
       } catch (error) {
         Log.error('📇 [Contacts] 处理联系人数据出错:', error);
         return { status: false, message: error.message };
+      }
+    });
+
+    ipcMain.handle('get-heavy-fans', async (event, args) => {
+      try {
+        Log.info('📡 IPC: get-heavy-fans 被调用', args);
+        const response = await getHeavyFans(args);
+        return response;
+      } catch (err) {
+        Log.error('❌ get-heavy-fans 异常:', err);
+        return { success: false, error: err.message };
       }
     });
   }
