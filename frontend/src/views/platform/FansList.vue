@@ -602,6 +602,27 @@ const fetchrRetentionToday= async()=> {
       console.log('T7日留存粉丝数量', res)
      const retentionSevenDaysTotal = res.total || 0
      return retentionSevenDaysTotal   
+} 
+//获取重粉数据
+  const fetchHeavyPowder= async()=> { 
+
+   const params= { 
+        pageSize:10000,
+        pasgeNum:1,
+        addTimeBegin : '',
+        addTimeEnd : '',
+         appPhone: '',
+        fansType:'重粉'  
+      }
+      const pageParams= {
+        pageSize:10000,
+        pasgeNum:1, 
+      }
+      const  queryString =  toQueryString(pageParams)
+      console.log('重粉粉丝参数', params);
+    const  res = await post(`/app/fansStore/pageRecord?${queryString.toString()}`, params)
+      console.log('重粉粉丝数据', res)
+
 }
 const loadUserInfo = () => {
   const info = localStorage.getItem('userInfo')
@@ -623,6 +644,7 @@ onMounted(async () => {
   handleSearch()
   initFansStatistics()
   startAutoRefresh()
+  fetchHeavyPowder()
 })
 
 onUnmounted(() => {

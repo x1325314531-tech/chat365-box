@@ -1,6 +1,6 @@
 {
   "name": "Chat365",
-  "version": "1.0.4",
+  "version": "1.0.3",
   "description": "Chat365,多账号管理工具.独立会话;独立IP;独立Cookie;聊天实时翻译.",
   "main": "main.js",
   "scripts": {
