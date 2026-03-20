@@ -31,7 +31,9 @@
             <!-- 这里原本是一个插图，我们可以用一个渐变色块或图标模拟 -->
           </div>
         </div>
-        
+         <div class="update-rocket">
+          <img  :src="updateRocker"/>
+         </div>
         <div class="update-body">
           <!-- <ul >
             <li v-for="(note, index) in releaseNotes" :key="index">{{ note }}</li>
@@ -77,6 +79,7 @@ import { ipc } from '@/utils/ipcRenderer';
 import { ElMessage } from 'element-plus';
 import { get } from '@/utils/request';
 import {toQueryString} from '@/utils/utils'
+import updateRocker from '@/assets/images/updateRocker.png'
 const appVersion = ref('');
 const latestVersion = ref('');
 const available = ref(false);
@@ -203,12 +206,14 @@ function handleStartUpdate() {
     padding: 0;
   }
   border-radius: 12px;
-  overflow: hidden;
   border: none;
 }
 
 .update-card-content {
    background: linear-gradient(135deg, #e0f2fe 0%, #dcfce7 100%);
+   position: relative;
+   border-radius: 16px;
+   position: relative;
   
   .update-header {
     position: relative;
@@ -227,6 +232,7 @@ function handleStartUpdate() {
       height: 180px;
       background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.4) 0%, transparent 70%);
       pointer-events: none;
+       border-radius: 16px;
     }
 
     .header-main {
@@ -251,9 +257,42 @@ function handleStartUpdate() {
       }
     }
   }
-  
+  .update-rocket {
+    position: absolute;
+    top:-10px;
+    right: -85px;
+    width: 350px;
+    height: 350px;
+    z-index: 210;
+    margin-top: -135px;
+    pointer-events: none; /* 确保不会遮挡底部的点击事件 */
+    transform: rotate(-60deg);
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
   .update-body {
     padding: 30px;
+    height: 220px;
+    overflow-y: auto;
+    padding-right: 15px; /* 为滚动条留出一点空间 */
+
+    /* 现代感滚动条美化 */
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+      &:hover {
+        background: #94a3b8;
+      }
+    }
     
     .release-notes {
       font-size: 15px;
@@ -316,8 +355,8 @@ function handleStartUpdate() {
       }
     }
   }
+  
 }
-
 .progress-dialog-custom {
   width: 90% !important;
   max-width: 480px !important;

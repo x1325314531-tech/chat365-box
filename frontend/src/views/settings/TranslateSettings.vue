@@ -325,6 +325,123 @@
             </div>
           </div>
         </div>
+        <!--AI回复设置-->
+        <div v-if="activeMenu === 'aiReply'" class="translate-config">
+          <div class="config-header">
+            <h3>AI回复设置</h3>
+            <p class="config-desc">配置AI回复的相关参数，包括模型选择、回复风格等</p>
+          </div>
+
+          <div class="config-body">
+            <!-- 左侧平台列表 -->
+            <div class="platform-list">
+              <div class="platform-title">平台</div>
+              <div 
+                class="platform-item"
+                :class="{ active: activeAiPlatform === 'whatsapp' }"
+                @click="activeAiPlatform = 'whatsapp'"
+              >
+                <img src="@/assets/svgs/whatsapp.svg" class="platform-icon" />
+                <span>WhatsApp</span>
+              </div>
+              <!-- <div 
+                class="platform-item"
+                :class="{ active: activeAiPlatform === 'telegram' }"
+                @click="activeAiPlatform = 'telegram'"
+              >
+                <img src="@/assets/svgs/telegram.svg" class="platform-icon" />
+                <span>Telegram K</span>
+              </div> -->
+            </div>
+
+            <!-- 右侧配置表单 -->
+            <div class="config-form">
+              <!-- 基础设置 -->
+              <div class="config-section">
+                <div class="section-header" @click="toggleSection('aiBasic')">
+                  <span class="section-title">基础设置</span>
+                  <span class="section-tag">{{ expandedSections.aiBasic ? '折叠' : '展开' }}</span>
+                </div>
+                <div class="section-content" v-show="expandedSections.aiBasic">
+                  <div class="form-col">
+                    <div class="form-label">选择模型</div>
+                    <el-select v-model="aiConfig[activeAiPlatform].model" placeholder="请选择模型">
+                      <el-option
+                        v-for="item in modelOptions"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
+                    </el-select>
+                    <div class="form-desc-ai form-desc">用于生成回复的AI产品</div>
+                  </div>
+
+                  <div class="form-col" style="margin-top: 16px;">
+                    <div class="form-label">基于前 条对话记录</div>
+                    <el-select v-model="aiConfig[activeAiPlatform].historyCount" placeholder="请选择条数">
+                      <el-option
+                        v-for="item in historyOptions"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
+                    </el-select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 回复风格设置 -->
+              <div class="config-section">
+                <div class="section-header" @click="toggleSection('aiStyle')">
+                  <span class="section-title">回复风格设置</span>
+                  <span class="section-tag">{{ expandedSections.aiStyle ? '折叠' : '展开' }}</span>
+                </div>
+                <div class="section-content" v-show="expandedSections.aiStyle">
+                  <div class="form-col">
+                    <div class="form-label">回复语调</div>
+                    <el-select v-model="aiConfig[activeAiPlatform].tone" placeholder="请选择语调">
+                      <el-option
+                        v-for="item in toneOptions"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
+                    </el-select>
+                  </div>
+
+                  <div class="form-col" style="margin-top: 16px;">
+                    <div class="form-label">回复主题</div>
+                    <el-select v-model="aiConfig[activeAiPlatform].theme" placeholder="请选择主题">
+                      <el-option
+                        v-for="item in themeOptions"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
+                    </el-select>
+                  </div>
+
+                  <div class="form-col" style="margin-top: 16px;">
+                    <div class="form-label">回复角色</div>
+                    <el-select v-model="aiConfig[activeAiPlatform].role" placeholder="请选择角色">
+                      <el-option
+                        v-for="item in roleOptions"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
+                    </el-select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 应用按钮 -->
+              <div class="form-actions">
+                <el-button type="primary" class="apply-btn" @click="applyConfig">{{ $t('settings.apply') }}</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -349,7 +466,7 @@ const { t } = useI18n()
 // 左侧导航菜单
 const sidebarMenus = ref([
   { id: 'translate', title: t('settings.translateSettings'), icon: translateIcon },
-  // { id: 'aiReply', title: 'AI回复设置', icon: aiReplyIcon },
+  { id: 'aiReply', title: 'AI回复设置', icon: aiReplyIcon },
   // { id: 'material', title: '个人素材', icon: materialIcon },
   // { id: 'display', title: '显示设置', icon: platformIcon },
   // { id: 'platform', title: '平台设置', icon: platformIcon },
@@ -362,8 +479,59 @@ const expandedSections = reactive({
   send: true,
   receive: true,
   chatList: true,
-  forward: true
+  forward: true,
+  aiBasic: true,
+  aiStyle: true
 })
+
+// AI 回复配置
+const aiConfig = reactive({
+  whatsapp: {
+    model: 'Gemini',
+    historyCount: 3,
+    tone: '默认',
+    theme: '默认',
+    role: '朋友'
+  },
+  telegram: {
+    model: 'Gemini',
+    historyCount: 3,
+    tone: '默认',
+    theme: '默认',
+    role: '朋友'
+  }
+})
+const activeAiPlatform = ref('whatsapp')
+
+// AI 设置相关的可选项
+const modelOptions = [
+  { label: 'Gemini', value: 'Gemini' },
+  { label: 'GPT-3.5', value: 'GPT-3.5' },
+  { label: 'GPT-4', value: 'GPT-4' }
+]
+const historyOptions = [
+  { label: '1条', value: 1 },
+  { label: '3条', value: 3 },
+  { label: '5条', value: 5 },
+  { label: '10条', value: 10 }
+]
+const toneOptions = [
+  { label: '默认', value: '默认' },
+  { label: '专业', value: '专业' },
+  { label: '亲切', value: '亲切' },
+  { label: '幽默', value: '幽默' }
+]
+const themeOptions = [
+  { label: '默认', value: '默认' },
+  { label: '商务', value: '商务' },
+  { label: '休闲', value: '休闲' }
+]
+const roleOptions = [
+  { label: '朋友', value: '朋友' },
+  { label: '助手', value: '助手' },
+  { label: '客服', value: '客服' },
+  { label: '专家', value: '专家' }
+]
 
 // 翻译配置
 const config = reactive({
@@ -424,6 +592,18 @@ onMounted(() => {
       }
     }
   })
+
+  // 加载 AI 配置
+  ipc.invoke('get-ai-config').then(res => {
+    if (res) {
+      Object.assign(aiConfig, res)
+    } else {
+      const localAiConfig = localStorage.getItem('aiConfig')
+      if (localAiConfig) {
+        Object.assign(aiConfig, JSON.parse(localAiConfig))
+      }
+    }
+  })
 })
 
 // 切换section展开
@@ -460,6 +640,12 @@ const applyConfig = () => {
   // 保存配置到electron
   ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(config))).then(res => {
     console.log('配置已同步到主进程:', res);
+  });
+
+  // 保存 AI 配置
+  localStorage.setItem('aiConfig', JSON.stringify(aiConfig))
+  ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(aiConfig))).then(res => {
+    console.log('AI配置已同步到主进程:', res);
   });
 
   // 更新成功提示
@@ -693,7 +879,10 @@ const applyConfig = () => {
   width: 100%;
   margin-top: 4px;
 }
+.form-desc-ai {
+  text-align: left;
 
+}
 .form-row {
   display: flex;
   gap: 20px;
