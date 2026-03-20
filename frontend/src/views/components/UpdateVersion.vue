@@ -194,6 +194,8 @@ function handleStartUpdate() {
 .update-dialog-custom {
   width: 90% !important;
   max-width: 560px !important;
+  padding: 0 !important;
+
   .el-dialog__header {
     display: none;
   }
@@ -206,13 +208,11 @@ function handleStartUpdate() {
 }
 
 .update-card-content {
-  background: white;
+   background: linear-gradient(135deg, #e0f2fe 0%, #dcfce7 100%);
   
   .update-header {
-    height: 180px;
-    background: linear-gradient(135deg, #e0f2fe 0%, #dcfce7 100%);
     position: relative;
-    padding: 30px;
+    padding: 30px 30px 0;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -388,3 +388,4 @@ function handleStartUpdate() {
   }
 }
 </style>
+

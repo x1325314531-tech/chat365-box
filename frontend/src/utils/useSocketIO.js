@@ -17,9 +17,8 @@ export default function useSocketIO(url, options = {}) {
   }
 
   // 环境判断
-  const isDev = import.meta.env.MODE === 'development';
-  // 开发环境基地址 vs 生产环境基地址
-  const defaultBaseUrl = isDev ? 'ws://192.168.3.18:38080/box' : 'wss://chat365.cc/api/box';
+  // 环境变量中配置的 WebSocket 基地址
+  const defaultBaseUrl = import.meta.env.VITE_WS_URL;
   const baseUrl = url || defaultBaseUrl;
   
   // 拼接路径：ws://.../ws/online/{token}
