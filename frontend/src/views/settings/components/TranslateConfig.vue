@@ -230,7 +230,6 @@ import { ipc } from '@/utils/ipcRenderer'
 
 const { t } = useI18n()
 const router = useRouter()
-
 const expandedSections = reactive({
   send: true,
   receive: true,
@@ -297,7 +296,7 @@ const applyConfig = () => {
   ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(config))).then(res => {
     console.log('配置已同步到主进程:', res)
   })
-
+  
   Notification.message({ message: t('settings.updateSuccess'), type: 'success' })
   
   setTimeout(() => {

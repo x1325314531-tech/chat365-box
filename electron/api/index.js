@@ -422,6 +422,23 @@ async function getHeavyFans(data) {
     }
 }
 
+// AI 润色接口
+async function agentChat(params) {
+    try {
+        Log.info('🚀 调用 AI 润色接口:', params);
+        const response = await request.post('/app/agentChat', params);
+        Log.info('AI 润色响应结果：', response);
+        if (response.code === 200) {
+            return { success: true, data: response.data }; 
+        } else {
+            return { success: false, msg: response.msg || 'AI 润色失败' };
+        }
+    } catch (error) {
+        Log.error('❌ agentChat 接口请求失败:', error);
+        return { success: false, msg: error.message || '网络请求失败' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
@@ -432,5 +449,6 @@ module.exports = {
     getTenantSetting,
     syncNewFan,
     batchAddFans,
-    getHeavyFans
+    getHeavyFans,
+    agentChat
 };

@@ -146,6 +146,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTenantConfig: (args) => {
     return ipcRenderer.invoke('save-tenant-config', args);
   },
+  // AI配置
+  getAiConfig: () => {
+    return ipcRenderer.invoke('get-ai-config');
+  },
+  saveAiConfig: (args) => {
+    return ipcRenderer.invoke('save-ai-config', args);
+  },
   // 敏感词检测
   checkSensitiveContent: (args) => {
     return ipcRenderer.invoke('check-sensitive-content', args);
@@ -174,6 +181,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getHeavyFans: (args) => {
     return ipcRenderer.invoke('get-heavy-fans', args);
+  },
+  agentChat: (args) => {
+    return ipcRenderer.invoke('agent-chat', args);
   }
 
 });

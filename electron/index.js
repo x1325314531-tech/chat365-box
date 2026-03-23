@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans, getHeavyFans} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans, getHeavyFans, agentChat} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -255,6 +255,35 @@ class Index extends Application {
       }
     });
 
+    // AI配置持久化
+    ipcMain.handle('save-ai-config', async (event, args) => {
+      try {
+        Log.info('保存AI配置到 config.json:', args);
+        const configStorage = Storage.connection('config.json');
+        configStorage.setItem('aiConfig', args);
+        // 同时挂载到 app 对象上，方便后台脚本直接访问
+        app.aiConfig = args;
+        return { success: true };
+      } catch (err) {
+        Log.error('保存AI配置失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
+
+    // 获取AI配置
+    ipcMain.handle('get-ai-config', async (event) => {
+      try {
+        const configStorage = Storage.connection('config.json');
+        const config = configStorage.getItem('aiConfig');
+        // 同步到内存中
+        if (config) app.aiConfig = config;
+        return config;
+      } catch (err) {
+        Log.error('读取AI配置失败:', err);
+        return null;
+      }
+    });
+
     // 获取租户配置
     ipcMain.handle('get-tenant-config', async (event) => {
       try {
@@ -295,6 +324,7 @@ class Index extends Application {
     // }
     // 初始化翻译配置到内存
     app.translateConfig = Storage.connection('config.json').getItem('translateConfig');
+    app.aiConfig = Storage.connection('config.json').getItem('aiConfig');
     
     // do some things
     // 延迟加载，无白屏
@@ -317,6 +347,9 @@ class Index extends Application {
     ipcMain.handle('check-sensitive-content', async (event, args) => {
       const { content,tenantConfig } = args;
       return checkSensitiveContent(content, tenantConfig);
+    });
+    ipcMain.handle('agent-chat', async (event, args) => {
+      return agentChat(args)
     });
 
     ipcMain.handle('translate-image', async (event, args) => {

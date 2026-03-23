@@ -28,6 +28,10 @@
             <span class="section-tag">{{ expandedSections.aiBasic ? '折叠' : '展开' }}</span>
           </div>
           <div class="section-content" v-show="expandedSections.aiBasic">
+            <div class="form-col flex-between ">
+               <div class="form-label">AI回复设置</div>
+               <el-switch v-model="aiConfig[activeAiPlatform].aiReplyToggle"></el-switch>
+            </div>
             <div class="form-col">
               <div class="form-label">选择模型</div>
               <el-select v-model="aiConfig[activeAiPlatform].model" placeholder="请选择模型">
@@ -115,6 +119,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Notification from "@/utils/notification"
 import { ipc } from '@/utils/ipcRenderer'
+import {get} from '@/utils/request'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -128,6 +133,7 @@ const activeAiPlatform = ref('whatsapp')
 
 const aiConfig = reactive({
   whatsapp: {
+    aiReplyToggle: false,
     model: 'Gemini',
     historyCount: 3,
     tone: '默认',
@@ -153,35 +159,18 @@ const historyOptions = [
   { label: '5条', value: 5 },
   { label: '10条', value: 10 }
 ]
-const toneOptions = [
-  { label: '默认', value: '默认' },
-  { label: '专业', value: '专业' },
-  { label: '友好', value: '友好' },
-  { label: '热情', value: '热情' },
-  { label: '随意', value: '随意' },
-  { label: '正式', value: '正式' }
-]
-const themeOptions = [
-  { label: '默认', value: '默认' },
-  { label: '客服', value: '客服' },
-  { label: '销售', value: '销售' },
-  { label: '支持', value: '支持' },
-  { label: '通用', value: '通用' }
-]
-const roleOptions = [
-  { label: '默认', value: '默认' },
-  { label: '朋友', value: '朋友' },
-  { label: '助手', value: '助手' },
-  { label: '客服', value: '客服' },
-  { label: '顾问', value: '顾问' },
-  { label: '专家', value: '专家' }
-]
+const toneOptions = ref([])
+const themeOptions = ref([])
+const roleOptions = ref([])
 
 const toggleSection = (section) => {
   expandedSections[section] = !expandedSections[section]
 }
 
 const applyConfig = () => {
+  const  aiConfigData=  aiConfig[activeAiPlatform]
+  console.log('wwwww', aiConfigData);
+  
   localStorage.setItem('aiConfig', JSON.stringify(aiConfig))
   ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(aiConfig))).then(res => {
     console.log('AI配置已同步到主进程:', res)
@@ -193,9 +182,61 @@ const applyConfig = () => {
     router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
   }, 1000)
 }
-
-onMounted(() => {
+//获取回复语调
+const  getagentToneDict = async()=> { 
+  try {
+    const dictType='box_agent_tone'
+    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
+    if (res && res.code === 200) {
+      toneOptions.value = res.data.map(item=> {
+        return{
+          label:item.dictLabel,
+          value:item.dictValue
+        }
+      }) || []
+    }
+  } catch (err) {
+    console.error('获取回复语调失败:', err)
+  }
+}
+//获取回复主题
+const  getAgentThemeDict =async() => { 
+try {
+    const dictType='box_agent_theme'
+    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
+    if (res && res.code === 200) {
+       themeOptions.value = res.data.map(item=> {
+        return{
+          label:item.dictLabel,
+          value:item.dictValue
+        }
+      }) || []
+    }
+  } catch (err) {
+    console.error('获取回复语调失败:', err)
+  }
+}
+//获取回复角色
+const getAgentRoleDict = async() =>{ 
+try {
+    const dictType='box_agent_role'
+    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
+    if (res && res.code === 200) {
+      roleOptions.value = res.data.map(item=> {
+        return{
+          label:item.dictLabel,
+          value:item.dictValue
+        }
+      }) || []
+    }
+  } catch (err) {
+    console.error('获取回复语调失败:', err)
+  }
+}
+onMounted(async() => {
   ipc.invoke('get-ai-config').then(res => {
+    console.log('aires', res);
+    
     if (res) {
       Object.assign(aiConfig, res)
     } else {
@@ -205,6 +246,9 @@ onMounted(() => {
       }
     }
   })
+  await getagentToneDict()
+ await getAgentThemeDict()
+ await getAgentRoleDict()
 })
 </script>
 
@@ -341,7 +385,11 @@ onMounted(() => {
 .form-col {
   flex: 1;
 }
-
+.flex-between { 
+  justify-content: space-between;
+  align-items: center;
+  display: flex;
+}
 .form-col .form-label {
   margin-bottom: 8px;
 }

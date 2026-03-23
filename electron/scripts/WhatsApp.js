@@ -268,10 +268,14 @@ function getMyPhone() {
 
 let languages = []
 let globalConfig = null;
+let globalAiConfig = null;
 let lastPreviewedTranslation = '';
 let lastPreviewedSource = '';
-let currentPreviewText = '';
 let previewNode = null;
+let pdrPanelNode = null;
+let currentPdrOriginalText = '';
+let currentPdrAiSuggestion = '';
+let lastPolishedText = ''; // 记录最后一次润色后的文本，避免重复弹出面板
 
 // 钱包地址正则 (ETH/BNB/TRON等)
 const walletAddressRegex = /\b0x[a-fA-F0-9]{40}\b/g;
@@ -705,6 +709,7 @@ function updatePreviewUI(text, isLoading = false) {
 async function syncGlobalConfig() {
     try {
         const config = await window.electronAPI.getTranslateConfig();
+        const aiConfig = await window.electronAPI.getAiConfig();
         // const tenantConfig = await window.electronAPI.getTenantConfig()
         // const tenantConfig  = await  initTenantConfig()   
         if (config) {
@@ -719,6 +724,10 @@ async function syncGlobalConfig() {
                 console.log('🔄 检测到粉丝同步配置变更，重新初始化定时器...');
                 initFansSyncTimer();
             }
+        }
+        if (aiConfig) {
+            globalAiConfig = aiConfig.whatsapp || aiConfig;
+            console.log('🔄 AI配置同步成功:', globalAiConfig);
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -1039,10 +1048,10 @@ function startMonitor() {
                 }
 
                 // --- 场景2: 发送原文,下方显示译文 ---
-                if (!globalConfig?.sendAutoTranslate && globalConfig?.sendAutoNotTranslate) {
+                if (!globalConfig?.sendAutoTranslate && globalConfig?.sendAutoNotTranslate && !globalAiConfig?.aiReplyToggle) {
                     console.log('🖱️ 点击发送按钮 - 场景2: 发送原文,下方显示译文');
                     const originalText = inputText;
-
+                    
                     const sensitiveCheck = await checkSensitiveContent(inputText);
                     if (sensitiveCheck.isSensitive) {
                         console.warn('🚫 检测到敏感内容，阻止发送');
@@ -1057,15 +1066,24 @@ function startMonitor() {
                         return;
                     }
 
-                    // 不阻止点击，让消息正常发送，然后延迟翻译
                     setTimeout(() => {
                         translateAndDisplayBelowSentMessage(originalText);
                     }, 500);
                     return;
                 }
 
-                // --- 场景3: 直接发送,不翻译 ---
-                console.log('🖱️ 点击发送按钮 - 场景3: 直接发送');
+                // --- 场景3: AI 润色模式拦截 ---
+                if (globalAiConfig?.aiReplyToggle && inputText !== lastPolishedText) {
+                    console.log('✨ AI 润色模式拦截 - 唤起 PDR 面板');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    showPdrPanel(inputText);
+                    return;
+                }
+
+                // --- 场景4: 直接发送 ---
+                console.log('🖱️ 点击发送按钮 - 场景4: 直接发送');
             }, true); // 捕获阶段
             console.log('✅ 发送按钮点击拦截器已添加');
         }
@@ -1372,6 +1390,16 @@ async function handleKeyDown(event) {
             setTimeout(() => {
                 translateAndDisplayBelowSentMessage(originalText);
             }, 500);
+            return;
+        }
+
+        // ========== 场景3: AI 润色模式 (Enter键触发) ==========
+        if (globalAiConfig?.aiReplyToggle && inputText !== lastPolishedText) {
+            console.log('✨ Enter 键触发 AI 润色模式 - 唤起 PDR 面板');
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+             showPdrPanel(inputText);  
             return;
         }
 
@@ -1895,6 +1923,666 @@ async function translateAndDisplayBelowSentMessage(originalText, retryCount = 0)
     }
 }
 
+/**
+ * 获取聊天历史记录
+ * @param {number} count - 获取最近几条消息 
+ */
+function getChatHistory(count = 3) {
+    try {
+        const messages = Array.from(document.querySelectorAll('.message-in, .message-out'));
+        const lastMessages = messages.slice(-count);
+        return lastMessages.map(msg => {
+            const isOut = msg.classList.contains('message-out');
+            const span = msg.querySelector('span[dir="ltr"], span[dir="rtl"]');
+            let content = '';
+            if (span) {
+                const clone = span.cloneNode(true);
+                const excludeSelectors = ['.translation-result', '.original-text-result', 'br', 'hr', 'div', '[data-testid="msg-meta"]'];
+                excludeSelectors.forEach(sel => {
+                    try { clone.querySelectorAll(sel).forEach(n => n.remove()); } catch(e) {}
+                });
+                content = normalizeText(clone.textContent);
+            }
+            return {
+                type: isOut ? 'assistant' : 'user',
+                content: content
+            };
+        });
+    } catch (e) {
+        console.error('❌ 获取聊天历史失败:', e);
+        return [];
+    }
+}
+
+/**
+ * 调用 AI 润色接口
+ */
+async function callAgentChatAPI(content) {
+    if (!globalAiConfig) {
+        console.warn('⚠️ AI配置未加载，尝试重新同步...');
+        await syncGlobalConfig();
+    }
+    
+    // 从 globalAiConfig 获取历史条数，默认 3 条
+    const historyCount = globalAiConfig?.historyCount || 3;
+    const history = getChatHistory(historyCount);
+    
+    const params = {
+        content: content,
+        history: history,
+        tone: globalAiConfig?.tone || '友好的',
+        theme: globalAiConfig?.theme || '默认',
+        role: globalAiConfig?.role || '朋友',
+        targetLanguage: getTargetLanguage() || 'zh',
+        modelName: globalAiConfig?.model || 'Gemini'
+    };
+    
+    console.log('🚀 发起 AI 润色请求，参数:', params);
+    return await window.electronAPI.agentChat(params);
+}
+
+/**
+ * 构建并显示 PDR AI Assistant 面板
+ */
+function showPdrPanel(originalText = '') {
+    currentPdrOriginalText = originalText;
+    
+    if (!pdrPanelNode) {
+        // 创建主面板
+        pdrPanelNode = document.createElement('div');
+        pdrPanelNode.id = 'chat365-pdr-panel';
+        
+        // 注入面板专属样式
+        if (!document.getElementById('pdr-panel-style')) {
+            const style = document.createElement('style');
+            style.id = 'pdr-panel-style';
+            style.textContent = `
+                #chat365-pdr-panel {
+                    position: fixed;
+                    top: 100px;
+                    right: 40px;
+                    width: 540px;
+                    background: linear-gradient(135deg, rgba(28, 30, 33, 0.98), rgba(44, 48, 54, 0.98));
+                    backdrop-filter: blur(25px);
+                    -webkit-backdrop-filter: blur(25px);
+                    border-radius: 20px;
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+                    z-index: 10000;
+                    color: #fff;
+                    padding: 24px;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    display: none;
+                    flex-direction: column;
+                    gap: 16px;
+                    animation: pdrSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                    user-select: none;
+                }
+                @keyframes pdrSlideUp {
+                    from { opacity: 0; transform: translateY(40px) scale(0.95); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                .pdr-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 4px;
+                }
+                .pdr-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    font-size: 18px;
+                    font-weight: 700;
+                    background: linear-gradient(to right, #fff, #2ed36a);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+                .pdr-close {
+                    cursor: pointer;
+                    opacity: 0.5;
+                    transition: all 0.2s;
+                    padding: 4px;
+                    border-radius: 50%;
+                }
+                .pdr-close:hover { 
+                    opacity: 1; 
+                    background: rgba(255, 255, 255, 0.1);
+                    transform: rotate(90deg);
+                }
+                
+                .pdr-tabs {
+                    display: flex;
+                    background: rgba(0, 0, 0, 0.3);
+                    border-radius: 12px;
+                    padding: 4px;
+                    gap: 4px;
+                }
+                .pdr-tab {
+                    flex: 1;
+                    text-align: center;
+                    padding: 10px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    border-radius: 9px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    color: rgba(255, 255, 255, 0.5);
+                }
+                .pdr-tab.active {
+                    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+                    color: #fff;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                }
+
+                .pdr-main-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    min-height: 160px;
+                }
+                .pdr-field {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                }
+                .pdr-label {
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: rgba(255, 255, 255, 0.4);
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    letter-spacing: 0.05em;
+                }
+                .pdr-text-container {
+                    background: rgba(0, 0, 0, 0.3);
+                    border-radius: 14px;
+                    padding: 16px;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    height: 130px;
+                    overflow-y: auto;
+                    border: 1px solid rgba(255, 255, 255, 0.06);
+                    transition: all 0.3s;
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+                }
+                .pdr-text-container::-webkit-scrollbar { width: 4px; }
+                .pdr-text-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+                .pdr-suggestion-wrap {
+                    position: relative;
+                }
+                .pdr-suggestion-box {
+                    background: rgba(46, 211, 106, 0.04);
+                    border: 1px dashed rgba(46, 211, 106, 0.25);
+                    color: #e6e6e6;
+                }
+                .pdr-loading-overlay {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(20, 22, 25, 0.9);
+                    border-radius: 14px;
+                    gap: 14px;
+                    font-size: 12px;
+                    color: #2ed36a;
+                    backdrop-filter: blur(4px);
+                }
+                
+                .pdr-tokens {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    margin-top: 4px;
+                }
+                .pdr-token {
+                    padding: 8px 18px;
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 22px;
+                    font-size: 13px;
+                    cursor: pointer;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    color: rgba(255, 255, 255, 0.7);
+                    font-weight: 500;
+                }
+                .pdr-token:hover { 
+                    background: rgba(255, 255, 255, 0.12);
+                    transform: translateY(-2px);
+                }
+                .pdr-token.active {
+                    background: rgba(46, 211, 106, 0.15);
+                    border-color: rgba(46, 211, 106, 0.5);
+                    color: #2ed36a;
+                    font-weight: 700;
+                    box-shadow: 0 4px 15px rgba(46, 211, 106, 0.15);
+                }
+
+                .pdr-actions {
+                    display: flex;
+                    gap: 16px;
+                    margin-top: 8px;
+                }
+                .pdr-action-btn {
+                    flex: 1;
+                    padding: 16px;
+                    border-radius: 14px;
+                    font-size: 15px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    transition: all 0.3s;
+                    border: none;
+                    outline: none;
+                }
+                .btn-replace {
+                    background: linear-gradient(135deg, #2ed36a, #28b45a);
+                    color: #fff;
+                    box-shadow: 0 8px 25px rgba(46, 211, 106, 0.25);
+                }
+                .btn-replace:hover:not(:disabled) { 
+                    transform: translateY(-3px);
+                    box-shadow: 0 12px 30px rgba(46, 211, 106, 0.35);
+                }
+                .btn-replace:active:not(:disabled) { transform: translateY(0); }
+                .btn-replace:disabled {
+                    opacity: 0.4;
+                    cursor: not-allowed;
+                    filter: grayscale(0.8);
+                }
+                .btn-add {
+                    background: rgba(255, 255, 255, 0.06);
+                    color: #fff;
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                }
+                .btn-add:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+            `;
+            document.head.appendChild(style);
+        }
+        document.body.appendChild(pdrPanelNode);
+    }
+    
+    renderPdrContent(originalText);
+    pdrPanelNode.style.display = 'flex';
+    
+    // 发起润色请求
+    performAiPolish(originalText);
+}
+
+function renderPdrContent(originalText) {
+    const tone = globalAiConfig?.tone || '友好的';
+    
+    pdrPanelNode.innerHTML = `
+        <div class="pdr-header">
+            <div class="pdr-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2.4 7.2L22 12l-7.6 2.4L12 22l-2.4-7.2L2 12l7.6-2.4L12 2z"/></svg>
+                AI Assistant
+            </div>
+            <div class="pdr-close" id="pdr-close-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+        </div>
+        <div class="pdr-tabs">
+            <div class="pdr-tab active">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Polish (润色)
+            </div>
+            <div class="pdr-tab">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 11V9a4 4 0 0 1 8 0v2"/></svg>
+                Draft (草稿)
+            </div>
+            <div class="pdr-tab">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                Rewrite (重写)
+            </div>
+        </div>
+        <div class="pdr-main-grid">
+            <div class="pdr-field">
+                <div class="pdr-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    ORIGINAL (原文)
+                </div>
+                <div class="pdr-text-container">${originalText}</div>
+            </div>
+            <div class="pdr-field">
+                <div class="pdr-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2ed36a" stroke-width="3"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+                    AI Suggestions (润色建议)
+                </div>
+                <div class="pdr-suggestion-wrap">
+                    <div class="pdr-text-container pdr-suggestion-box" id="pdr-suggestion-text" style="white-space: pre-wrap;"></div>
+                    <div class="pdr-loading-overlay" id="pdr-loading-ui">
+                        <div class="preview-spinner" style="width: 24px; height: 24px;"></div>
+                        <span>AI 正在为您润色文本...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="pdr-field">
+            <div class="pdr-label">Fliren flow animation</div>
+            <div class="pdr-tokens">
+                <div class="pdr-token ${tone === '友好的' || tone === 'friendly' ? 'active' : ''}" data-tone="friendly">温和</div>
+                <div class="pdr-token ${tone === '专业' || tone === 'professional' ? 'active' : ''}" data-tone="professional">专业</div>
+                <div class="pdr-token ${tone === '简洁' || tone === 'concise' ? 'active' : ''}" data-tone="concise">简洁</div>
+                <div class="pdr-token ${tone === '风趣' || tone === 'funny' ? 'active' : ''}" data-tone="funny">风趣</div>
+            </div>
+        </div>
+        <div class="pdr-actions">
+            <button class="pdr-action-btn btn-replace" id="pdr-replace-btn" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14l2 2 4-4"></path></svg>
+               替换到草稿
+            </button>
+            <button class="pdr-action-btn btn-add" id="pdr-add-btn" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                添加到聊天
+            </button>
+        </div>
+    `;
+
+    // 绑定事件
+    pdrPanelNode.querySelector('#pdr-close-btn').onclick = () => pdrPanelNode.style.display = 'none';
+    
+    pdrPanelNode.querySelectorAll('.pdr-token').forEach(btn => {
+        btn.onclick = () => {
+            pdrPanelNode.querySelectorAll('.pdr-token').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            // 更新内存中的风格
+            if (globalAiConfig) globalAiConfig.tone = btn.innerText;
+            performAiPolish(currentPdrOriginalText);
+        };
+    });
+
+    pdrPanelNode.querySelector('#pdr-replace-btn').onclick = () => {
+        if (!currentPdrAiSuggestion) return;
+        replaceInputWithPdrSuggestion(currentPdrAiSuggestion);
+        pdrPanelNode.style.display = 'none';
+    };
+
+    pdrPanelNode.querySelector('#pdr-add-btn').onclick = () => {
+        if (!currentPdrAiSuggestion) return;
+        sendPolishedMessage(currentPdrAiSuggestion);
+        pdrPanelNode.style.display = 'none';
+    };
+}
+
+async function performAiPolish(text) {
+    if (!pdrPanelNode) return;
+    const loadingUi = pdrPanelNode.querySelector('#pdr-loading-ui');
+    const suggestionText = pdrPanelNode.querySelector('#pdr-suggestion-text');
+    const replaceBtn = pdrPanelNode.querySelector('#pdr-replace-btn');
+    const addBtn = pdrPanelNode.querySelector('#pdr-add-btn');
+
+    if (loadingUi) loadingUi.style.display = 'flex';
+    if (suggestionText) suggestionText.textContent = '';
+    if (replaceBtn) replaceBtn.disabled = true;
+    if (addBtn) addBtn.disabled = true;
+
+    try {
+        const res = await callAgentChatAPI(text);
+        if (res && res.success) {
+            currentPdrAiSuggestion = res.data;
+            if (suggestionText) suggestionText.textContent = res.data;
+            if (replaceBtn) replaceBtn.disabled = false;
+            if (addBtn) addBtn.disabled = false;
+        } else {
+            if (suggestionText) suggestionText.innerHTML = `<span style="color: #ff4d4f; font-size: 13px;">❌ ${res?.msg || 'AI 服务当前不可用'}</span>`;
+        }
+    } catch (e) {
+        if (suggestionText) suggestionText.innerHTML = `<span style="color: #ff4d4f; font-size: 13px;">❌ 接口异常，请稍后刷新重试</span>`;
+    } finally {
+        if (loadingUi) loadingUi.style.display = 'none';
+    }
+}
+
+function replaceInputWithPdrSuggestion(suggestion) {
+    const editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
+    if (editableDiv) {
+        lastPolishedText = suggestion; // 核心：记录最后一次润色文本
+        editableDiv.focus();
+        setTimeout(()=> { 
+                    document.execCommand('selectAll', false, null);
+                    setTimeout(()=> {
+                        document.execCommand('delete', false, null);
+                          setTimeout(()=> {
+                          document.execCommand('insertText', false, suggestion);
+                      }, 50)
+                    }, 100)
+                 }, 150)
+        window.electronAPI.showNotification({ message: '✨ AI 优化内容已应用至草稿', type: 'is-success' });
+        
+        // 微动画反馈
+        editableDiv.style.transition = 'background 0.3s';
+        editableDiv.style.background = 'rgba(46, 211, 106, 0.1)';
+        setTimeout(() => editableDiv.style.background = '', 500);
+    }
+}
+
+/**
+ * 直接将润色后的文本作为消息发送
+ */
+function sendPolishedMessage(text) {
+    const editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
+    if (editableDiv) {
+        lastPolishedText = text; // 记录，避免被 handleSendButtonClick 再次拦截
+        editableDiv.focus();
+            setTimeout(()=> { 
+                    document.execCommand('selectAll', false, null);
+                    setTimeout(()=> {
+                        document.execCommand('delete', false, null);
+                          setTimeout(()=> {
+                          document.execCommand('insertText', false, text);
+                      }, 50)
+                    }, 100)
+                 }, 150)
+        // 稍微延迟后点击发送
+        setTimeout(() => {
+            const sendBtn = document.querySelector('footer span[data-icon="wds-ic-send-filled"]')?.closest('button') || 
+                            document.querySelector('footer span[data-icon="send"]')?.closest('button');
+            if (sendBtn) {
+                console.log('🚀 [AI] 正在自动点击发送按钮');
+                _isSendingProgrammatically = true;
+                sendBtn.click();
+                setTimeout(() => { _isSendingProgrammatically = false; }, 1000);
+            }
+        }, 500);
+    }
+}
+
+/**
+ * 注入输入框上方的 AI 工具栏
+ */
+function injectAiToolbar() {
+    if (!globalAiConfig?.aiReplyToggle) {
+        const existing = document.getElementById('chat365-ai-toolbar');
+        if (existing) existing.remove();
+        return;
+    }
+
+    const footer = document.querySelector('footer');
+    if (!footer || document.getElementById('chat365-ai-toolbar')) return;
+    
+    const toolbar = document.createElement('div');
+    toolbar.id = 'chat365-ai-toolbar';
+    toolbar.innerHTML = `
+        <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+            自动润色
+        </div>
+    `;
+    
+    if (!document.getElementById('ai-toolbar-style')) {
+        const style = document.createElement('style');
+        style.id = 'ai-toolbar-style';
+        style.textContent = `
+            #chat365-ai-toolbar {
+                display: flex;
+                gap: 8px;
+                padding: 8px 12px;
+                background: rgba(255, 255, 255, 0.92);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                border-radius: 12px;
+                align-items: center;
+                z-index: 100;
+                position: absolute;
+                bottom: 80px; /* 悬浮高度，适配 WhatsApp footer 常规高度 */
+                left: 20px;
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .ai-toolbar-btn {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #fff;
+                border: 1px solid #eee;
+                border-radius: 8px;
+                font-size: 11px;
+                font-weight: 600;
+                color: #555;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .ai-toolbar-btn:hover {
+                background: #f0fff4;
+                border-color: #2ed36a;
+                color: #2ed36a;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 10px rgba(46, 211, 106, 0.2);
+            }
+            .ai-toolbar-btn svg { color: #2ed36a; }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // 注入到 footer 的直接父级，并确保父级是 relative
+    if (footer.parentElement && getComputedStyle(footer.parentElement).position === 'static') {
+        footer.parentElement.style.position = 'relative';
+    }
+    footer.parentNode.insertBefore(toolbar, footer);
+    
+    toolbar.querySelector('#ai-btn-auto-polish').onclick = () => {
+        const text = getInputContent();
+        showPdrPanel(text || '');
+    };
+    toolbar.querySelector('#ai-btn-translate-cn').onclick = async () => {
+        const text = getInputContent();
+        if (!text) return;
+        const res = await translateTextAPI(text, getLocalLanguage(), 'zh');
+        if (res.success) {
+            replaceInputWithPdrSuggestion(res.data);
+        }
+    };
+    toolbar.querySelector('#ai-btn-change-tone').onclick = () => {
+        const text = getInputContent();
+        showPdrPanel(text || '');
+    };
+}
+
+/**
+ * 注入会话顶部的 AI 按钮
+ */
+function injectHeaderAiButton() {
+    if (!globalAiConfig?.aiReplyToggle) {
+        const existing = document.getElementById('chat365-header-ai-btn');
+        if (existing) existing.remove();
+        return;
+    }
+
+    const videoBtn = document.querySelector('header button[aria-label="视频通话"]') || 
+                     document.querySelector('header button[aria-label="Video call"]');
+    
+    if (!videoBtn) {
+        // Fallback to original header selector if video button not found
+        const header = document.querySelector('header[data-testid="conversation-header"]') || 
+                       document.querySelector('header[data-testid="conversation-info-header"]');
+        if (!header || header.querySelector('#chat365-header-ai-btn')) return;
+        
+        let altActions = header.querySelector('div[role="button"]:last-child')?.parentElement;
+        if (!altActions) {
+            const standardIcon = header.querySelector('[data-icon="search"]') || 
+                                 header.querySelector('[data-icon="menu"]');
+            if (standardIcon) altActions = standardIcon.closest('div[role="button"]')?.parentElement;
+        }
+        if (!altActions) return;
+        
+        injectHeaderAiButtonToContainer(altActions);
+    } else {
+        const actionsContainer = videoBtn.parentElement;
+        if (actionsContainer.querySelector('#chat365-header-ai-btn')) return;
+        injectHeaderAiButtonToContainer(actionsContainer);
+    }
+}
+
+/**
+ * 将 AI 按钮注入到指定的容器中
+ */
+function injectHeaderAiButtonToContainer(container) {
+    if (container.querySelector('#chat365-header-ai-btn')) return;
+    
+    const aiBtn = document.createElement('div');
+    aiBtn.id = 'chat365-header-ai-btn';
+    aiBtn.title = 'AI 助手';
+    aiBtn.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 14px;
+        height: 32px;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        margin: 0 10px;
+        background: linear-gradient(135deg, #1d976c, #93f9b9);
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+        border: 1.5px solid rgba(255, 255, 255, 0.4);
+        color: #fff;
+        font-weight: 800;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        overflow: hidden;
+        position: relative;
+    `;
+    aiBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l2.4 7.2L22 12l-7.6 2.4L12 22l-2.4-7.2L2 12l7.6-2.4L12 2z"/>
+        </svg>
+        <span style="margin-top: -1px;">AI</span>
+    `;
+    
+    aiBtn.onmouseover = () => {
+        aiBtn.style.transform = 'scale(1.1) rotate(5deg)';
+        aiBtn.style.boxShadow = '0 6px 16px rgba(46, 211, 106, 0.45)';
+    };
+    aiBtn.onmouseout = () => {
+        aiBtn.style.transform = 'scale(1) rotate(0)';
+        aiBtn.style.boxShadow = '0 4px 12px rgba(46, 211, 106, 0.35)';
+    };
+    
+    aiBtn.onclick = () => {
+        const text = getInputContent();
+        showPdrPanel(text || '');
+    };
+    
+    container.prepend(aiBtn);
+}
+
 // 翻译API函数 - 直接调用主进程的翻译服务
 async function translateTextAPI(text, fromLang, toLang) {
 
@@ -2244,6 +2932,8 @@ function monitorMainNode() {
                         processImageMessageList(); 
                         processVoiceMessageList(); // 添加语音消息处理
                         initSidebarResize(); // 初始化侧边栏拉伸
+                        injectAiToolbar(); // 注入 AI 工具栏
+                        injectHeaderAiButton(); // 注入顶部 AI 按钮
                     }, 500);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
