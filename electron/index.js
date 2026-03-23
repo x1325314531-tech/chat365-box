@@ -288,6 +288,11 @@ class Index extends Application {
    */
   async windowReady () {
     console.log('--- windowReady START ---');
+    // 根据多开控制标题显示 托盘菜单功能列表
+    const win = this.electron.mainWindow;
+    // if (app.userId && parseInt(app.userId) > 1) {
+    //   win.setTitle(`Chat365 用户 ${app.userId}`);
+    // }
     // 初始化翻译配置到内存
     app.translateConfig = Storage.connection('config.json').getItem('translateConfig');
     

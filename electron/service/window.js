@@ -16,7 +16,7 @@ const platforms = [
     // { platform: 'Telegram', url: 'https://www.browserscan.net/zh/' },
     // { platform: 'WhatsApp', url: 'https://ipcs.vip/' },
 ];
-const { Service } = require('ee-core');
+const { Service, Services } = require('ee-core');
 /**
  * 示例服务（service层为单例）
  * @class

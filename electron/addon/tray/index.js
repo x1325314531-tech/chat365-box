@@ -1,4 +1,5 @@
-const { Tray, Menu } = require('electron');
+const { Tray, Menu, app } = require('electron');
+const { spawn } = require('child_process');
 const path = require('path');
 const Ps = require('ee-core/ps');
 const Log = require('ee-core/log');
@@ -33,7 +34,46 @@ class TrayAddon {
     let iconPath = path.join(Ps.getHomeDir(), cfg.icon);
   
     // 托盘菜单功能列表
+    const appName = app.getName();
+    const appVersion = app.getVersion();
+
+    // 启动新实例的方法
+    const launchInstance = (userId) => {
+      const exePath = app.getPath('exe');
+      const args = [`--user-id=${userId}`];
+      
+      // 开发环境下，需要指定应用路径（通常是项目根目录）
+      if (!app.isPackaged) {
+        args.unshift(app.getAppPath());
+      }
+      
+      Log.info(`启动新实例: ${exePath} ${args.join(' ')}`);
+      spawn(exePath, args, {
+        detached: true,
+        stdio: 'ignore'
+      }).unref();
+    };
+
     let trayMenuTemplate = [
+      {
+        label: `${appName} ${appVersion}`,
+        enabled: false
+      },
+      { type: 'separator' }
+    ];
+
+    // 添加 10 个用户项
+    // for (let i = 1; i <= 10; i++) {
+    //     trayMenuTemplate.push({
+    //       label: `用户 ${i}`,
+    //       click: () => {
+    //         launchInstance(i);
+    //       }
+    //     });
+    // }
+
+    trayMenuTemplate.push(
+      { type: 'separator' },
       {
         label: '显示',
         click: function () {
@@ -46,7 +86,7 @@ class TrayAddon {
           CoreApp.appQuit();
         }
       }
-    ]
+    );
   
     // 点击关闭，最小化到托盘
     mainWindow.on('close', (event) => {
