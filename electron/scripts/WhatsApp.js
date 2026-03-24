@@ -661,6 +661,13 @@ function updatePreviewUI(text, isLoading = false) {
         }
     }
 
+    // 关键修正：确保 previewNode 始终在当前的 footer 中 (防止会话切换导致的 DOM 丢失)
+    const footer = document.querySelector('footer');
+    if (footer && previewNode && previewNode.parentElement !== footer) {
+        footer.style.position = 'relative';
+        footer.appendChild(previewNode);
+    }
+
     if (isLoading || text) {
         currentPreviewText = text || '';
         
@@ -1065,6 +1072,15 @@ function startMonitor() {
         editableDiv.addEventListener('input', handleInput, true);
 
         console.log('✅ 事件监听器已添加');
+        
+        // 关键增强：如果是会话切换触发的重新监控，检测是否有之前产生的未发送预览需要恢复
+        if (lastPreviewedTranslation && lastPreviewedSource) {
+            const currentContent = getInputContent();
+            if (currentContent && currentContent.trim() === lastPreviewedSource.trim()) {
+                console.log('🔄 检测到内容匹配，恢复翻译预览');
+                updatePreviewUI(lastPreviewedTranslation);
+            }
+        }
 
         // ====== 发送按钮点击拦截 ======
         // 使用捕获阶段监听 footer 内的点击，判断是否点击了发送按钮
@@ -3335,8 +3351,6 @@ function monitorMainNode() {
                     const targetNode = mutation.target;
                     if (targetNode.getAttribute('aria-selected') === 'true') {
                         removeLoadingNode();
-                        updatePreviewUI(null);
-                        lastPreviewedTranslation = '';
                         startMonitor();
                         addTranslateButtonWithSelect();
                         // 切换联系人立即触发一次消息列表处理，确保历史记录同步加载
