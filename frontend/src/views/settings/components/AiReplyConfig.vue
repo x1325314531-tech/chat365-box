@@ -47,7 +47,7 @@
 
             <div class="form-col" style="margin-top: 16px;">
               <div class="form-label">基于前 条对话记录</div>
-              <el-select v-model="aiConfig[activeAiPlatform].historyCount" placeholder="请选择条数">
+              <el-select v-model="aiConfig[activeAiPlatform].historyCount"  placeholder="请选择条数">
                 <el-option
                   v-for="item in historyOptions"
                   :key="item.value"
@@ -68,7 +68,7 @@
           <div class="section-content" v-show="expandedSections.aiStyle">
             <div class="form-col">
               <div class="form-label">回复语调</div>
-              <el-select v-model="aiConfig[activeAiPlatform].tone" placeholder="请选择语调">
+              <el-select v-model="aiConfig[activeAiPlatform].tone" @change="toneChange" placeholder="请选择语调">
                 <el-option
                   v-for="item in toneOptions"
                   :key="item.value"
@@ -80,7 +80,7 @@
 
             <div class="form-col" style="margin-top: 16px;">
               <div class="form-label">回复主题</div>
-              <el-select v-model="aiConfig[activeAiPlatform].theme" placeholder="请选择主题">
+              <el-select v-model="aiConfig[activeAiPlatform].theme" @change="themeChange" placeholder="请选择主题">
                 <el-option
                   v-for="item in themeOptions"
                   :key="item.value"
@@ -92,7 +92,7 @@
 
             <div class="form-col" style="margin-top: 16px;">
               <div class="form-label">回复角色</div>
-              <el-select v-model="aiConfig[activeAiPlatform].role" placeholder="请选择角色">
+              <el-select v-model="aiConfig[activeAiPlatform].role" @change="roleChange" placeholder="请选择角色">
                 <el-option
                   v-for="item in roleOptions"
                   :key="item.value"
@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, watch} from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Notification from "@/utils/notification"
@@ -138,7 +138,10 @@ const aiConfig = reactive({
     historyCount: 3,
     tone: '默认',
     theme: '默认',
-    role: '朋友'
+    role: '朋友',
+    toneName:'默认',
+    themeName:'默认',
+    roleName:'默认',
   },
   telegram: {
     model: 'Gemini',
@@ -166,7 +169,15 @@ const roleOptions = ref([])
 const toggleSection = (section) => {
   expandedSections[section] = !expandedSections[section]
 }
-
+const toneChange = (val) => { 
+   aiConfig[activeAiPlatform.value].toneName = toneOptions.value.find((item)=> item.value===val)?.label
+}
+const  themeChange = (val)=> { 
+  aiConfig[activeAiPlatform.value].themeName = themeOptions.value.find((item)=> item.value===val)?.label
+}
+const roleChange =(val)=> { 
+  aiConfig[activeAiPlatform.value].roleName = roleOptions.value.find((item)=> item.value===val)?.label
+}
 const applyConfig = () => {
   const  aiConfigData=  aiConfig[activeAiPlatform]
   console.log('wwwww', aiConfigData);

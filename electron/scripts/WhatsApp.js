@@ -1999,7 +1999,7 @@ function showPdrPanel(originalText = '') {
             style.textContent = `
                 #chat365-pdr-panel {
                     position: fixed;
-                    top: 100px;
+                    top: 60px;
                     right: 40px;
                     width: 540px;
                     background: linear-gradient(135deg, rgba(28, 30, 33, 0.98), rgba(44, 48, 54, 0.98));
@@ -2017,6 +2017,15 @@ function showPdrPanel(originalText = '') {
                     gap: 16px;
                     animation: pdrSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                     user-select: none;
+                }
+                #chat365-pdr-panel::before {
+                    content: "";
+                    position: absolute;
+                    top: -10px;
+                    right: 230px;
+                    border-width: 0 10px 10px 10px;
+                    border-style: solid;
+                    border-color: transparent transparent rgba(20, 24, 31, 0.95) transparent;
                 }
                 @keyframes pdrSlideUp {
                     from { opacity: 0; transform: translateY(40px) scale(0.95); }
@@ -2143,7 +2152,18 @@ function showPdrPanel(originalText = '') {
                     flex-wrap: wrap;
                     gap: 10px;
                     margin-top: 4px;
+                    flex-direction: column;
                 }
+                .pdr-token-item { 
+                     display: flex;
+                     align-items:center;
+                      
+
+                }
+               .prd-label {
+                     font-size:14px; 
+                     margin-right:16px;
+               }
                 .pdr-token {
                     padding: 8px 18px;
                     background: rgba(255, 255, 255, 0.05);
@@ -2223,7 +2243,9 @@ function showPdrPanel(originalText = '') {
 
 function renderPdrContent(originalText) {
     const tone = globalAiConfig?.tone || '友好的';
-    
+    const themeName = globalAiConfig.themeName;
+    const toneName = globalAiConfig.toneName;
+    const roleName = globalAiConfig.roleName;
     pdrPanelNode.innerHTML = `
         <div class="pdr-header">
             <div class="pdr-title">
@@ -2273,10 +2295,18 @@ function renderPdrContent(originalText) {
         <div class="pdr-field">
             <div class="pdr-label">Fliren flow animation</div>
             <div class="pdr-tokens">
-                <div class="pdr-token ${tone === '友好的' || tone === 'friendly' ? 'active' : ''}" data-tone="friendly">温和</div>
-                <div class="pdr-token ${tone === '专业' || tone === 'professional' ? 'active' : ''}" data-tone="professional">专业</div>
-                <div class="pdr-token ${tone === '简洁' || tone === 'concise' ? 'active' : ''}" data-tone="concise">简洁</div>
-                <div class="pdr-token ${tone === '风趣' || tone === 'funny' ? 'active' : ''}" data-tone="funny">风趣</div>
+               <div class="pdr-token-item">
+                <div class="prd-label">回复语调 :</div>
+                <div class="pdr-token active" data-tone="friendly">${toneName}</div>
+               </div>
+               <div class="pdr-token-item">
+               <div class="prd-label">回复主题 :</div>
+               <div class="pdr-token active" data-tone="professional">${themeName}</div>
+               </div>
+               <div class="pdr-token-item">
+               <div class="prd-label">回复角色 :</div>
+                <div class="pdr-token active" data-tone="concise">${roleName}</div>
+               </div>        
             </div>
         </div>
         <div class="pdr-actions">
@@ -2294,15 +2324,16 @@ function renderPdrContent(originalText) {
     // 绑定事件
     pdrPanelNode.querySelector('#pdr-close-btn').onclick = () => pdrPanelNode.style.display = 'none';
     
-    pdrPanelNode.querySelectorAll('.pdr-token').forEach(btn => {
-        btn.onclick = () => {
-            pdrPanelNode.querySelectorAll('.pdr-token').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            // 更新内存中的风格
-            if (globalAiConfig) globalAiConfig.tone = btn.innerText;
-            performAiPolish(currentPdrOriginalText);
-        };
-    });
+    // pdrPanelNode.querySelectorAll('.pdr-token').forEach(btn => {
+        
+    //     btn.onclick = () => {
+    //         pdrPanelNode.querySelectorAll('.pdr-token').forEach(b => b.classList.remove('active'));
+    //         btn.classList.add('active');
+    //         // 更新内存中的风格
+    //         if (globalAiConfig) globalAiConfig.tone = btn.innerText;
+    //         performAiPolish(currentPdrOriginalText);
+    //     };
+    // });
 
     pdrPanelNode.querySelector('#pdr-replace-btn').onclick = () => {
         if (!currentPdrAiSuggestion) return;
@@ -2438,7 +2469,7 @@ function injectAiToolbar() {
                 align-items: center;
                 z-index: 100;
                 position: absolute;
-                bottom: 80px; /* 悬浮高度，适配 WhatsApp footer 常规高度 */
+                bottom: 65px; /* 悬浮高度，适配 WhatsApp footer 常规高度 */
                 left: 20px;
                 box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
