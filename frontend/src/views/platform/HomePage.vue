@@ -336,8 +336,11 @@ const router = useRouter()
 // 处理快捷入口点击
 const handleQuickAccess = (item) => {
   if (item.id === 'translate') {
-    router.push('/home/settings')
-  } else if (item.id === 'fans') {
+    router.push({ path: '/home/settings', query: { activeMenu: 'translate' } })
+  } else if (item.id === 'aiReply') {
+    router.push({ path: '/home/settings', query: { activeMenu: 'aiReply' } })
+  } 
+  else if (item.id === 'fans') {
     router.push('/home/fans')
   } else { 
      Notification.message({ 

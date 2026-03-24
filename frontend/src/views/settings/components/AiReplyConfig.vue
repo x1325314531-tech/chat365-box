@@ -1,14 +1,14 @@
 <template>
   <div class="translate-config">
     <div class="config-header">
-      <h3>AI回复设置</h3>
-      <p class="config-desc">配置AI回复的相关参数，包括模型选择、回复风格等</p>
+      <h3>{{ $t('quickItems.aiReply') }}</h3>
+      <p class="config-desc">{{ $t('settings.aiReplyConfigDesc') }}</p>
     </div>
 
     <div class="config-body">
       <!-- 左侧平台列表 -->
       <div class="platform-list">
-        <div class="platform-title">平台</div>
+        <div class="platform-title">{{ $t('settings.aiPlatform') }}</div>
         <div 
           class="platform-item"
           :class="{ active: activeAiPlatform === 'whatsapp' }"
@@ -24,17 +24,17 @@
         <!-- 基础设置 -->
         <div class="config-section">
           <div class="section-header" @click="toggleSection('aiBasic')">
-            <span class="section-title">基础设置</span>
-            <span class="section-tag">{{ expandedSections.aiBasic ? '折叠' : '展开' }}</span>
+            <span class="section-title">{{ $t('settings.aiBasicSettings') }}</span>
+            <span class="section-tag">{{ expandedSections.aiBasic ? $t('settings.collapse') : $t('settings.expand') }}</span>
           </div>
           <div class="section-content" v-show="expandedSections.aiBasic">
             <div class="form-col flex-between ">
-               <div class="form-label">AI回复设置</div>
-               <el-switch v-model="aiConfig[activeAiPlatform].aiReplyToggle"></el-switch>
+               <div class="form-label">{{ $t('settings.aiReplyToggle') }}</div>
+               <el-switch v-model="aiConfig[activeAiPlatform].aiReplyToggle" @change="handleAiReplyToggle"></el-switch>
             </div>
             <div class="form-col">
-              <div class="form-label">选择模型</div>
-              <el-select v-model="aiConfig[activeAiPlatform].model" placeholder="请选择模型">
+              <div class="form-label">{{ $t('settings.selectModel') }}</div>
+              <el-select v-model="aiConfig[activeAiPlatform].model" :placeholder="$t('settings.modelPlaceholder')">
                 <el-option
                   v-for="item in modelOptions"
                   :key="item.value"
@@ -42,12 +42,12 @@
                   :value="item.value"
                 />
               </el-select>
-              <div class="form-desc-ai form-desc">用于生成回复的AI产品</div>
+              <div class="form-desc-ai form-desc">{{ $t('settings.modelDesc') }}</div>
             </div>
 
             <div class="form-col" style="margin-top: 16px;">
-              <div class="form-label">基于前 条对话记录</div>
-              <el-select v-model="aiConfig[activeAiPlatform].historyCount"  placeholder="请选择条数">
+              <div class="form-label">{{ $t('settings.historyCountPrefix') }}{{ $t('settings.historyCountSuffix') }}</div>
+              <el-select v-model="aiConfig[activeAiPlatform].historyCount"  :placeholder="$t('settings.historyPlaceholder')">
                 <el-option
                   v-for="item in historyOptions"
                   :key="item.value"
@@ -62,13 +62,13 @@
         <!-- 回复风格设置 -->
         <div class="config-section">
           <div class="section-header" @click="toggleSection('aiStyle')">
-            <span class="section-title">回复风格设置</span>
-            <span class="section-tag">{{ expandedSections.aiStyle ? '折叠' : '展开' }}</span>
+            <span class="section-title">{{ $t('settings.aiStyleSettings') }}</span>
+            <span class="section-tag">{{ expandedSections.aiStyle ? $t('settings.collapse') : $t('settings.expand') }}</span>
           </div>
           <div class="section-content" v-show="expandedSections.aiStyle">
             <div class="form-col">
-              <div class="form-label">回复语调</div>
-              <el-select v-model="aiConfig[activeAiPlatform].tone" @change="toneChange" placeholder="请选择语调">
+              <div class="form-label">{{ $t('settings.tone') }}</div>
+              <el-select v-model="aiConfig[activeAiPlatform].tone" @change="toneChange" :placeholder="$t('settings.tonePlaceholder')">
                 <el-option
                   v-for="item in toneOptions"
                   :key="item.value"
@@ -79,8 +79,8 @@
             </div>
 
             <div class="form-col" style="margin-top: 16px;">
-              <div class="form-label">回复主题</div>
-              <el-select v-model="aiConfig[activeAiPlatform].theme" @change="themeChange" placeholder="请选择主题">
+              <div class="form-label">{{ $t('settings.theme') }}</div>
+              <el-select v-model="aiConfig[activeAiPlatform].theme" @change="themeChange" :placeholder="$t('settings.themePlaceholder')">
                 <el-option
                   v-for="item in themeOptions"
                   :key="item.value"
@@ -91,8 +91,8 @@
             </div>
 
             <div class="form-col" style="margin-top: 16px;">
-              <div class="form-label">回复角色</div>
-              <el-select v-model="aiConfig[activeAiPlatform].role" @change="roleChange" placeholder="请选择角色">
+              <div class="form-label">{{ $t('settings.role') }}</div>
+              <el-select v-model="aiConfig[activeAiPlatform].role" @change="roleChange" :placeholder="$t('settings.rolePlaceholder')">
                 <el-option
                   v-for="item in roleOptions"
                   :key="item.value"
@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, watch} from 'vue'
+import { reactive, ref, onMounted, watch, computed} from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Notification from "@/utils/notification"
@@ -157,17 +157,31 @@ const modelOptions = [
   { label: 'GPT-3.5', value: 'GPT-3.5' },
   { label: 'GPT-4', value: 'GPT-4' }
 ]
-const historyOptions = [
-  { label: '3条', value: 3 },
-  { label: '5条', value: 5 },
-  { label: '10条', value: 10 }
-]
+const historyOptions = computed(() => [
+  { label: `3 ${t('settings.historyCountSuffix')}`, value: 3 },
+  { label: `5 ${t('settings.historyCountSuffix')}`, value: 5 },
+  { label: `10 ${t('settings.historyCountSuffix')}`, value: 10 }
+])
 const toneOptions = ref([])
 const themeOptions = ref([])
 const roleOptions = ref([])
 
 const toggleSection = (section) => {
   expandedSections[section] = !expandedSections[section]
+}
+
+const handleAiReplyToggle = (val) => {
+  if (val) {
+    // 互斥逻辑：开启 AI 回复时，关闭自动翻译
+    ipc.invoke('get-translate-config').then(transRes => {
+      if (transRes) {
+        transRes.sendAutoTranslate = false
+        ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
+        })
+      }
+    })
+  }
 }
 const toneChange = (val) => { 
    aiConfig[activeAiPlatform.value].toneName = toneOptions.value.find((item)=> item.value===val)?.label

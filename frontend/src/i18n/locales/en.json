@@ -54,6 +54,7 @@
     "translateConfig": "Translation Config",
     "globalConfigDesc": "The following will be used as global translation config",
     "translateSettings": "Translation Settings",
+     "aiReplySettings":"AI Reply Settings",
     "sendSettings": "Send Translation Settings",
     "collapse": "Collapse",
     "expand": "Expand",
@@ -84,7 +85,24 @@
     "showTranslateConfig": "Show Translation Config in Chat List",
     "showTranslateConfigDesc": "Display and switch translation languages in chat window",
     "apply": "Apply",
-    "updateSuccess": "Updated successfully"
+    "updateSuccess": "Updated successfully",
+    "aiReplyConfigDesc": "Configure AI reply parameters, including model selection, reply style, etc.",
+    "aiPlatform": "Platform",
+    "aiBasicSettings": "Basic Settings",
+    "aiReplyToggle": "AI Reply Toggle",
+    "selectModel": "Select Model",
+    "modelPlaceholder": "Select model",
+    "modelDesc": "AI product used to generate replies",
+    "historyCountPrefix": "Based on previous",
+    "historyCountSuffix": "messages",
+    "historyPlaceholder": "Select count",
+    "aiStyleSettings": "Reply Style Settings",
+    "tone": "Reply Tone",
+    "tonePlaceholder": "Select tone",
+    "theme": "Reply Theme",
+    "themePlaceholder": "Select theme",
+    "role": "Reply Role",
+    "rolePlaceholder": "Select role"
   },
   "session": {
     "tabs": {

@@ -38,19 +38,21 @@ import { useI18n } from 'vue-i18n'
 // 导入组件
 import TranslateConfig from './components/TranslateConfig.vue'
 import AiReplyConfig from './components/AiReplyConfig.vue'
+import { useRoute } from 'vue-router'
 // 导入图标
 import translateIcon from '@/assets/svgs/translate.svg'
 import aiReplyIcon from '@/assets/svgs/ai-reply.svg'
 
 const { t } = useI18n()
+const route = useRoute()
 
 // 左侧导航菜单
 const sidebarMenus = ref([
   { id: 'translate', title: t('settings.translateSettings'), icon: translateIcon },
-  { id: 'aiReply', title: 'AI回复设置', icon: aiReplyIcon },
+  { id: 'aiReply', title: t('settings.aiReplySettings'), icon: aiReplyIcon },
 ])
 
-const activeMenu = ref('translate')
+const activeMenu = ref(route.query.activeMenu || 'translate')
 </script>
 
 <style scoped>
