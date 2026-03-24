@@ -275,6 +275,7 @@ let previewNode = null;
 let pdrPanelNode = null;
 let currentPdrOriginalText = '';
 let currentPdrAiSuggestion = '';
+let currentPdrTab = 'polish'; // polish | draft | rewrite
 let lastPolishedText = ''; // 记录最后一次润色后的文本，避免重复弹出面板
 
 // 钱包地址正则 (ETH/BNB/TRON等)
@@ -1957,17 +1958,18 @@ function getChatHistory(count = 3) {
 /**
  * 调用 AI 润色接口
  */
-async function callAgentChatAPI(content) {
+async function callAgentChatAPI(content, type = 'polish') {
     if (!globalAiConfig) {
         console.warn('⚠️ AI配置未加载，尝试重新同步...');
         await syncGlobalConfig();
     }
     
-    // 从 globalAiConfig 获取历史条数，默认 3 条
-    const historyCount = globalAiConfig?.historyCount || 3;
+    // 如果是草稿，获取更多历史（10条），润色/重写则默认条数
+    const historyCount = type === 'draft' ? 10 : (globalAiConfig?.historyCount || 3);
     const history = getChatHistory(historyCount);
     
     const params = {
+        type: type, // 区分模式：polish | draft | rewrite
         content: content,
         history: history,
         tone: globalAiConfig?.tone || '友好的',
@@ -1977,7 +1979,7 @@ async function callAgentChatAPI(content) {
         modelName: globalAiConfig?.model || 'Gemini'
     };
     
-    console.log('🚀 发起 AI 润色请求，参数:', params);
+    console.log(`🚀 发起 AI [${type}] 请求，参数:`, params);
     return await window.electronAPI.agentChat(params);
 }
 
@@ -2237,15 +2239,65 @@ function showPdrPanel(originalText = '') {
     renderPdrContent(originalText);
     pdrPanelNode.style.display = 'flex';
     
-    // 发起润色请求
-    performAiPolish(originalText);
+    // 根据标签发起不同请求
+    if (currentPdrTab === 'polish') {
+        performAiPolish(originalText);
+    } else if (currentPdrTab === 'draft') {
+        performAiDraft();
+    } else if (currentPdrTab === 'rewrite') {
+        performAiRewrite(originalText);
+    }
 }
 
 function renderPdrContent(originalText) {
     const tone = globalAiConfig?.tone || '友好的';
-    const themeName = globalAiConfig.themeName;
-    const toneName = globalAiConfig.toneName;
-    const roleName = globalAiConfig.roleName;
+    const themeName = globalAiConfig.themeName || '默认';
+    const toneName = globalAiConfig.toneName || '默认';
+    const roleName = globalAiConfig.roleName || '朋友';
+    
+    // 根据当前标签确定显示内容
+    let mainHtml = '';
+    let suggestionLabel = 'AI Suggestions (润色建议)';
+    let loadingText = 'AI 正在为您润色文本...';
+    
+    if (currentPdrTab === 'polish') {
+        suggestionLabel = 'AI Suggestions (润色建议)';
+        loadingText = 'AI 正在为您润色文本...';
+        mainHtml = `
+            <div class="pdr-field">
+                <div class="pdr-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    ORIGINAL (原文)
+                </div>
+                <div class="pdr-text-container">${originalText || '<span style="color:#666">（空）</span>'}</div>
+            </div>
+        `;
+    } else if (currentPdrTab === 'draft') {
+        suggestionLabel = 'Generate replies (生成回复草稿)';
+        loadingText = 'AI 正在根据上下文生成回复草稿...';
+        mainHtml = `
+             <div class="pdr-field">
+                <div class="pdr-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    CONTEXT (聊天上下文)
+                </div>
+                <div class="pdr-text-container" style="font-size: 11px; opacity: 0.6; height: 60px; overflow-y: auto;">已获取最近 10 条消息作为背景...</div>
+            </div>
+        `;
+    } else if (currentPdrTab === 'rewrite') {
+        suggestionLabel = 'Rewrite options (重写选项)';
+        loadingText = 'AI 正在为您重写文本...';
+         mainHtml = `
+            <div class="pdr-field">
+                <div class="pdr-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    TEXT TO REWRITE (重写对象)
+                </div>
+                <div class="pdr-text-container">${originalText || '<span style="color:#666">（请先输入内容）</span>'}</div>
+            </div>
+        `;
+    }
+
     pdrPanelNode.innerHTML = `
         <div class="pdr-header">
             <div class="pdr-title">
@@ -2257,55 +2309,49 @@ function renderPdrContent(originalText) {
             </div>
         </div>
         <div class="pdr-tabs">
-            <div class="pdr-tab active">
+            <div class="pdr-tab ${currentPdrTab === 'polish' ? 'active' : ''}" data-tab="polish">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Polish (润色)
             </div>
-            <div class="pdr-tab">
+            <div class="pdr-tab ${currentPdrTab === 'draft' ? 'active' : ''}" data-tab="draft">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 11V9a4 4 0 0 1 8 0v2"/></svg>
                 Draft (草稿)
             </div>
-            <div class="pdr-tab">
+            <div class="pdr-tab ${currentPdrTab === 'rewrite' ? 'active' : ''}" data-tab="rewrite">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                 Rewrite (重写)
             </div>
         </div>
         <div class="pdr-main-grid">
-            <div class="pdr-field">
-                <div class="pdr-label">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                    ORIGINAL (原文)
-                </div>
-                <div class="pdr-text-container">${originalText}</div>
-            </div>
+            ${mainHtml}
             <div class="pdr-field">
                 <div class="pdr-label">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2ed36a" stroke-width="3"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
-                    AI Suggestions (润色建议)
+                    ${suggestionLabel}
                 </div>
                 <div class="pdr-suggestion-wrap">
                     <div class="pdr-text-container pdr-suggestion-box" id="pdr-suggestion-text" style="white-space: pre-wrap;"></div>
                     <div class="pdr-loading-overlay" id="pdr-loading-ui">
                         <div class="preview-spinner" style="width: 24px; height: 24px;"></div>
-                        <span>AI 正在为您润色文本...</span>
+                        <span>${loadingText}</span>
                     </div>
                 </div>
             </div>
         </div>
         <div class="pdr-field">
-            <div class="pdr-label">Fliren flow animation</div>
+            <div class="pdr-label">Configured Style</div>
             <div class="pdr-tokens">
                <div class="pdr-token-item">
                 <div class="prd-label">回复语调 :</div>
-                <div class="pdr-token active" data-tone="friendly">${toneName}</div>
+                <div class="pdr-token active">${toneName}</div>
                </div>
                <div class="pdr-token-item">
                <div class="prd-label">回复主题 :</div>
-               <div class="pdr-token active" data-tone="professional">${themeName}</div>
+               <div class="pdr-token active">${themeName}</div>
                </div>
                <div class="pdr-token-item">
                <div class="prd-label">回复角色 :</div>
-                <div class="pdr-token active" data-tone="concise">${roleName}</div>
+                <div class="pdr-token active">${roleName}</div>
                </div>        
             </div>
         </div>
@@ -2321,19 +2367,23 @@ function renderPdrContent(originalText) {
         </div>
     `;
 
-    // 绑定事件
+    // 绑定通用事件
     pdrPanelNode.querySelector('#pdr-close-btn').onclick = () => pdrPanelNode.style.display = 'none';
     
-    // pdrPanelNode.querySelectorAll('.pdr-token').forEach(btn => {
-        
-    //     btn.onclick = () => {
-    //         pdrPanelNode.querySelectorAll('.pdr-token').forEach(b => b.classList.remove('active'));
-    //         btn.classList.add('active');
-    //         // 更新内存中的风格
-    //         if (globalAiConfig) globalAiConfig.tone = btn.innerText;
-    //         performAiPolish(currentPdrOriginalText);
-    //     };
-    // });
+    // 标签切换事件
+    pdrPanelNode.querySelectorAll('.pdr-tab').forEach(tabBtn => {
+        tabBtn.onclick = () => {
+            const tab = tabBtn.getAttribute('data-tab');
+            if (tab === currentPdrTab) return;
+            currentPdrTab = tab;
+            renderPdrContent(currentPdrOriginalText);
+            
+            // 触发对应 API
+            if (currentPdrTab === 'polish') performAiPolish(currentPdrOriginalText);
+            else if (currentPdrTab === 'draft') performAiDraft();
+            else if (currentPdrTab === 'rewrite') performAiRewrite(currentPdrOriginalText);
+        };
+    });
 
     pdrPanelNode.querySelector('#pdr-replace-btn').onclick = () => {
         if (!currentPdrAiSuggestion) return;
@@ -2349,6 +2399,21 @@ function renderPdrContent(originalText) {
 }
 
 async function performAiPolish(text) {
+    await performAiGeneric('polish', text);
+}
+
+async function performAiDraft() {
+    await performAiGeneric('draft', '');
+}
+
+async function performAiRewrite(text) {
+    await performAiGeneric('rewrite', text);
+}
+
+/**
+ * 通用的 AI 请求执行器
+ */
+async function performAiGeneric(type, text) {
     if (!pdrPanelNode) return;
     const loadingUi = pdrPanelNode.querySelector('#pdr-loading-ui');
     const suggestionText = pdrPanelNode.querySelector('#pdr-suggestion-text');
@@ -2361,7 +2426,7 @@ async function performAiPolish(text) {
     if (addBtn) addBtn.disabled = true;
 
     try {
-        const res = await callAgentChatAPI(text);
+        const res = await callAgentChatAPI(text, type);
         if (res && res.success) {
             currentPdrAiSuggestion = res.data;
             if (suggestionText) suggestionText.textContent = res.data;
@@ -2567,7 +2632,7 @@ function injectHeaderAiButtonToContainer(container) {
     
     const aiBtn = document.createElement('div');
     aiBtn.id = 'chat365-header-ai-btn';
-    aiBtn.title = 'AI 助手';
+    aiBtn.title = 'AI润色';
     aiBtn.style.cssText = `
         display: flex;
         align-items: center;
