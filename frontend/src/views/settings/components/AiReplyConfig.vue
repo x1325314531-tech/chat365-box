@@ -152,11 +152,7 @@ const aiConfig = reactive({
   }
 })
 
-const modelOptions = [
-  { label: 'Gemini', value: 'Gemini' },
-  { label: 'GPT-3.5', value: 'GPT-3.5' },
-  { label: 'GPT-4', value: 'GPT-4' }
-]
+const modelOptions =  ref([])
 const historyOptions = computed(() => [
   { label: `3 ${t('settings.historyCountSuffix')}`, value: 3 },
   { label: `5 ${t('settings.historyCountSuffix')}`, value: 5 },
@@ -206,6 +202,23 @@ const applyConfig = () => {
   setTimeout(() => {
     router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
   }, 1000)
+}
+//获取模型
+const getModelOptions = async() => { 
+    try {
+    const dictType='box_agent_models'
+    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
+    if (res && res.code === 200) {
+      modelOptions.value = res.data.map(item=> {
+        return{
+          label:item.dictLabel,
+          value:item.dictValue
+        }
+      }) || []
+    }
+  } catch (err) {
+    console.error('获取模型失败',err) 
+  }
 }
 //获取回复语调
 const  getagentToneDict = async()=> { 
@@ -271,6 +284,7 @@ onMounted(async() => {
       }
     }
   })
+  await getModelOptions()
   await getagentToneDict()
  await getAgentThemeDict()
  await getAgentRoleDict()

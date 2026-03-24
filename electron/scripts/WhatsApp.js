@@ -523,6 +523,66 @@ async function autoCaptureVoice(audioElement) {
         if (key) recordingStateMap.delete(key);
     }
 }
+// ==================== AI 润色缓存 IndexedDB ====================
+
+let polishCacheDBInstance = null;
+function openPolishCacheDB() {
+    if (polishCacheDBInstance) return Promise.resolve(polishCacheDBInstance);
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('WhatsAppPolishCacheDB', 1);
+        request.onupgradeneeded = function(event) {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('polishCache')) {
+                // 使用 (originalText + type) 的组合作为可能的主键，或者直接自增 ID
+                const store = db.createObjectStore('polishCache', { keyPath: 'id', autoIncrement: true });
+                store.createIndex('originalText', 'originalText', { unique: false });
+                store.createIndex('type', 'type', { unique: false });
+                store.createIndex('compositeKey', ['originalText', 'type'], { unique: true });
+            }
+        };
+        request.onsuccess = (event) => {
+            polishCacheDBInstance = event.target.result;
+            resolve(polishCacheDBInstance);
+        };
+        request.onerror = (event) => reject(event.target.error);
+    });
+}
+
+async function getPolishCache(originalText, type) {
+    if (!originalText) return null;
+    try {
+        const db = await openPolishCacheDB();
+        const transaction = db.transaction(['polishCache'], 'readonly');
+        const store = transaction.objectStore('polishCache');
+        const index = store.index('compositeKey');
+        return new Promise((resolve) => {
+            const request = index.get([originalText, type]);
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = () => resolve(null);
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+async function savePolishCache(originalText, type, suggestion) {
+    if (!originalText || !suggestion) return;
+    try {
+        const db = await openPolishCacheDB();
+        const transaction = db.transaction(['polishCache'], 'readwrite');
+        const store = transaction.objectStore('polishCache');
+        const record = {
+            originalText,
+            type,
+            suggestion,
+            timestamp: Date.now()
+        };
+        store.put(record);
+    } catch (e) {
+        console.error('❌ [Cache] 保存润色缓存失败:', e);
+    }
+}
+
 // ==========================================================
 
 // 更新预览UI
@@ -2070,6 +2130,9 @@ function showPdrPanel(originalText = '') {
                     padding: 4px;
                     gap: 4px;
                 }
+                 .pdr-tab-none { 
+                 display:none !important;
+                 }   
                 .pdr-tab {
                     flex: 1;
                     text-align: center;
@@ -2101,6 +2164,9 @@ function showPdrPanel(originalText = '') {
                     display: flex;
                     flex-direction: column;
                     gap: 10px;
+                }
+                .pdr-row { 
+                 flex-direction: row;
                 }
                 .pdr-label {
                     font-size: 11px;
@@ -2155,7 +2221,7 @@ function showPdrPanel(originalText = '') {
                     flex-wrap: wrap;
                     gap: 10px;
                     margin-top: 4px;
-                    flex-direction: column;
+                    flex-direction: row;
                 }
                 .pdr-token-item { 
                      display: flex;
@@ -2165,15 +2231,17 @@ function showPdrPanel(originalText = '') {
                 }
                .prd-label {
                      font-size:14px; 
-                     margin-right:16px;
+                     margin-right:6px;
                      color:rgba(255,255,255,0.4)
                }
+
                 .pdr-token {
-                    padding: 8px 18px;
+                    display:flex;
+                    padding: 16px 18px;
                     background: rgba(255, 255, 255, 0.05);
                     border: 1px solid rgba(255, 255, 255, 0.1);
                     border-radius: 22px;
-                    font-size: 13px;
+                    font-size: 12px;
                     cursor: pointer;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                     color: rgba(255, 255, 255, 0.7);
@@ -2227,12 +2295,21 @@ function showPdrPanel(originalText = '') {
                     filter: grayscale(0.8);
                 }
                 .btn-add {
-                    background: rgba(255, 255, 255, 0.06);
+                    // background: rgba(255, 255, 255, 0.06);
+                    background: linear-gradient(135deg, #2ed36a, #28b45a);
                     color: #fff;
                     border: 1px solid rgba(255, 255, 255, 0.08);
                 }
-                .btn-add:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
-
+                .btn-add:hover:not(:disabled) { 
+               // background: rgba(255, 255, 255, 0.12);
+                transform: translateY(-3px);
+                    box-shadow: 0 12px 30px rgba(46, 211, 106, 0.35);
+                }
+                .btn-add:disabled {
+                    opacity: 0.4;
+                    cursor: not-allowed;
+                    filter: grayscale(0.8);
+                }
                 /* 翻译开关样式 */
                 .pdr-switch-container {
                     display: flex;
@@ -2354,8 +2431,13 @@ function renderPdrContent(originalText) {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2.4 7.2L22 12l-7.6 2.4L12 22l-2.4-7.2L2 12l7.6-2.4L12 2z"/></svg>
                 AI 对话润色
             </div>
-            <div class="pdr-close" id="pdr-close-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="pdr-close" id="pdr-refresh-btn" title="重新生成 (绕过缓存)" style="margin-top: 2px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                </div>
+                <div class="pdr-close" id="pdr-close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </div>
             </div>
         </div>
         <div class="pdr-tabs">
@@ -2363,11 +2445,12 @@ function renderPdrContent(originalText) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Polish (润色)
             </div>
-            <div class="pdr-tab ${currentPdrTab === 'draft' ? 'active' : ''}" data-tab="draft">
+           
+            <div class="pdr-tab pdr-tab-none ${currentPdrTab === 'draft' ? 'active' : ''}" data-tab="draft">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 11V9a4 4 0 0 1 8 0v2"/></svg>
                 Draft (草稿)
             </div>
-            <div class="pdr-tab ${currentPdrTab === 'rewrite' ? 'active' : ''}" data-tab="rewrite">
+            <div class="pdr-tab pdr-tab-none ${currentPdrTab === 'rewrite' ? 'active' : ''}" data-tab="rewrite">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                 Rewrite (重写)
             </div>
@@ -2395,28 +2478,38 @@ function renderPdrContent(originalText) {
                 </div>
             </div>
         </div>
-        <div class="pdr-field">
+        <div class="pdr-field pdr-row">
             <div class="pdr-label">回复风格</div>
             <div class="pdr-tokens">
                <div class="pdr-token-item">
+                
+                <div class="pdr-token active"> 
                 <div class="prd-label">回复语调 :</div>
-                <div class="pdr-token active">${toneName}</div>
+                <div class="prd-value"> ${toneName}</div>
+               </div>
                </div>
                <div class="pdr-token-item">
+               
+               <div class="pdr-token active"> 
                <div class="prd-label">回复主题 :</div>
-               <div class="pdr-token active">${themeName}</div>
+                 <div class="prd-value"> ${themeName}</div>
+              </div>
                </div>
                <div class="pdr-token-item">
-               <div class="prd-label">回复角色 :</div>
-                <div class="pdr-token active">${roleName}</div>
+                <div class="pdr-token active">  
+                <div class="prd-label">回复角色 :</div>
+                 <div class="prd-value"> ${roleName}</div>
+               </div>
                </div>        
             </div>
         </div>
         <div class="pdr-actions">
-            <button class="pdr-action-btn btn-replace" id="pdr-replace-btn" disabled>
+    
+            <button class="pdr-action-btn btn-replace pdr-tab-none " " id="pdr-replace-btn"  disabled>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14l2 2 4-4"></path></svg>
                替换到草稿
             </button>
+          
             <button class="pdr-action-btn btn-add" id="pdr-add-btn" disabled>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 添加到聊天
@@ -2426,6 +2519,13 @@ function renderPdrContent(originalText) {
 
     // 绑定通用事件
     pdrPanelNode.querySelector('#pdr-close-btn').onclick = () => pdrPanelNode.style.display = 'none';
+    
+    // 刷新按钮 (强制不带缓存重新生成)
+    pdrPanelNode.querySelector('#pdr-refresh-btn').onclick = () => {
+        if (currentPdrTab === 'polish') performAiPolish(currentPdrOriginalText, true);
+        else if (currentPdrTab === 'draft') performAiDraft(true);
+        else if (currentPdrTab === 'rewrite') performAiRewrite(currentPdrOriginalText, true);
+    };
 
     // 翻译开关事件
     const transToggle = pdrPanelNode.querySelector('#pdr-translation-toggle');
@@ -2456,9 +2556,9 @@ function renderPdrContent(originalText) {
                     }
                 }
             } else if (!isPdrTranslationEnabled && currentPdrAiSuggestion) {
-                // 如果开关关闭，恢复原始文本显示
+                // 如果开关关闭，恢复原始文本显示 (带复制按钮)
                 const suggestionText = pdrPanelNode.querySelector('#pdr-suggestion-text');
-                if (suggestionText) suggestionText.textContent = currentPdrAiSuggestion;
+                if (suggestionText) renderAiSuggestionWithTranslation(suggestionText, currentPdrAiSuggestion, null);
             }
         };
     }
@@ -2491,22 +2591,22 @@ function renderPdrContent(originalText) {
     };
 }
 
-async function performAiPolish(text) {
-    await performAiGeneric('polish', text);
+async function performAiPolish(text, force = false) {
+    await performAiGeneric('polish', text, force);
 }
 
-async function performAiDraft() {
-    await performAiGeneric('draft', '');
+async function performAiDraft(force = false) {
+    await performAiGeneric('draft', '', force);
 }
 
-async function performAiRewrite(text) {
-    await performAiGeneric('rewrite', text);
+async function performAiRewrite(text, force = false) {
+    await performAiGeneric('rewrite', text, force);
 }
 
 /**
  * 通用的 AI 请求执行器
  */
-async function performAiGeneric(type, text) {
+async function performAiGeneric(type, text, force = false) {
     if (!pdrPanelNode) return;
     const loadingUi = pdrPanelNode.querySelector('#pdr-loading-ui');
     const suggestionText = pdrPanelNode.querySelector('#pdr-suggestion-text');
@@ -2519,25 +2619,33 @@ async function performAiGeneric(type, text) {
     if (addBtn) addBtn.disabled = true;
 
     try {
+        // 1. 尝试从缓存获取
+        if (!force) {
+            const cached = await getPolishCache(text, type);
+            if (cached && cached.suggestion) {
+                console.log('✨ [Cache] 命中 AI 润色缓存:', type);
+                currentPdrAiSuggestion = cached.suggestion;
+                
+                if (suggestionText) {
+                    await renderContentWithOptionalTranslation(suggestionText, cached.suggestion);
+                }
+                if (replaceBtn) replaceBtn.disabled = false;
+                if (addBtn) addBtn.disabled = false;
+                if (loadingUi) loadingUi.style.display = 'none';
+                return;
+            }
+        }
+
+        // 2. 调用 API
         const res = await callAgentChatAPI(text, type);
         if (res && res.success) {
             currentPdrAiSuggestion = res.data;
+            
+            // 存入缓存
+            await savePolishCache(text, type, res.data);
+
             if (suggestionText) {
-                if (isPdrTranslationEnabled) {
-                    // 如果开启了翻译，获取翻译内容
-                    try {
-                        const transRes = await translateTextAPI(res.data, 'auto', 'zh');
-                        if (transRes.success) {
-                            renderAiSuggestionWithTranslation(suggestionText, res.data, transRes.data);
-                        } else {
-                            suggestionText.textContent = res.data;
-                        }
-                    } catch (err) {
-                        suggestionText.textContent = res.data;
-                    }
-                } else {
-                    suggestionText.textContent = res.data;
-                }
+                await renderContentWithOptionalTranslation(suggestionText, res.data);
             }
             if (replaceBtn) replaceBtn.disabled = false;
             if (addBtn) addBtn.disabled = false;
@@ -2552,17 +2660,64 @@ async function performAiGeneric(type, text) {
 }
 
 /**
+ * 辅助函数：根据开关状态渲染内容（含可能的翻译）
+ */
+async function renderContentWithOptionalTranslation(container, suggestion) {
+    if (!isPdrTranslationEnabled) {
+        renderAiSuggestionWithTranslation(container, suggestion, null);
+        return;
+    }
+
+    try {
+        const transRes = await translateTextAPI(suggestion, 'auto', 'zh');
+        if (transRes.success) {
+            renderAiSuggestionWithTranslation(container, suggestion, transRes.data);
+        } else {
+            renderAiSuggestionWithTranslation(container, suggestion, null);
+        }
+    } catch (err) {
+        renderAiSuggestionWithTranslation(container, suggestion, null);
+    }
+}
+
+/**
  * 辅助函数：渲染带有翻译的建议内容
  */
 function renderAiSuggestionWithTranslation(container, original, translation) {
     if (!container) return;
-    container.innerHTML = `
-        <div class="pdr-original-box">${original}</div>
+    
+    let html = `
+        <div class="pdr-original-box" style="position: relative;">
+            ${original}
+            <div class="pdr-copy-icon" title="复制建议" style="position: absolute; top: 0; right: 0; cursor: pointer; opacity: 0.6; transition: opacity 0.2s;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </div>
+        </div>
+    `;
+
+    if (translation) {
+        html += `
         <div class="pdr-translation-box" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.15); color: #2ed36a; font-size: 13px; font-weight: 500;">
             <div style="font-size: 11px; opacity: 0.6; margin-bottom: 4px; color: #fff;">翻译结果:</div>
             ${translation}
         </div>
-    `;
+        `;
+    }
+
+    container.innerHTML = html;
+
+    // 绑定复制事件
+    const copyIcon = container.querySelector('.pdr-copy-icon');
+    if (copyIcon) {
+        copyIcon.onclick = (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(original).then(() => {
+                window.electronAPI.showNotification({ message: '已复制建议到剪贴板', type: 'is-success' });
+            });
+        };
+        copyIcon.onmouseover = () => copyIcon.style.opacity = '1';
+        copyIcon.onmouseout = () => copyIcon.style.opacity = '0.6';
+    }
 }
 
 function replaceInputWithPdrSuggestion(suggestion) {
@@ -3235,7 +3390,7 @@ function monitorMainNode() {
                 // 1. 之前基于 class 和 testid 的规则
                 // 2. 引用消息通常整体包裹在一个可点击的 button 内 (role="button")
                 // 3. aria-label 包含 Quoted, 引用 等多语言关键字
-                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"], .quoted-mention, [data-testid="msg-quoted"], [aria-label*="uoted"], [aria-label*="引用"], [aria-label*="Responder"], [role="button"]')) {
+                if (span.closest('[data-testid="msg-meta"], .msg-meta, [data-testid*="quoted"], [class*="quoted"],[class*="Quoted"], .quoted-mention, [data-testid="msg-quoted"], [aria-label*="uoted"], [aria-label*="引用"], [aria-label*="Responder"], [role="button"]')) {
                     continue;
                 }
                 // 1. 深度复用检查
