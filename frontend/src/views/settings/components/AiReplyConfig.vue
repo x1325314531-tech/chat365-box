@@ -30,7 +30,7 @@
           <div class="section-content" v-show="expandedSections.aiBasic">
             <div class="form-col flex-between ">
                <div class="form-label">{{ $t('settings.aiReplyToggle') }}</div>
-               <el-switch v-model="aiConfig[activeAiPlatform].aiReplyToggle" @change="handleAiReplyToggle"></el-switch>
+               <el-switch v-model="aiConfig[activeAiPlatform].aiReplyToggle"  style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="handleAiReplyToggle"></el-switch>
             </div>
             <div class="form-col">
               <div class="form-label">{{ $t('settings.selectModel') }}</div>
@@ -424,12 +424,17 @@ onMounted(async() => {
 }
 
 .form-actions {
+  position: sticky;
+  bottom: -20px;
   margin-top: 20px;
   padding: 20px 0;
   background: #fff;
   text-align: right;
   border-top: 1px solid #f5f5f5;
   z-index: 10;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding-right: 20px;
 }
 
 .apply-btn {

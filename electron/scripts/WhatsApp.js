@@ -276,6 +276,7 @@ let pdrPanelNode = null;
 let currentPdrOriginalText = '';
 let currentPdrAiSuggestion = '';
 let currentPdrTab = 'polish'; // polish | draft | rewrite
+let isPdrTranslationEnabled = false;
 let lastPolishedText = ''; // 记录最后一次润色后的文本，避免重复弹出面板
 
 // 钱包地址正则 (ETH/BNB/TRON等)
@@ -2231,6 +2232,54 @@ function showPdrPanel(originalText = '') {
                     border: 1px solid rgba(255, 255, 255, 0.08);
                 }
                 .btn-add:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+
+                /* 翻译开关样式 */
+                .pdr-switch-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .pdr-switch {
+                    position: relative;
+                    display: inline-block;
+                    width: 28px;
+                    height: 16px;
+                }
+                .pdr-switch input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+                .pdr-slider {
+                    position: absolute;
+                    cursor: pointer;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: rgba(255, 255, 255, 0.1);
+                    transition: .3s;
+                    border-radius: 20px;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                }
+                .pdr-slider:before {
+                    position: absolute;
+                    content: "";
+                    height: 10px;
+                    width: 10px;
+                    left: 2px;
+                    bottom: 2px;
+                    background-color: white;
+                    transition: .3s;
+                    border-radius: 50%;
+                }
+                input:checked + .pdr-slider {
+                    background-color: #2ed36a;
+                    border-color: #2ed36a;
+                }
+                input:checked + .pdr-slider:before {
+                    transform: translateX(12px);
+                }
             `;
             document.head.appendChild(style);
         }
@@ -2326,9 +2375,16 @@ function renderPdrContent(originalText) {
         <div class="pdr-main-grid">
             ${mainHtml}
             <div class="pdr-field">
-                <div class="pdr-label">
+                <div class="pdr-label" style="display: flex; align-items: center; width: 100%;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2ed36a" stroke-width="3"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
-                    ${suggestionLabel}
+                    <span style="flex: 1;">${suggestionLabel}</span>
+                    <div class="pdr-switch-container">
+                        <span style="font-size: 11px; opacity: 0.7; font-weight: normal;">翻译中文</span>
+                        <label class="pdr-switch">
+                            <input type="checkbox" id="pdr-translation-toggle" ${isPdrTranslationEnabled ? 'checked' : ''}>
+                            <span class="pdr-slider"></span>
+                        </label>
+                    </div>
                 </div>
                 <div class="pdr-suggestion-wrap">
                     <div class="pdr-text-container pdr-suggestion-box" id="pdr-suggestion-text" style="white-space: pre-wrap;"></div>
@@ -2370,6 +2426,42 @@ function renderPdrContent(originalText) {
 
     // 绑定通用事件
     pdrPanelNode.querySelector('#pdr-close-btn').onclick = () => pdrPanelNode.style.display = 'none';
+
+    // 翻译开关事件
+    const transToggle = pdrPanelNode.querySelector('#pdr-translation-toggle');
+    if (transToggle) {
+        transToggle.onchange = async (e) => {
+            isPdrTranslationEnabled = e.target.checked;
+            console.log('🌐 AI 润色翻译开关:', isPdrTranslationEnabled);
+            
+            // 如果开关开启且已有建议内容，立即尝试翻译
+            if (isPdrTranslationEnabled && currentPdrAiSuggestion) {
+                const suggestionText = pdrPanelNode.querySelector('#pdr-suggestion-text');
+                if (suggestionText && !suggestionText.querySelector('.pdr-translation-box')) {
+                    // 显示加载占位
+                    const loadingDiv = document.createElement('div');
+                    loadingDiv.className = 'pdr-translation-loading';
+                    loadingDiv.style.cssText = 'font-size: 12px; color: #2ed36a; opacity: 0.7; margin-top: 8px;';
+                    loadingDiv.textContent = '正在翻译建议...';
+                    suggestionText.appendChild(loadingDiv);
+                    
+                    try {
+                        const res = await translateTextAPI(currentPdrAiSuggestion, 'auto', 'zh');
+                        loadingDiv.remove();
+                        if (res.success) {
+                            renderAiSuggestionWithTranslation(suggestionText, currentPdrAiSuggestion, res.data);
+                        }
+                    } catch (err) {
+                        loadingDiv.textContent = '❌ 翻译失败';
+                    }
+                }
+            } else if (!isPdrTranslationEnabled && currentPdrAiSuggestion) {
+                // 如果开关关闭，恢复原始文本显示
+                const suggestionText = pdrPanelNode.querySelector('#pdr-suggestion-text');
+                if (suggestionText) suggestionText.textContent = currentPdrAiSuggestion;
+            }
+        };
+    }
     
     // 标签切换事件
     pdrPanelNode.querySelectorAll('.pdr-tab').forEach(tabBtn => {
@@ -2430,7 +2522,23 @@ async function performAiGeneric(type, text) {
         const res = await callAgentChatAPI(text, type);
         if (res && res.success) {
             currentPdrAiSuggestion = res.data;
-            if (suggestionText) suggestionText.textContent = res.data;
+            if (suggestionText) {
+                if (isPdrTranslationEnabled) {
+                    // 如果开启了翻译，获取翻译内容
+                    try {
+                        const transRes = await translateTextAPI(res.data, 'auto', 'zh');
+                        if (transRes.success) {
+                            renderAiSuggestionWithTranslation(suggestionText, res.data, transRes.data);
+                        } else {
+                            suggestionText.textContent = res.data;
+                        }
+                    } catch (err) {
+                        suggestionText.textContent = res.data;
+                    }
+                } else {
+                    suggestionText.textContent = res.data;
+                }
+            }
             if (replaceBtn) replaceBtn.disabled = false;
             if (addBtn) addBtn.disabled = false;
         } else {
@@ -2441,6 +2549,20 @@ async function performAiGeneric(type, text) {
     } finally {
         if (loadingUi) loadingUi.style.display = 'none';
     }
+}
+
+/**
+ * 辅助函数：渲染带有翻译的建议内容
+ */
+function renderAiSuggestionWithTranslation(container, original, translation) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="pdr-original-box">${original}</div>
+        <div class="pdr-translation-box" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.15); color: #2ed36a; font-size: 13px; font-weight: 500;">
+            <div style="font-size: 11px; opacity: 0.6; margin-bottom: 4px; color: #fff;">翻译结果:</div>
+            ${translation}
+        </div>
+    `;
 }
 
 function replaceInputWithPdrSuggestion(suggestion) {
@@ -6398,7 +6520,7 @@ function getNameToPhone(name){
 }
 function renderHeavyFansTags() {
     if (!window._heavyFansSet || window._heavyFansSet.size === 0) return;
-     const chatListContainer = document.querySelector('div[aria-label="聊天列表"]');
+     const chatListContainer = document.querySelector('div[aria-label="聊天列表"], div[aria-label="Chat list"]');
 
 // 2. 提取所有 role="row" 的元素
     const listItems = chatListContainer ? chatListContainer.querySelectorAll('[role="row"]') : [];

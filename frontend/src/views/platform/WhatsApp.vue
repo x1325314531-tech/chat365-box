@@ -17,7 +17,10 @@
         @confirm="handleSettingsConfirm"
         @cancel="handleSettingsCancel"
       />
-      <el-empty v-else :description="$t('whatsapp.noSessions')" />
+      <div v-else class="empty-box" >
+         <el-empty  :description="$t('whatsapp.noSessions')" />
+      </div>
+     
     </div>
   </div>
 </template>
@@ -110,5 +113,12 @@ const receiveCardId = (card)=> {
   background-color: #f5f7fa;
   display: flex; /* 使用 flex 布局 */
   overflow: hidden; /* 关键：防止父容器产生滚动条，确保子容器内部滚动生效 */
+}
+.empty-box  { 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
 }
 </style>
