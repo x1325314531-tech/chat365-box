@@ -2165,6 +2165,7 @@ function showPdrPanel(originalText = '') {
                .prd-label {
                      font-size:14px; 
                      margin-right:16px;
+                     color:rgba(255,255,255,0.4)
                }
                 .pdr-token {
                     padding: 8px 18px;
@@ -2302,7 +2303,7 @@ function renderPdrContent(originalText) {
         <div class="pdr-header">
             <div class="pdr-title">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2.4 7.2L22 12l-7.6 2.4L12 22l-2.4-7.2L2 12l7.6-2.4L12 2z"/></svg>
-                AI Assistant
+                AI 对话润色
             </div>
             <div class="pdr-close" id="pdr-close-btn">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -2339,7 +2340,7 @@ function renderPdrContent(originalText) {
             </div>
         </div>
         <div class="pdr-field">
-            <div class="pdr-label">Configured Style</div>
+            <div class="pdr-label">回复风格</div>
             <div class="pdr-tokens">
                <div class="pdr-token-item">
                 <div class="prd-label">回复语调 :</div>
