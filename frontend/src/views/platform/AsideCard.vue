@@ -73,6 +73,15 @@ onMounted(async () => {
       emits('layout-change', res.isPlacedTop);
     }
   });
+
+  // 监听侧边栏状态全局变更通知
+  ipc.on('sidebar-state-change', (event, state) => {
+    console.log('AsideCard 收到侧边栏状态变更:', state);
+    if (state) {
+      isPlacedTop.value = state.isPlacedTop;
+      openSidebar.value = state.isShrunk;
+    }
+  });
   // 页面加载时获取所有会话
   await getAllSessions();
   // 移除可能存在的旧的 'online-notify' 监听器，避免重复添加
@@ -106,6 +115,7 @@ onMounted(async () => {
 // 在组件卸载时，移除 'online-notify' 监听器，防止内存泄漏
 onUnmounted(() => {
   ipc.removeAllListeners('online-notify');
+  ipc.removeAllListeners('sidebar-state-change');
 });
 // 监听 conversations 数组的变化
 watch(conversations, () => {

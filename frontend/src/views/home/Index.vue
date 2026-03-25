@@ -11,11 +11,19 @@
             @click="handleMenuSelect(item.id)"
         >
           <el-badge :value="item.unreadCount" :hidden="item.unreadCount <= 0" type="danger" class="menu-badge">
+            <el-tooltip
+            v-if="!isPlacedTop"
+             class="box-item"
+             effect="dark"
+             :content="item.name"
+             placement="right-start"
+            >
             <el-icon><img :src="item.icon" class="platform-svg" draggable="false"></el-icon>
+            </el-tooltip>
+            <el-icon v-else><img :src="item.icon" class="platform-svg" :title="item.name" draggable="false"></el-icon>
           </el-badge>
         </div>
       </div>
-
       <!-- 退出按钮 -->
       <div class="logout-button" @click="handleLogout">
         <el-icon><img src="@/assets/svgs/quit.svg" class="platform-svg" draggable="false"></el-icon>
@@ -53,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 // 导入图标文件
 import homeIcon from '@/assets/svgs/index.svg';
@@ -75,19 +83,20 @@ const ipcApiRoute = {
   logout: 'controller.window.logout',
   changeSidebarWidth: 'controller.window.changeSidebarWidth',
   changeSidebarLayout: 'controller.window.changeSidebarLayout',
+  getSidebarState: 'controller.window.getSidebarState',
 };
 
 // 菜单项配置
 const menuItems = ref([
-  { id: 'home', icon: homeIcon, path: '/home', unreadCount: 0 },
-  { id: 'whatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
+  { id: 'home',name:'首页', icon: homeIcon, path: '/home', unreadCount: 0 },
+  { id: 'whatsApp', name:'WhatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
   // { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
   //  {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
 ]);
 
 // 存储所有会话的未读数映射 { cardId: { platform, count } }
 const sessionCounts = ref({});
-
+const isPlacedTop = ref(false)
 // 计算并更新各平台的总未读数
 const updatePlatformUnreadCounts = () => {
   // 先重置所有菜单项的未读数
@@ -162,6 +171,27 @@ onMounted(async () => {
   ipc.on('new-message-notify', (event, data) => {
      // 新消息产生时，通常 online-notify 会在 5s 内跟进，或者手动触发一次拉取
   });
+   // 获取侧边栏初始状态
+  ipc.invoke(ipcApiRoute.getSidebarState).then(res => {
+    console.log('获取侧边栏状态', res);
+    if (res) {
+      isPlacedTop.value = res.isPlacedTop;
+    }
+  });
+
+  // 监听侧边栏状态全局变更通知
+  ipc.on('sidebar-state-change', (event, state) => {
+    console.log('收到侧边栏状态变更:', state);
+    if (state) {
+      isPlacedTop.value = state.isPlacedTop;
+    }
+  });
+  
+});
+
+onUnmounted(() => {
+  ipc.removeAllListeners('online-notify');
+  ipc.removeAllListeners('sidebar-state-change');
 });
 
 // 处理菜单点击

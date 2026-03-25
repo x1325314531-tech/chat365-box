@@ -307,6 +307,12 @@ class WindowService extends Service {
         
         const mainId = Addon.get('window').getMWCid();
         const mainWin = BrowserWindow.fromId(mainId);
+
+        // 通知所有渲染进程侧边栏状态变更
+        mainWin.webContents.send('sidebar-state-change', {
+            isShrunk: this.isShrunk,
+            isPlacedTop: this.isPlacedTop
+        });
         
         // 遍历所有视图，同步缩放
         app.viewsMap.forEach((view, key) => {
@@ -324,6 +330,12 @@ class WindowService extends Service {
         
         const mainId = Addon.get('window').getMWCid();
         const mainWin = BrowserWindow.fromId(mainId);
+
+        // 通知所有渲染进程侧边栏状态变更
+        mainWin.webContents.send('sidebar-state-change', {
+            isShrunk: this.isShrunk,
+            isPlacedTop: this.isPlacedTop
+        });
 
         // 遍历所有视图，同步缩放
         app.viewsMap.forEach((view, key) => {
