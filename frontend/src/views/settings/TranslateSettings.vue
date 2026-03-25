@@ -49,7 +49,7 @@ const route = useRoute()
 // 左侧导航菜单
 const sidebarMenus = ref([
   { id: 'translate', title: t('settings.translateSettings'), icon: translateIcon },
-  // { id: 'aiReply', title: t('settings.aiReplySettings'), icon: aiReplyIcon },
+  { id: 'aiReply', title: t('settings.aiReplySettings'), icon: aiReplyIcon },
 ])
 
 const activeMenu = ref(route.query.activeMenu || 'translate')

@@ -356,7 +356,15 @@ class WindowService extends Service {
 
     async getRunningSessionsCount(args, event) {
         try {
-            return await Services.get('window').getRunningSessionsCount();
+            let count = 0;
+            if (app.viewsMap) {
+                app.viewsMap.forEach((view, key) => {
+                    if (view && !view.webContents.isDestroyed()) {
+                        count++;
+                    }
+                });
+            }
+            return count;
         } catch (error) {
             Log.error('获取运行中会话数量出错:', error);
             return 0;
@@ -365,7 +373,13 @@ class WindowService extends Service {
 
     async restoreActiveViews(args, event) {
         try {
-            await Services.get('window').restoreActiveViews();
+            const activeCards = await app.sdb.select('cards', { active_status: 'true' });
+            for (const card of activeCards) {
+                const existing = app.viewsMap && app.viewsMap.get(card.card_id);
+                if (!existing || existing.webContents.isDestroyed()) {
+                    await this.initCard({ cardId: card.card_id, platform: card.platform });
+                }
+            }
             return { status: true };
         } catch (error) {
             Log.error('恢复活跃视图出错:', error);

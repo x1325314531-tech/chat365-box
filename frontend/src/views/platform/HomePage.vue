@@ -320,7 +320,7 @@ import fansIcon from '@/assets/svgs/fans.svg'
 // 快捷入口数据 (使用 i18n key 而非硬编码文案)
 const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
-  { id: '', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
+  { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
   { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
   { id: 'platform', icon: platformIcon, titleKey: 'quickItems.platform', descKey: 'quickItems.platformDesc' },
   { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },

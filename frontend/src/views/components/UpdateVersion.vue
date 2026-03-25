@@ -98,6 +98,27 @@ const totalSize = ref('0MB');
 //   "修复语音翻译问题"
 // ]);
 const releaseNotes = ref('');
+
+/**
+ * 比较版本号，判断 v1 是否大于 v2
+ * @param {string} v1 
+ * @param {string} v2 
+ * @returns {boolean} v1 > v2 返回 true
+ */
+function isNewerVersion(v1, v2) {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const num1 = parts1[i] || 0;
+    const num2 = parts2[i] || 0;
+    console.log('比较版本号', num1, num2 );
+    
+    if (num1 > num2) return true;
+    if (num1 < num2) return false;
+  }
+  return false;
+}
+
 onMounted(() => {
   init();
 });
@@ -141,7 +162,7 @@ function init() {
 
 /**
  * 检查更新
- * @param {boolean} showTips 是否显示“已是最新”提示
+ * @param {boolean} showTips 是否显示"已是最新"提示
  */
 async function checkForUpdate(showTips = false) {
   try {
@@ -149,7 +170,8 @@ async function checkForUpdate(showTips = false) {
     if (res.code === 200 && res.data) {
       latestVersion.value = res.data;
       getVersionIntroduction()
-      if (latestVersion.value && latestVersion.value !== appVersion.value) {
+      // 只有远程版本大于当前版本才提示更新
+      if (latestVersion.value && isNewerVersion(latestVersion.value, appVersion.value)) {
         available.value = true;
         showUpdateDialog.value = true;
       } else if (showTips) {

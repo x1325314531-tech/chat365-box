@@ -279,14 +279,14 @@ const handleSendAutoTranslate = (val) => {
   if (val) {
     config.sendAutoNotTranslate = false
     // 互斥逻辑：开启自动翻译时，关闭 AI 回复
-    // ipc.invoke('get-ai-config').then(aiRes => {
-    //   if (aiRes && aiRes.whatsapp) {
-    //     aiRes.whatsapp.aiReplyToggle = false
-    //     ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(aiRes))).then(res => {
-    //       console.log('互斥逻辑：已自动关闭 AI 回复开关', res)
-    //     })
-    //   }
-    // })
+    ipc.invoke('get-ai-config').then(aiRes => {
+      if (aiRes && aiRes.whatsapp) {
+        aiRes.whatsapp.aiReplyToggle = false
+        ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(aiRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭 AI 回复开关', res)
+        })
+      }
+    })
   } else {
     config.sendAutoNotTranslate = true
   }
