@@ -68,7 +68,7 @@
     "sendMsgSettings": "设置发送消息",
     "sendMsgSettingsDesc": "发送自动翻译关闭，消息下面显示译文",
     "translatePreview": "翻译预览",
-    "translatePreviewDesc": "发送前在输入框上方显示译文",
+    "translatePreviewDesc": "发送自动翻译开启时，发送前在输入框上方显示译文",
     "blockChinese": "禁止发送含中文的消息",
     "blockChineseDesc": "开启后禁止发送中文消息，禁止发送",
     "blockChineseTrans": "禁止发送含中文的翻译",

@@ -68,7 +68,7 @@
     "sendMsgSettings": "Send Message Settings",
     "sendMsgSettingsDesc": "Auto-translate off, show translation below message",
     "translatePreview": "Translation Preview",
-    "translatePreviewDesc": "Show translation above input before sending",
+    "translatePreviewDesc": "When automatic translation is enabled, Show translation above input before sending",
     "blockChinese": "Block Chinese Messages",
     "blockChineseDesc": "Prevent sending messages containing Chinese",
     "blockChineseTrans": "Block Chinese Translations",

@@ -79,7 +79,7 @@
               </div>
             </div>
 
-            <div class="form-item">
+            <div class="form-item" v-if="config.sendAutoTranslate">
               <div class="form-item-left">
                 <div class="form-label">{{ $t('settings.translatePreview') }}</div>
                 <div class="form-desc">{{ $t('settings.translatePreviewDesc') }}</div>

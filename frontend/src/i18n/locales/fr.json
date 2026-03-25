@@ -68,7 +68,7 @@
     "sendMsgSettings": "Param\u00e8tres de message",
     "sendMsgSettingsDesc": "Traduction auto d\u00e9sactiv\u00e9e, afficher la traduction sous le message",
     "translatePreview": "Aper\u00e7u de traduction",
-    "translatePreviewDesc": "Afficher la traduction au-dessus du champ de saisie avant l'envoi",
+    "translatePreviewDesc": "Lorsque la traduction automatique est activée, Afficher la traduction au-dessus du champ de saisie avant l'envoi",
     "blockChinese": "Bloquer les messages en chinois",
     "blockChineseDesc": "Emp\u00eacher l'envoi de messages contenant du chinois",
     "blockChineseTrans": "Bloquer les traductions en chinois",

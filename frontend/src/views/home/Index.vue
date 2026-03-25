@@ -26,7 +26,14 @@
       </div>
       <!-- 退出按钮 -->
       <div class="logout-button" @click="handleLogout">
+        <el-tooltip
+             class="box-item"
+             effect="dark"
+             content="退出"
+             placement="right-start"
+            >
         <el-icon><img src="@/assets/svgs/quit.svg" class="platform-svg" draggable="false"></el-icon>
+        </el-tooltip>
       </div>
     </el-aside>
 
@@ -88,7 +95,7 @@ const ipcApiRoute = {
 
 // 菜单项配置
 const menuItems = ref([
-  { id: 'home',name:'首页', icon: homeIcon, path: '/home', unreadCount: 0 },
+  { id: 'home',name:'Home', icon: homeIcon, path: '/home', unreadCount: 0 },
   { id: 'whatsApp', name:'WhatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
   // { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
   //  {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
@@ -275,6 +282,7 @@ async function confirmLogout() {
 
 .nav-item {
   width: 100%;
+  box-sizing: border-box;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -289,8 +297,10 @@ async function confirmLogout() {
 }
 
 .nav-item.active {
-  background-color: #cccccc; /* 激活状态背景 */
+  background-color: #f5f8ff; /* 激活状态背景 */
   color: white; /* 激活状态图标颜色 */
+  border-right: 3px solid #52c41a;
+
 }
 
 .logout-button {
@@ -310,7 +320,9 @@ async function confirmLogout() {
 .logout-button:hover {
   background-color: #dddddd; /* 悬停背景 */
 }
-
+.nav-item.active  .platform-svg {
+   transform: scale(1.1);
+}
 .platform-svg {
   height: 30px;
   width: 30px;
