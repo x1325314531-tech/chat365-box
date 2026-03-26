@@ -36,6 +36,7 @@
       :with-header="false"
       class="ai-polish-drawer"
     >
+    {{ aiDrawerVisible }}
       <aiPolishing 
         v-if="aiDrawerVisible && currentChatId" 
         :chat-id="currentChatId"
@@ -45,7 +46,7 @@
   </div>
 </template>
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AsideCard from "@/views/platform/AsideCard.vue";
 import SessionSettings from "@/views/components/SessionSettings.vue";
@@ -65,6 +66,7 @@ const isPlacedTop = ref(false);
 const aiDrawerVisible = ref(false);
 const currentChatId = ref('');
 const polishText = ref('');
+const AI_DRAWER_WIDTH = 400;
 
 const handleOpenDrawer = (id) => {
   if (id === 'ai') {
@@ -76,6 +78,8 @@ const handleOpenDrawer = (id) => {
 onMounted(() => {
   // 监听来自 WhatsApp.js 的打开请求
   ipc.on('open-ai-polish-drawer', (event, data) => {
+    console.log('catid', data);
+    
     currentChatId.value = data.chatId;
     polishText.value = data.text || '';
     aiDrawerVisible.value = true;
@@ -87,7 +91,16 @@ onMounted(() => {
   });
 });
 
+watch(aiDrawerVisible, (visible) => {
+  ipc.invoke('controller.window.setRightOverlayWidth', {
+    width: visible ? AI_DRAWER_WIDTH : 0
+  }).catch((error) => {
+    console.error('sync right overlay width failed:', error);
+  });
+});
+
 onUnmounted(() => {
+  ipc.invoke('controller.window.setRightOverlayWidth', { width: 0 }).catch(() => {});
   ipc.removeAllListeners('open-ai-polish-drawer');
   ipc.removeAllListeners('chat-id-change');
 });

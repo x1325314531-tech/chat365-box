@@ -199,6 +199,16 @@ class WindowController extends Controller {
         }
     }
 
+    async setRightOverlayWidth(args, event) {
+        const { width } = args || {};
+        try {
+            return await Services.get('window').setRightOverlayWidth(width);
+        } catch (error) {
+            Log.error('设置右侧覆盖层宽度失败:', error);
+            return { status: false, message: 'set right overlay width failed' };
+        }
+    }
+
     async getRunningSessionsCount(args, event) {
         try {
             return await Services.get('window').getRunningSessionsCount();

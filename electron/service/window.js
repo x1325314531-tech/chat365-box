@@ -28,6 +28,7 @@ class WindowService extends Service {
         app.platforms = app.platforms || platforms;
         this.isShrunk = false; // 记录侧边栏是否收缩
         this.isPlacedTop = false; // 记录侧边栏是否置顶
+        this.rightOverlayWidth = 0;
     }
 
     async addCard(args, event) {
@@ -354,6 +355,26 @@ class WindowService extends Service {
         };
     }
 
+    async setRightOverlayWidth(width = 0) {
+        const normalizedWidth = Number.isFinite(Number(width)) ? Math.max(0, Number(width)) : 0;
+        this.rightOverlayWidth = normalizedWidth;
+        Log.info('rightOverlayWidth changed:', normalizedWidth);
+
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (!mainWin) {
+            return { status: false, message: 'main window not found' };
+        }
+
+        app.viewsMap.forEach((view) => {
+            if (view && !view.webContents.isDestroyed()) {
+                this._resizeView(mainWin, view);
+            }
+        });
+
+        return { status: true };
+    }
+
     async getRunningSessionsCount(args, event) {
         try {
             let count = 0;
@@ -478,17 +499,18 @@ class WindowService extends Service {
     _resizeView(mainWin, view) {
         if (mainWin && view) {
             const [width, height] = mainWin.getContentSize();
+            const reservedRightWidth = 70 + this.rightOverlayWidth;
             if (this.isPlacedTop) {
                 // 顶部模式：左侧导航栏(50) + 顶部栏高度(60)
                 const xOffset = 51;
                 const yOffset = 80;
-                // 减去右侧边栏宽度 70
-                view.setBounds({ x: xOffset, y: yOffset, width: width - xOffset - 70 + 2, height: height - yOffset });
+                const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
+                view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
             } else {
                 // 侧边模式：左侧导航(50) + AsideCard(240/100) + border(1)
                 const xOffset = this.isShrunk ? 151 : 291;
-                // 减去右侧边栏宽度 70
-                view.setBounds({ x: xOffset, y: 0, width: width - xOffset - 70 + 2, height });
+                const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
+                view.setBounds({ x: xOffset, y: 0, width: viewWidth, height });
             }
         }
     }
