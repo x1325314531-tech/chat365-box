@@ -1,34 +1,56 @@
 <template>
-  <div class="container" :class="{ 'is-placed-top': isPlacedTop }">
-    <div class="left-div">
-      <AsideCard 
-        ref="asideCardRef"
-        :title="$t('whatsapp.title')" 
-        @open-settings="handleOpenSettings"
-        @layout-change="handleLayoutChange"
-      ></AsideCard>
-    </div>
-    <div class="right-div">
-      <SessionSettings 
-        v-if="showSettings"
-        :is-edit="isEditSettings"
-        :card="currentSettingCard"
-        :platform="$t('whatsapp.title')"
-        @confirm="handleSettingsConfirm"
-        @cancel="handleSettingsCancel"
-      />
-      <div v-else class="empty-box" >
-         <el-empty  :description="$t('whatsapp.noSessions')" />
+  <div class="whatsapp-layout">
+    <div class="main-content" :class="{ 'is-placed-top': isPlacedTop }">
+      <div class="left-div">
+        <AsideCard 
+          ref="asideCardRef"
+          :title="$t('whatsapp.title')" 
+          @open-settings="handleOpenSettings"
+          @layout-change="handleLayoutChange"
+        ></AsideCard>
       </div>
-     
+      <div class="right-div">
+        <SessionSettings 
+          v-if="showSettings"
+          :is-edit="isEditSettings"
+          :card="currentSettingCard"
+          :platform="$t('whatsapp.title')"
+          @confirm="handleSettingsConfirm"
+          @cancel="handleSettingsCancel"
+        />
+        <div v-else class="empty-box" >
+           <el-empty  :description="$t('whatsapp.noSessions')" />
+        </div>
+      </div>
     </div>
+    <div class="sidebar-div">
+      <rightSidebar @open-drawer="handleOpenDrawer" />
+    </div>
+
+    <!-- AI 润色抽屉 -->
+    <el-drawer
+      v-model="aiDrawerVisible"
+      title="AI 助手"
+      direction="rtl"
+      size="400px"
+      :with-header="false"
+      class="ai-polish-drawer"
+    >
+      <aiPolishing 
+        v-if="aiDrawerVisible && currentChatId" 
+        :chat-id="currentChatId"
+        :initial-text="polishText"
+      />
+    </el-drawer>
   </div>
 </template>
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AsideCard from "@/views/platform/AsideCard.vue";
 import SessionSettings from "@/views/components/SessionSettings.vue";
+import rightSidebar from "@/views/platform/rightSidebar.vue";
+import aiPolishing from "@/views/drawerRight/aiPolishing/index.vue";
 import { ipc } from '@/utils/ipcRenderer';
 
 const { t } = useI18n();
@@ -38,6 +60,37 @@ const showSettings = ref(false);
 const isEditSettings = ref(false);
 const currentSettingCard = ref(null);
 const isPlacedTop = ref(false);
+
+// AI 抽屉相关
+const aiDrawerVisible = ref(false);
+const currentChatId = ref('');
+const polishText = ref('');
+
+const handleOpenDrawer = (id) => {
+  if (id === 'ai') {
+    aiDrawerVisible.value = true;
+    polishText.value = ''; // 如果是侧边栏手动打开，清空待润色文本
+  }
+};
+
+onMounted(() => {
+  // 监听来自 WhatsApp.js 的打开请求
+  ipc.on('open-ai-polish-drawer', (event, data) => {
+    currentChatId.value = data.chatId;
+    polishText.value = data.text || '';
+    aiDrawerVisible.value = true;
+  });
+
+  // 监听会话切换，同步 chatId
+  ipc.on('chat-id-change', (event, data) => {
+    currentChatId.value = data.chatId;
+  });
+});
+
+onUnmounted(() => {
+  ipc.removeAllListeners('open-ai-polish-drawer');
+  ipc.removeAllListeners('chat-id-change');
+});
 
 const handleLayoutChange = (val) => {
   isPlacedTop.value = val;
@@ -89,12 +142,20 @@ const receiveCardId = (card)=> {
 
 </script>
 <style scoped>
-.container {
-  display: flex; /* 使用 flex 布局 */
-  height: 100vh; /* 高度占满视口 */
+.whatsapp-layout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
 }
 
-.container.is-placed-top {
+.main-content {
+  flex: 1;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main-content.is-placed-top {
   flex-direction: column;
 }
 
@@ -109,16 +170,25 @@ const receiveCardId = (card)=> {
 }
 
 .right-div {
-  flex-grow: 1; /* 占据剩余空间 */
+  flex-grow: 1;
   background-color: #f5f7fa;
-  display: flex; /* 使用 flex 布局 */
-  overflow: hidden; /* 关键：防止父容器产生滚动条，确保子容器内部滚动生效 */
+  display: flex;
+  overflow: hidden;
 }
-.empty-box  { 
+
+.empty-box {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100%;
   width: 100%;
+}
+
+.sidebar-div {
+  width: 70px;
+  height: 100%;
+  background-color: #f8f9fa;
+  border-left: 1px solid #e0e0e0;
+  flex-shrink: 0;
 }
 </style>

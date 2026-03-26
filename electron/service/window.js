@@ -482,11 +482,13 @@ class WindowService extends Service {
                 // 顶部模式：左侧导航栏(50) + 顶部栏高度(60)
                 const xOffset = 51;
                 const yOffset = 80;
-                view.setBounds({ x: xOffset, y: yOffset, width: width - xOffset + 2, height: height - yOffset });
+                // 减去右侧边栏宽度 70
+                view.setBounds({ x: xOffset, y: yOffset, width: width - xOffset - 70 + 2, height: height - yOffset });
             } else {
                 // 侧边模式：左侧导航(50) + AsideCard(240/100) + border(1)
                 const xOffset = this.isShrunk ? 151 : 291;
-                view.setBounds({ x: xOffset, y: 0, width: width - xOffset + 2, height });
+                // 减去右侧边栏宽度 70
+                view.setBounds({ x: xOffset, y: 0, width: width - xOffset - 70 + 2, height });
             }
         }
     }
