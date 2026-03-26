@@ -149,7 +149,10 @@ if (typeof window._chat365_state === 'undefined') {
         lastFansSyncTime: 0,                   // 上次同步时间
         appId: '',                             // 当前账户ID
         appName: '',                            // 当前账户名
-        contactPersonList:[]                       //whatsAPP的联系人
+        contactPersonList:[],                       //whatsAPP的联系人
+        currentChatId: '',                     // 当前选中的会话 ID
+        lastToolbarChatId: '',                 // 上次注入工具栏的会话 ID
+        _local_ai_configs: {}                  // 独立AI配置集 (chatId -> config)
     };
 }
 // ==========================================================
@@ -2805,18 +2808,28 @@ function injectAiToolbar() {
     }
 
     const footer = document.querySelector('footer');
-    if (!footer || document.getElementById('chat365-ai-toolbar')) return;
-    
-    // 初始化本地存储和字典缓存
-    window._local_ai_config = window._local_ai_config || {
-        enabled: false,
-        tone: '',
-        theme: '',
-        role: '',
-        toneName: '',
-        themeName: '',
-        roleName: ''
-    };
+    if (!footer) return;
+
+    // 获取当前会话 ID
+    const chatId = window._chat365_state.currentChatId || getCurrentChatId();
+    if (!chatId) return;
+
+    // 初始化该会话的独立配置 (如果不存在)
+    if (!window._chat365_state._local_ai_configs[chatId]) {
+        window._chat365_state._local_ai_configs[chatId] = {
+            enabled: false,
+            tone: '',
+            theme: '',
+            role: '',
+            toneName: '',
+            themeName: '',
+            roleName: ''
+        };
+    }
+
+    // 为了兼容旧代码，将当前会话的配置引用赋值给 window._local_ai_config
+    window._local_ai_config = window._chat365_state._local_ai_configs[chatId];
+
     window._dictTone = window._dictTone || [];
     window._dictTheme = window._dictTheme || [];
     window._dictRole = window._dictRole || [];
@@ -2843,21 +2856,40 @@ function injectAiToolbar() {
         }
     });
 
-    const toolbar = document.createElement('div');
-    toolbar.id = 'chat365-ai-toolbar';
-    toolbar.innerHTML = `
-        <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
-            自动润色
-        </div>
-        <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
-            <!-- 配置区域容器 -->
-        </div>
-    `;
+    let toolbar = document.getElementById('chat365-ai-toolbar');
+    const isChatChanged = window._chat365_state.lastToolbarChatId !== chatId;
+
+    if (!toolbar) {
+        toolbar = document.createElement('div');
+        toolbar.id = 'chat365-ai-toolbar';
+        footer.parentNode.insertBefore(toolbar, footer);
+    }
+    
+    // 关键修正：只有在会话改变或工具栏内容为空时才重新渲染 innerHTML
+    // 这样可以防止在操作下拉框时，因为 MutationObserver 或 setInterval 触发 re-render 导致下拉框关闭
+    if (isChatChanged || !toolbar.innerHTML.trim()) {
+        console.log('🔄 [Session] 渲染 AI 工具栏, 会话:', chatId);
+        window._chat365_state.lastToolbarChatId = chatId;
+        
+        toolbar.innerHTML = `
+            <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+                自动润色
+            </div>
+            <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
+                <!-- 配置区域容器 -->
+            </div>
+        `;
+    }
     
     const renderToolbarConfig = (container) => {
         const area = container.querySelector('#ai-toolbar-config-area');
         if (!area) return;
+
+        // 核心修正：如果当前有任何下拉框处于打开状态，跳过重绘，避免干扰用户操作
+        if (area.querySelector('.ai-custom-select.open')) {
+            return;
+        }
         
         const gTone = globalAiConfig?.toneName || '默认';
         const gTheme = globalAiConfig?.themeName || '默认';
@@ -2866,7 +2898,7 @@ function injectAiToolbar() {
         if (!window._local_ai_config.enabled) {
             area.innerHTML = `
                 <div class="pdr-switch-container" style="flex-direction: row;">
-                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置checkbox</span>
+                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置</span>
                     <label class="pdr-switch">
                         <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
                         <span class="pdr-slider"></span>
@@ -2907,7 +2939,7 @@ function injectAiToolbar() {
 
             area.innerHTML = `
                 <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px;">
-                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置switch</span>
+                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置</span>
                     <label class="pdr-switch">
                         <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
                         <span class="pdr-slider"></span>
@@ -2936,9 +2968,13 @@ function injectAiToolbar() {
                 dropdown.querySelectorAll('.ai-select-option').forEach(opt => {
                     opt.onclick = (e) => {
                         e.stopPropagation();
+                        // 先移除 open 类目，确保接下来的 renderToolbarConfig 不会被拦截
+                        el.classList.remove('open');
+
                         const val = opt.getAttribute('data-value');
                         const labelText = opt.getAttribute('data-label');
                         
+                        // 更新当前会话的配置
                         if (id === 'local-tone-select') {
                             window._local_ai_config.tone = val;
                             window._local_ai_config.toneName = labelText;
@@ -2950,7 +2986,6 @@ function injectAiToolbar() {
                             window._local_ai_config.roleName = labelText;
                         }
                         
-                        el.classList.remove('open');
                         renderToolbarConfig(container);
                     };
                 });
@@ -3541,8 +3576,25 @@ function monitorMainNode() {
             }
         }
     });
-
     observer.observe(document.body, { childList: true, subtree: true });
+    /**
+     * 获取当前选中的会话 ID (从侧边栏获取)
+     */
+    function getCurrentChatId() {
+        try {
+            const selectedChat = document.querySelector('[aria-selected="true"]');
+            if (selectedChat) {
+                // 尝试从 title 属性获取名字作为 ID (最简单可靠)
+                const titleSpan = selectedChat.querySelector('span[title]');
+                if (titleSpan) {
+                    return titleSpan.getAttribute('title');
+                }
+            }
+        } catch (e) {
+            console.error('❌ 获取当前会话 ID 失败:', e);
+        }
+        return 'default';
+    }
 
     function observePaneSide(paneSideNode) {
         const observer = new MutationObserver((mutationsList) => {
@@ -3550,11 +3602,23 @@ function monitorMainNode() {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'aria-selected') {
                     const targetNode = mutation.target;
                     if (targetNode.getAttribute('aria-selected') === 'true') {
+                        // 更新当前会话 ID
+                        window._chat365_state.currentChatId = getCurrentChatId();
+                        console.log('📬 [Session] 切换到会话:', window._chat365_state.currentChatId);
+
                         removeLoadingNode();
                         startMonitor();
                         addTranslateButtonWithSelect();
+
                         // 切换联系人立即触发一次消息列表处理，确保历史记录同步加载
                         processMessageList();
+
+                        // 刷新 AI 边栏配置 (如果已存在则重新渲染，否则由后续逻辑注入)
+                        const toolbar = document.getElementById('chat365-ai-toolbar');
+                        if (toolbar && typeof injectAiToolbar === 'function') {
+                            injectAiToolbar(); 
+                        }
+
                         // 强制滚动到底部（独立于 processMessageList 的异步翻译完成时机）
                         scrollChatToBottomAggressive();
                     }
