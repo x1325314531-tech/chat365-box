@@ -2045,13 +2045,17 @@ async function callAgentChatAPI(content, type = 'polish') {
     const historyCount = type === 'draft' ? 10 : (globalAiConfig?.historyCount || 3);
     const history = getChatHistory(historyCount);
     
+    const tone = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.tone) ? window._local_ai_config.tone : (globalAiConfig?.tone || '友好的');
+    const theme = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.theme) ? window._local_ai_config.theme : (globalAiConfig?.theme || '默认');
+    const role = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.role) ? window._local_ai_config.role : (globalAiConfig?.role || '朋友');
+
     const params = {
         type: type, // 区分模式：polish | draft | rewrite
         content: content,
         history: history,
-        tone: globalAiConfig?.tone || '友好的',
-        theme: globalAiConfig?.theme || '默认',
-        role: globalAiConfig?.role || '朋友',
+        tone: tone,
+        theme: theme,
+        role: role,
         targetLanguage: getTargetLanguage() || 'zh',
         modelName: globalAiConfig?.model || 'Gemini'
     };
@@ -2350,7 +2354,7 @@ function showPdrPanel(originalText = '') {
                     left: 0;
                     right: 0;
                     bottom: 0;
-                    background-color: rgba(255, 255, 255, 0.1);
+                    background-color: #bfbfbf;
                     transition: .3s;
                     border-radius: 20px;
                     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2394,9 +2398,9 @@ function showPdrPanel(originalText = '') {
 
 function renderPdrContent(originalText) {
     const tone = globalAiConfig?.tone || '友好的';
-    const themeName = globalAiConfig.themeName || '默认';
-    const toneName = globalAiConfig.toneName || '默认';
-    const roleName = globalAiConfig.roleName || '朋友';
+    const themeName = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.themeName) ? window._local_ai_config.themeName : (globalAiConfig?.themeName || '默认');
+    const toneName = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.toneName) ? window._local_ai_config.toneName : (globalAiConfig?.toneName || '默认');
+    const roleName = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.roleName) ? window._local_ai_config.roleName : (globalAiConfig?.roleName || '默认');
     
     // 根据当前标签确定显示内容
     let mainHtml = '';
@@ -2528,7 +2532,7 @@ function renderPdrContent(originalText) {
           
             <button class="pdr-action-btn btn-add" id="pdr-add-btn" disabled>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                添加到聊天
+                发送聊天
             </button>
         </div>
     `;
@@ -2803,6 +2807,42 @@ function injectAiToolbar() {
     const footer = document.querySelector('footer');
     if (!footer || document.getElementById('chat365-ai-toolbar')) return;
     
+    // 初始化本地存储和字典缓存
+    window._local_ai_config = window._local_ai_config || {
+        enabled: false,
+        tone: '',
+        theme: '',
+        role: '',
+        toneName: '',
+        themeName: '',
+        roleName: ''
+    };
+    window._dictTone = window._dictTone || [];
+    window._dictTheme = window._dictTheme || [];
+    window._dictRole = window._dictRole || [];
+
+    const fetchDicts = async () => {
+        if (!window._dictTone.length) {
+            const res = await window.electronAPI.getDictData('box_agent_tone');
+            if (res && res.code === 200) window._dictTone = res.data;
+        }
+        if (!window._dictTheme.length) {
+            const res = await window.electronAPI.getDictData('box_agent_theme');
+            if (res && res.code === 200) window._dictTheme = res.data;
+        }
+        if (!window._dictRole.length) {
+            const res = await window.electronAPI.getDictData('box_agent_role');
+            if (res && res.code === 200) window._dictRole = res.data;
+        }
+    };
+
+    fetchDicts().then(() => {
+        const toolbar = document.querySelector('#chat365-ai-toolbar');
+        if (toolbar) {
+            renderToolbarConfig(toolbar);
+        }
+    });
+
     const toolbar = document.createElement('div');
     toolbar.id = 'chat365-ai-toolbar';
     toolbar.innerHTML = `
@@ -2810,8 +2850,134 @@ function injectAiToolbar() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
             自动润色
         </div>
+        <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
+            <!-- 配置区域容器 -->
+        </div>
     `;
     
+    const renderToolbarConfig = (container) => {
+        const area = container.querySelector('#ai-toolbar-config-area');
+        if (!area) return;
+        
+        const gTone = globalAiConfig?.toneName || '默认';
+        const gTheme = globalAiConfig?.themeName || '默认';
+        const gRole = globalAiConfig?.roleName || '默认';
+
+        if (!window._local_ai_config.enabled) {
+            area.innerHTML = `
+                <div class="pdr-switch-container" style="flex-direction: row;">
+                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置checkbox</span>
+                    <label class="pdr-switch">
+                        <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
+                        <span class="pdr-slider"></span>
+                    </label>
+                </div>
+                <div style="display: flex; gap: 4px; border: 1px solid #2ed36a; border-radius: 12px; padding: 6px 12px; font-size: 11px; color: #2ed36a; background: rgba(46, 211, 106, 0.05);">
+                    <span>回复语调: ${gTone}</span> | 
+                    <span>回复主题: ${gTheme}</span> | 
+                    <span>回复角色: ${gRole}</span>
+                </div>
+            `;
+        } else {
+            const makeCustomDropdown = (id, label, dict, selectedValue) => {
+                const selectedItem = dict.find(item => item.dictValue === selectedValue) || dict[0] || {};
+                const optionsHtml = dict.map(item => {
+                    const isSelected = item.dictValue === selectedValue;
+                    return `
+                        <div class="ai-select-option ${isSelected ? 'selected' : ''}" data-value="${item.dictValue}" data-label="${item.dictLabel}">
+                            <span>${item.dictLabel}</span>
+                            ${isSelected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="ai-custom-select" id="${id}">
+                        <div class="ai-select-label">${label}</div>
+                        <div class="ai-select-trigger">
+                            <span class="select-value">${selectedItem.dictLabel || ''}</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="ai-select-arrow" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <div class="ai-select-dropdown">
+                            ${optionsHtml}
+                        </div>
+                    </div>
+                `;
+            };
+
+            area.innerHTML = `
+                <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px;">
+                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置switch</span>
+                    <label class="pdr-switch">
+                        <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
+                        <span class="pdr-slider"></span>
+                    </label>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    ${makeCustomDropdown('local-tone-select', '语调', window._dictTone, window._local_ai_config.tone || globalAiConfig?.tone)}
+                    ${makeCustomDropdown('local-theme-select', '主题', window._dictTheme, window._local_ai_config.theme || globalAiConfig?.theme)}
+                    ${makeCustomDropdown('local-role-select', '角色', window._dictRole, window._local_ai_config.role || globalAiConfig?.role)}
+                </div>
+            `;
+
+            ['local-tone-select', 'local-theme-select', 'local-role-select'].forEach(id => {
+                const el = area.querySelector('#' + id);
+                const trigger = el.querySelector('.ai-select-trigger');
+                const dropdown = el.querySelector('.ai-select-dropdown');
+                
+                trigger.onclick = (e) => {
+                    e.stopPropagation();
+                    area.querySelectorAll('.ai-custom-select.open').forEach(openEl => {
+                        if (openEl !== el) openEl.classList.remove('open');
+                    });
+                    el.classList.toggle('open');
+                };
+                
+                dropdown.querySelectorAll('.ai-select-option').forEach(opt => {
+                    opt.onclick = (e) => {
+                        e.stopPropagation();
+                        const val = opt.getAttribute('data-value');
+                        const labelText = opt.getAttribute('data-label');
+                        
+                        if (id === 'local-tone-select') {
+                            window._local_ai_config.tone = val;
+                            window._local_ai_config.toneName = labelText;
+                        } else if (id === 'local-theme-select') {
+                            window._local_ai_config.theme = val;
+                            window._local_ai_config.themeName = labelText;
+                        } else if (id === 'local-role-select') {
+                            window._local_ai_config.role = val;
+                            window._local_ai_config.roleName = labelText;
+                        }
+                        
+                        el.classList.remove('open');
+                        renderToolbarConfig(container);
+                    };
+                });
+            });
+
+            if (!window._ai_dropdown_click_bound) {
+                document.addEventListener('click', () => {
+                    document.querySelectorAll('.ai-custom-select.open').forEach(openEl => {
+                        openEl.classList.remove('open');
+                    });
+                });
+                window._ai_dropdown_click_bound = true;
+            }
+        }
+
+        area.querySelector('#local-ai-toggle').onchange = (e) => {
+            window._local_ai_config.enabled = e.target.checked;
+            if (window._local_ai_config.enabled) {
+                // Initialize default local values from global if empty
+                if (!window._local_ai_config.tone) window._local_ai_config.tone = globalAiConfig?.tone;
+                if (!window._local_ai_config.theme) window._local_ai_config.theme = globalAiConfig?.theme;
+                if (!window._local_ai_config.role) window._local_ai_config.role = globalAiConfig?.role;
+            }
+            renderToolbarConfig(container);
+        };
+    };
+
     if (!document.getElementById('ai-toolbar-style')) {
         const style = document.createElement('style');
         style.id = 'ai-toolbar-style';
@@ -2855,6 +3021,33 @@ function injectAiToolbar() {
                 box-shadow: 0 4px 10px rgba(46, 211, 106, 0.2);
             }
             .ai-toolbar-btn svg { color: #2ed36a; }
+
+            .ai-custom-select {
+                position: relative; display: flex; align-items: center; border: 1px solid #dcdfe6;
+                border-radius: 4px; background: #fff; height: 26px; font-size: 11px; user-select: none;
+            }
+            .ai-select-label {
+                background: #f5f7fa; padding: 0 6px; height: 100%; display: flex; align-items: center;
+                border-right: 1px solid #dcdfe6; color: #606266; white-space: nowrap;
+            }
+            .ai-select-trigger {
+                padding: 0 8px; display: flex; align-items: center; justify-content: space-between;
+                min-width: 50px; cursor: pointer; color: #303133; white-space: nowrap; height: 100%;
+            }
+            .ai-select-arrow { color: #c0c4cc; margin-left: 4px; transition: transform .3s; }
+            .ai-custom-select.open .ai-select-arrow { transform: rotate(180deg); }
+            .ai-select-dropdown {
+                position: absolute; bottom: calc(100% + 4px); top: auto; left: 0; min-width: 100%; background: #fff;
+                border: 1px solid #e4e7ed; border-radius: 4px; box-shadow: 0 -2px 12px 0 rgba(0,0,0,.1);
+                display: none; padding: 4px 0; z-index: 2000; max-height: 300px; overflow-y: auto;
+            }
+            .ai-custom-select.open .ai-select-dropdown { display: block; }
+            .ai-select-option {
+                padding: 6px 12px; display: flex; align-items: center; justify-content: space-between;
+                cursor: pointer; white-space: nowrap; color: #606266; transition: background .2s, color .2s; gap: 8px;
+            }
+            .ai-select-option:hover { background: #f5f7fa; }
+            .ai-select-option.selected { color: #fff; font-weight: 600; background: #25d366; }
         `;
         document.head.appendChild(style);
     }
@@ -2865,22 +3058,29 @@ function injectAiToolbar() {
     }
     footer.parentNode.insertBefore(toolbar, footer);
     
+    // 渲染初始配置区 (使用已有的或全局的)
+    renderToolbarConfig(toolbar);
+    
     toolbar.querySelector('#ai-btn-auto-polish').onclick = () => {
         const text = getInputContent();
         showPdrPanel(text || '');
     };
-    toolbar.querySelector('#ai-btn-translate-cn').onclick = async () => {
-        const text = getInputContent();
-        if (!text) return;
-        const res = await translateTextAPI(text, getLocalLanguage(), 'zh');
-        if (res.success) {
-            replaceInputWithPdrSuggestion(res.data);
-        }
-    };
-    toolbar.querySelector('#ai-btn-change-tone').onclick = () => {
-        const text = getInputContent();
-        showPdrPanel(text || '');
-    };
+    const btnCn = toolbar.querySelector('#ai-btn-translate-cn');
+    if (btnCn) {
+        btnCn.onclick = async () => {
+            const text = getInputContent();
+            if (!text) return;
+            const res = await translateTextAPI(text, getLocalLanguage(), 'zh');
+            if (res.success) replaceInputWithPdrSuggestion(res.data);
+        };
+    }
+    const btnTone = toolbar.querySelector('#ai-btn-change-tone');
+    if (btnTone) {
+        btnTone.onclick = () => {
+            const text = getInputContent();
+            showPdrPanel(text || '');
+        };
+    }
 }
 
 /**

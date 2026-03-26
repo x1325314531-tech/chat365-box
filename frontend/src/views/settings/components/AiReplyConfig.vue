@@ -172,6 +172,7 @@ const handleAiReplyToggle = (val) => {
     ipc.invoke('get-translate-config').then(transRes => {
       if (transRes) {
         transRes.sendAutoTranslate = false
+        transRes.sendAutoNotTranslate = true
         ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
           console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
         })

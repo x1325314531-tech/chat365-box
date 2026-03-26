@@ -184,6 +184,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   agentChat: (args) => {
     return ipcRenderer.invoke('agent-chat', args);
+  },
+  getDictData: (dictType) => {
+    return ipcRenderer.invoke('get-dict-data', dictType);
   }
 
 });

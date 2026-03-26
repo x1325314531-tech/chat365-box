@@ -26,6 +26,15 @@ async function getTenantSetting() {
     }
 }
     
+// 获取字典数据
+async function getDictData(dictType) {
+    try {
+        return await request.get('/app/dict/listData?dictType=' + dictType);
+    } catch (error) {
+        Log.error('获取字典数据异常:', error);
+        return { code: 500, msg: error.message || '网络请求失败' };
+    }
+}
 
 // 实现 translateText 函数
 async function translateText(text,localLanguage, targetLanguage) {
@@ -450,5 +459,6 @@ module.exports = {
     syncNewFan,
     batchAddFans,
     getHeavyFans,
-    agentChat
+    agentChat,
+    getDictData
 };

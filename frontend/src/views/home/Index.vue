@@ -97,7 +97,7 @@ const ipcApiRoute = {
 const menuItems = ref([
   { id: 'home',name:'Home', icon: homeIcon, path: '/home', unreadCount: 0 },
   { id: 'whatsApp', name:'WhatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
-  // { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
+  { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
   //  {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
 ]);
 
