@@ -4,7 +4,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 // 在 contextBridge 中暴露 API 给渲染进程
 console.log('🌉 [Chat365] Bridge loaded for:', window.location.href);
 contextBridge.exposeInMainWorld('electronAPI', {
-  ipcRenderer: ipcRenderer,
+  ipcRenderer: {
+    send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+    invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+    on: (channel, listener) => {
+      if (typeof listener !== 'function') return;
+      ipcRenderer.on(channel, (_event, ...args) => listener(undefined, ...args));
+    },
+    once: (channel, listener) => {
+      if (typeof listener !== 'function') return;
+      ipcRenderer.once(channel, (_event, ...args) => listener(undefined, ...args));
+    },
+    removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+  },
   // 号码过滤通知
   sendFilterNotify: (data) => {
     ipcRenderer.send('filter-notify', data);
@@ -227,4 +239,3 @@ window.addEventListener('unhandledrejection', (event) => {
     url: window.location.href,
   });
 });
-

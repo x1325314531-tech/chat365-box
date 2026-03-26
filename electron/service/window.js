@@ -7,6 +7,7 @@ const axios = require('axios');
 const { app, BrowserWindow, WebContentsView ,session} = require('electron');
 const path = require('path');
 const fs = require('fs');
+const Storage = require('ee-core/storage');
 const platforms = [
     { platform: 'Telegram', url: 'https://web.telegram.org/a/' },
     { platform: 'TelegramK', url: 'https://web.telegram.org/k/' },
@@ -355,6 +356,117 @@ class WindowService extends Service {
         };
     }
 
+    async getSessionConfig(chatId) {
+        if (!chatId) return null;
+        const configStorage = Storage.connection('config.json');
+        const allSessionConfig = configStorage.getItem('aiSessionConfig') || {};
+        return allSessionConfig[chatId] || null;
+    }
+
+    async saveSessionConfig(args = {}) {
+        const { chatId, config } = args;
+        if (!chatId || !config) {
+            return { status: false, message: 'chatId and config are required' };
+        }
+
+        const configStorage = Storage.connection('config.json');
+        const allSessionConfig = configStorage.getItem('aiSessionConfig') || {};
+        allSessionConfig[chatId] = config;
+        configStorage.setItem('aiSessionConfig', allSessionConfig);
+
+        return { status: true };
+    }
+
+    async getChatHistory(args = {}) {
+        const chatId = typeof args === 'string' ? args : args?.chatId;
+        const countRaw = typeof args === 'object' ? args?.count : undefined;
+        const count = Number.isFinite(Number(countRaw)) ? Math.max(1, Math.min(50, Number(countRaw))) : 3;
+
+        if (!chatId) {
+            return [];
+        }
+
+        const view = app.viewsMap.get(chatId);
+        if (!view || !view.webContents || view.webContents.isDestroyed()) {
+            Log.warn(`[getChatHistory] view not found for chatId: ${chatId}`);
+            return [];
+        }
+
+        const script = `
+          (() => {
+            const limit = ${count};
+            const messages = Array.from(document.querySelectorAll('.message-in, .message-out'));
+            return messages.slice(-limit).map((msg) => {
+              const isOut = msg.classList.contains('message-out');
+              const span = msg.querySelector('span[dir="ltr"], span[dir="rtl"]');
+              let content = '';
+              if (span) {
+                const clone = span.cloneNode(true);
+                const excludeSelectors = ['.translation-result', '.original-text-result', 'br', 'hr', 'div', '[data-testid="msg-meta"]'];
+                excludeSelectors.forEach((sel) => {
+                  try {
+                    clone.querySelectorAll(sel).forEach((n) => n.remove());
+                  } catch (e) {}
+                });
+                content = (clone.textContent || '').replace(/\\s+/g, ' ').trim();
+              }
+              return {
+                type: isOut ? 'assistant' : 'user',
+                content
+              };
+            }).filter((item) => item.content);
+          })();
+        `;
+
+        try {
+            const history = await view.webContents.executeJavaScript(script, true);
+            return Array.isArray(history) ? history : [];
+        } catch (error) {
+            Log.error(`[getChatHistory] execute script failed for ${chatId}:`, error);
+            return [];
+        }
+    }
+
+    async sendToWv(args = {}) {
+        const chatIdRaw = args?.chatId || args?.cardId || '';
+        const channel = args?.channel;
+        const argsList = Array.isArray(args?.args)
+            ? args.args
+            : (args?.payload !== undefined ? [args.payload] : []);
+
+        if (!channel) {
+            return { status: false, message: 'channel is required' };
+        }
+
+        let targetChatId = chatIdRaw ? String(chatIdRaw) : '';
+        let view = targetChatId ? app.viewsMap.get(targetChatId) : null;
+
+        if (!view || !view.webContents || view.webContents.isDestroyed()) {
+            try {
+                const activeCard = await app.sdb.selectOne('cards', { active_status: 'true', platform: 'WhatsApp' });
+                if (activeCard?.card_id) {
+                    targetChatId = String(activeCard.card_id);
+                    view = app.viewsMap.get(targetChatId);
+                }
+            } catch (error) {
+                Log.error('[sendToWv] resolve active card failed:', error);
+            }
+        }
+
+        if (!view || !view.webContents || view.webContents.isDestroyed()) {
+            Log.warn(`[sendToWv] target webview not found. chatId=${chatIdRaw}`);
+            return { status: false, message: 'target webview not found' };
+        }
+
+        try {
+            view.webContents.send(channel, ...argsList);
+            return { status: true, chatId: targetChatId };
+        } catch (error) {
+            Log.error(`[sendToWv] send failed. chatId=${targetChatId}, channel=${channel}:`, error);
+            return { status: false, message: error.message || 'send failed' };
+        }
+    }
+
     async setRightOverlayWidth(width = 0) {
         const normalizedWidth = Number.isFinite(Number(width)) ? Math.max(0, Number(width)) : 0;
         this.rightOverlayWidth = normalizedWidth;
@@ -499,7 +611,7 @@ class WindowService extends Service {
     _resizeView(mainWin, view) {
         if (mainWin && view) {
             const [width, height] = mainWin.getContentSize();
-            const reservedRightWidth = 70 + this.rightOverlayWidth;
+            const reservedRightWidth = this.rightOverlayWidth > 0 ? this.rightOverlayWidth : 70;
             if (this.isPlacedTop) {
                 // 顶部模式：左侧导航栏(50) + 顶部栏高度(60)
                 const xOffset = 51;

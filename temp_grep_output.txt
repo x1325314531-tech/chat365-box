@@ -1,0 +1,24 @@
+2048: const tone = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.tone) ? window._local_ai_config.tone : (globalAiConfig?.tone || '友好的');
+2049: const theme = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.theme) ? window._local_ai_config.theme : (globalAiConfig?.theme || '默认');
+2050: const role = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.role) ? window._local_ai_config.role : (globalAiConfig?.role || '朋友');
+2401: const themeName = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.themeName) ? window._local_ai_config.themeName : (globalAiConfig?.themeName || '默认');
+2402: const toneName = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.toneName) ? window._local_ai_config.toneName : (globalAiConfig?.toneName || '默认');
+2403: const roleName = (window._local_ai_config && window._local_ai_config.enabled && window._local_ai_config.roleName) ? window._local_ai_config.roleName : (globalAiConfig?.roleName || '默认');
+2811: window._local_ai_config = window._local_ai_config || {
+2866: if (!window._local_ai_config.enabled) {
+2871: <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
+2912: <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
+2917: ${makeCustomDropdown('local-tone-select', '语调', window._dictTone, window._local_ai_config.tone || globalAiConfig?.tone)}
+2918: ${makeCustomDropdown('local-theme-select', '主题', window._dictTheme, window._local_ai_config.theme || globalAiConfig?.theme)}
+2919: ${makeCustomDropdown('local-role-select', '角色', window._dictRole, window._local_ai_config.role || globalAiConfig?.role)}
+2943: window._local_ai_config.tone = val;
+2944: window._local_ai_config.toneName = labelText;
+2946: window._local_ai_config.theme = val;
+2947: window._local_ai_config.themeName = labelText;
+2949: window._local_ai_config.role = val;
+2950: window._local_ai_config.roleName = labelText;
+2970: window._local_ai_config.enabled = e.target.checked;
+2971: if (window._local_ai_config.enabled) {
+2973: if (!window._local_ai_config.tone) window._local_ai_config.tone = globalAiConfig?.tone;
+2974: if (!window._local_ai_config.theme) window._local_ai_config.theme = globalAiConfig?.theme;
+2975: if (!window._local_ai_config.role) window._local_ai_config.role = globalAiConfig?.role;

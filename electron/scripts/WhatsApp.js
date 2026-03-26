@@ -2576,7 +2576,13 @@ function injectAiToolbar() {
     toolbar.querySelector('#ai-btn-auto-polish').onclick = () => {
         const text = getInputContent();
         const chatId = window._chat365_state.currentChatId || getCurrentChatId();
-        window.electronAPI.ipcRenderer.send('open-ai-drawer', { originalText: text || '', chatId: chatId });
+        console.log('自动润色', chatId, text);
+        
+        window.electronAPI.ipcRenderer.send('open-ai-drawer', {
+            text: text || '',
+            originalText: text || '',
+            chatId: chatId
+        });
     };
     const btnCn = toolbar.querySelector('#ai-btn-translate-cn');
     if (btnCn) {
@@ -2592,7 +2598,11 @@ function injectAiToolbar() {
         btnTone.onclick = () => {
             const text = getInputContent();
             const chatId = window._chat365_state.currentChatId || getCurrentChatId();
-            window.electronAPI.ipcRenderer.send('open-ai-drawer', { originalText: text || '', chatId: chatId });
+            window.electronAPI.ipcRenderer.send('open-ai-drawer', {
+                text: text || '',
+                originalText: text || '',
+                chatId: chatId
+            });
         };
     }
 }
@@ -2682,7 +2692,11 @@ function injectHeaderAiButtonToContainer(container) {
     aiBtn.onclick = () => {
         const text = getInputContent();
         const chatId = window._chat365_state.currentChatId || getCurrentChatId();
-        window.electronAPI.ipcRenderer.send('open-ai-drawer', { originalText: text || '', chatId: chatId });
+        window.electronAPI.ipcRenderer.send('open-ai-drawer', {
+            text: text || '',
+            originalText: text || '',
+            chatId: chatId
+        });
     };
     
     container.prepend(aiBtn);
@@ -3085,6 +3099,9 @@ function monitorMainNode() {
                         // 更新当前会话 ID
                         window._chat365_state.currentChatId = getCurrentChatId();
                         console.log('📬 [Session] 切换到会话:', window._chat365_state.currentChatId);
+                        window.electronAPI.ipcRenderer.send('chat-id-change', {
+                            chatId: window._chat365_state.currentChatId
+                        });
 
                         removeLoadingNode();
                         startMonitor();

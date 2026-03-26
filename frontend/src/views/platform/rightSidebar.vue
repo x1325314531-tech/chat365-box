@@ -1,57 +1,48 @@
 <script setup>
-import { ref } from 'vue';
-import { 
-  Operation, 
-  Rank, 
-  ChatDotRound, 
-  Star, 
-  User, 
-  ChatLineRound, 
-  Fold, 
-  Files 
-} from '@element-plus/icons-vue';
+import { computed, ref } from 'vue';
+import { Fold, Expand } from '@element-plus/icons-vue';
+
+const props = defineProps({
+  collapsed: {
+    type: Boolean,
+    default: false
+  }
+});
 
 const activeItem = ref('ai');
-const emits = defineEmits(['open-drawer']);
+const emits = defineEmits(['open-drawer', 'toggle-collapse']);
 
-const menuItems = [
-  { id: 'expand', label: '展开', icon: Fold },
-//   { id: 'proxy', label: '代理', icon: Operation },
-//   { id: 'translate', label: '翻译', icon: Rank },
-//   { id: 'fans', label: '粉丝', icon: Star },
-//   { id: 'portrait', label: '画像', icon: User },
-//   { id: 'session', label: '会话', icon: ChatLineRound },
-//   { id: 'bulk', label: '群发', icon: Files },
-//   { id: 'material', label: '素材', icon: ChatDotRound },
-];
+const expandLabel = computed(() => (props.collapsed ? '展开' : '收起'));
+const expandIcon = computed(() => (props.collapsed ? Expand : Fold));
 
 const handleItemClick = (id) => {
+  if (id === 'expand') {
+    emits('toggle-collapse');
+    return;
+  }
+
   activeItem.value = id;
   emits('open-drawer', id);
 };
 </script>
 
 <template>
-  <div class="right-sidebar">
+  <div class="right-sidebar" :class="{ collapsed }">
     <div class="menu-container">
-      <!-- Standard Menu Items -->
-      <div 
-        v-for="item in menuItems" 
-        :key="item.id" 
+      <div
         class="menu-item"
-        :class="{ 'active': activeItem === item.id }"
-        @click="handleItemClick(item.id)"
+        :class="{ active: collapsed }"
+        @click="handleItemClick('expand')"
       >
         <div class="icon-wrapper">
-          <el-icon :size="20"><component :is="item.icon" /></el-icon>
+          <el-icon :size="20"><component :is="expandIcon" /></el-icon>
         </div>
-        <span class="label">{{ item.label }}</span>
+        <span class="label">{{ expandLabel }}</span>
       </div>
 
-      <!-- AI Polish Item (Special Style) -->
-      <div 
+      <div
         class="menu-item ai-item"
-        :class="{ 'active': activeItem === 'ai' }"
+        :class="{ active: activeItem === 'ai' }"
         @click="handleItemClick('ai')"
       >
         <div class="icon-wrapper ai-icon-bg">
@@ -70,7 +61,7 @@ const handleItemClick = (id) => {
 
 <style scoped>
 .right-sidebar {
-  width: 70px;
+  width: 100%;
   height: 100%;
   background: #f8f9fa;
   border-left: 1px solid #eee;
@@ -120,7 +111,6 @@ const handleItemClick = (id) => {
   text-align: center;
 }
 
-/* AI Item Special Styling */
 .ai-icon-bg {
   background: #28c05d !important;
   color: white !important;
@@ -146,5 +136,15 @@ const handleItemClick = (id) => {
 .menu-item.active .icon-wrapper {
   outline: 2px solid #28c05d;
   outline-offset: 2px;
+}
+
+.right-sidebar.collapsed .menu-container {
+  gap: 14px;
+}
+
+
+
+.right-sidebar.collapsed .icon-wrapper {
+  margin-bottom: 0;
 }
 </style>

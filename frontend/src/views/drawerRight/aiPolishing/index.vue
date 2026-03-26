@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { 
   MagicStick, 
   Setting, 
@@ -9,13 +9,17 @@ import {
   Check
 } from '@element-plus/icons-vue';
 import { ipc } from '@/utils/ipcRenderer';
-import { post, get } from "@/utils/request";
+import { post } from "@/utils/request";
 import Notification from "@/utils/notification";
 
 const props = defineProps({
   chatId: {
     type: String,
     required: true
+  },
+  conversationId: {
+    type: String,
+    default: ''
   },
   initialText: {
     type: String,
@@ -34,38 +38,69 @@ const dictTone = ref([]);
 const dictTheme = ref([]);
 const dictRole = ref([]);
 
-const config = ref({
+const defaultLocalConfig = {
   enabled: false,
   tone: '',
   theme: '',
   role: '',
-  toneName: '默认',
-  themeName: '默认',
-  roleName: '默认'
+  toneName: 'Default',
+  themeName: 'Default',
+  roleName: 'Default'
+};
+
+const config = ref({
+  ...defaultLocalConfig
+});
+
+const sessionConfigKey = computed(() => {
+  const cardId = String(props.chatId || '');
+  const conversationId = String(props.conversationId || '');
+  return conversationId ? `${cardId}::${conversationId}` : cardId;
 });
 
 const globalConfig = ref({
-  toneName: '默认',
-  themeName: '默认',
-  roleName: '默认'
+  tone: 'default',
+  theme: 'default',
+  role: 'default',
+  model: 'Gemini',
+  historyCount: 3,
+  toneName: 'Default',
+  themeName: 'Default',
+  roleName: 'Default'
+});
+
+const translateConfig = ref({
+  sendTargetLang: 'zh'
 });
 
 onMounted(async () => {
   await fetchDicts();
+  await loadGlobalAiConfig();
+  await loadTranslateConfig();
   await loadSessionConfig();
-  await fetchGlobalConfig();
   if (originalText.value) {
     handlePolish();
   }
 });
 
 // 监听文本变化（当从外部触发且抽屉已打开时）
-watch(() => props.initialText, (newVal) => {
-  if (newVal) {
-    originalText.value = newVal;
-    handlePolish();
+watch(
+  () => props.initialText,
+  (newVal) => {
+    originalText.value = newVal ?? '';
+    if (newVal) {
+      handlePolish();
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => sessionConfigKey.value,
+  async () => {
+    await loadSessionConfig();
   }
-});
+);
 
 async function fetchDicts() {
   const toneRes = await ipc.invoke('controller.window.getDictData', 'box_agent_tone');
@@ -79,26 +114,44 @@ async function fetchDicts() {
 }
 
 async function loadSessionConfig() {
-  // 从数据库获取当前会话配置
-  const cached = await ipc.invoke('controller.window.getSessionConfig', props.chatId);
-  if (cached) {
-    config.value = { ...config.value, ...cached };
-  }
+  const cached = await ipc.invoke('controller.window.getSessionConfig', sessionConfigKey.value);
+  config.value = {
+    ...defaultLocalConfig,
+    ...(cached || {})
+  };
 }
 
-async function fetchGlobalConfig() {
-  // 获取全局配置
+async function loadGlobalAiConfig() {
   try {
-    const res = await get('/app/agent/config');
-    if (res && res.code === 200 && res.data) {
+    const res = await ipc.invoke('get-ai-config');
+    const whatsappConfig = res?.whatsapp || res;
+    if (whatsappConfig && typeof whatsappConfig === 'object') {
       globalConfig.value = {
-        toneName: res.data.toneName || '默认',
-        themeName: res.data.themeName || '默认',
-        roleName: res.data.roleName || '默认'
+        ...globalConfig.value,
+        ...whatsappConfig,
+        toneName: whatsappConfig.toneName || '默认',
+        themeName: whatsappConfig.themeName || '默认',
+        roleName: whatsappConfig.roleName || '默认',
+        historyCount: Number(whatsappConfig.historyCount) || 3,
+        model: whatsappConfig.model || 'Gemini',
       };
     }
   } catch (e) {
-    console.error('获取全局配置失败', e);
+    console.error('Translate failed', e);
+  }
+}
+
+async function loadTranslateConfig() {
+  try {
+    const res = await ipc.invoke('get-translate-config');
+    if (res && typeof res === 'object') {
+      translateConfig.value = {
+        ...translateConfig.value,
+        ...res
+      };
+    }
+  } catch (e) {
+    console.error('Translate failed', e);
   }
 }
 
@@ -113,11 +166,15 @@ async function saveConfig() {
   const role = dictRole.value.find(i => i.dictValue === config.value.role);
   if (role) config.value.roleName = role.dictLabel;
 
-  await ipc.invoke('controller.window.saveSessionConfig', { chatId: props.chatId, config: config.value });
-  Notification.message({ message: '配置已保存', type: 'success' });
+  await ipc.invoke('controller.window.saveSessionConfig', { chatId: sessionConfigKey.value, config: config.value });
+  Notification.message({ message: 'Config saved', type: 'success' });
   
   // 通知 WhatsApp 注入脚本更新
-  ipc.sendToWv(props.chatId, 'sync-ai-config', config.value);
+  await ipc.invoke('controller.window.sendToWv', {
+    chatId: props.chatId,
+    channel: 'sync-ai-config',
+    args: [config.value]
+  });
 }
 
 async function handlePolish() {
@@ -127,11 +184,33 @@ async function handlePolish() {
   translatedText.value = '';
 
   try {
+    const resolvedTone = config.value.enabled
+      ? (config.value.tone || globalConfig.value.tone)
+      : globalConfig.value.tone;
+    const resolvedTheme = config.value.enabled
+      ? (config.value.theme || globalConfig.value.theme)
+      : globalConfig.value.theme;
+    const resolvedRole = config.value.enabled
+      ? (config.value.role || globalConfig.value.role)
+      : globalConfig.value.role;
+
+    const historyCount = Number(globalConfig.value.historyCount) || 3;
+    const historyRes = await ipc.invoke('controller.window.getChatHistory', {
+      chatId: props.chatId,
+      count: historyCount
+    });
+    const history = Array.isArray(historyRes?.data)
+      ? historyRes.data
+      : (Array.isArray(historyRes) ? historyRes : []);
+
     const params = {
       content: originalText.value,
-      tone: config.value.enabled ? config.value.tone : undefined,
-      theme: config.value.enabled ? config.value.theme : undefined,
-      role: config.value.enabled ? config.value.role : undefined,
+      history,
+      tone: resolvedTone,
+      theme: resolvedTheme,
+      role: resolvedRole,
+      targetLanguage: translateConfig.value.sendTargetLang || 'zh',
+      modelName: globalConfig.value.model || 'Gemini'
     };
 
     const res = await post('/app/agentChat', params);
@@ -142,7 +221,7 @@ async function handlePolish() {
       }
     }
   } catch (e) {
-    Notification.message({ message: '润色失败：' + e.message, type: 'error' });
+    Notification.message({ message: 'Polish failed: ' + e.message, type: 'error' });
   } finally {
     isLoading.value = false;
   }
@@ -156,23 +235,39 @@ async function handleTranslate() {
       translatedText.value = res.data;
     }
   } catch (e) {
-    console.error('翻译失败', e);
+    console.error('Translate failed', e);
   }
 }
 
-function applyToDraft() {
-  ipc.sendToWv(props.chatId, 'apply-polish-to-draft', polishedText.value);
-  Notification.message({ message: '已应用至草稿', type: 'success' });
+async function applyToDraft() {
+  if (!polishedText.value) return;
+  const result = await ipc.invoke('controller.window.sendToWv', {
+    chatId: props.chatId,
+    channel: 'apply-polish-to-draft',
+    args: [polishedText.value]
+  });
+  Notification.message({
+    message: result?.status ? 'Applied to draft' : 'Apply failed',
+    type: result?.status ? 'success' : 'error'
+  });
 }
 
-function sendImmediate() {
-  ipc.sendToWv(props.chatId, 'send-polished-message', polishedText.value);
-  Notification.message({ message: '已发送消息', type: 'success' });
+async function sendImmediate() {
+  if (!polishedText.value) return;
+  const result = await ipc.invoke('controller.window.sendToWv', {
+    chatId: props.chatId,
+    channel: 'send-polished-message',
+    args: [polishedText.value]
+  });
+  Notification.message({
+    message: result?.status ? 'Message sent' : 'Send failed',
+    type: result?.status ? 'success' : 'error'
+  });
 }
 
 function copyResult() {
   navigator.clipboard.writeText(polishedText.value);
-  Notification.message({ message: '已复制到剪贴板', type: 'success' });
+  Notification.message({ message: 'Copied', type: 'success' });
 }
 
 </script>
@@ -200,8 +295,7 @@ function copyResult() {
             />
             <div class="section-actions">
               <el-button type="primary" :loading="isLoading" @click="handlePolish" round>
-                开始润色
-              </el-button>
+                开始润色</el-button>
             </div>
           </div>
 
@@ -228,7 +322,7 @@ function copyResult() {
               <el-button-group>
                 <el-button :icon="CopyDocument" @click="copyResult">复制</el-button>
                 <el-button type="success" :icon="Check" @click="applyToDraft">填入草稿</el-button>
-                <el-button type="primary" :icon="Promotion" @click="sendImmediate">直接发送</el-button>
+                <el-button type="primary" :icon="Promotion" @click="sendImmediate">发送聊天</el-button>
               </el-button-group>
             </div>
           </div>
@@ -493,3 +587,4 @@ function copyResult() {
   transform: translateY(-10px);
 }
 </style>
+

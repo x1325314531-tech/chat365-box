@@ -7,6 +7,7 @@ const { app, BrowserWindow, WebContentsView, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const Services = require('ee-core/services');
+const { getDictData } = require('../api');
 class WindowController extends Controller {
     constructor(ctx) {
         super(ctx);
@@ -127,6 +128,56 @@ class WindowController extends Controller {
             return {status:true,message:'查询成功', data:result}
         }catch(err){
             return {status:false,message:`查询发生错误:${err.message}`};
+        }
+    }
+
+    async getDictData(args, event) {
+        const dictType = typeof args === 'string' ? args : args?.dictType;
+        if (!dictType) {
+            return { code: 400, msg: 'dictType is required', data: [] };
+        }
+        try {
+            return await getDictData(dictType);
+        } catch (error) {
+            Log.error('getDictData error:', error);
+            return { code: 500, msg: 'get dict data failed', data: [] };
+        }
+    }
+
+    async getSessionConfig(args, event) {
+        try {
+            return await Services.get('window').getSessionConfig(args);
+        } catch (error) {
+            Log.error('getSessionConfig error:', error);
+            return null;
+        }
+    }
+
+    async saveSessionConfig(args, event) {
+        try {
+            return await Services.get('window').saveSessionConfig(args);
+        } catch (error) {
+            Log.error('saveSessionConfig error:', error);
+            return { status: false, message: 'save session config failed' };
+        }
+    }
+
+    async getChatHistory(args, event) {
+        try {
+            const data = await Services.get('window').getChatHistory(args);
+            return { status: true, data };
+        } catch (error) {
+            Log.error('getChatHistory error:', error);
+            return { status: false, data: [] };
+        }
+    }
+
+    async sendToWv(args, event) {
+        try {
+            return await Services.get('window').sendToWv(args);
+        } catch (error) {
+            Log.error('sendToWv error:', error);
+            return { status: false, message: 'send to webview failed' };
         }
     }
 

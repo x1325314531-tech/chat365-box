@@ -23,26 +23,28 @@
         </div>
       </div>
     </div>
-    <div class="sidebar-div">
-      <rightSidebar @open-drawer="handleOpenDrawer" />
-    </div>
+ 
 
     <!-- AI 润色抽屉 -->
-    <el-drawer
-      v-model="aiDrawerVisible"
-      title="AI 助手"
-      direction="rtl"
-      size="400px"
-      :with-header="false"
+    <div
+      v-if="aiDrawerVisible && !rightSidebarCollapsed"
       class="ai-polish-drawer"
     >
-    {{ aiDrawerVisible }}
-      <aiPolishing 
-        v-if="aiDrawerVisible && currentChatId" 
-        :chat-id="currentChatId"
+      <aiPolishing
+        v-if="currentCardId"
+        :key="`${currentCardId}-${currentConversationId}`"
+        :chat-id="currentCardId"
+        :conversation-id="currentConversationId"
         :initial-text="polishText"
       />
-    </el-drawer>
+  </div>
+    <div class="sidebar-div" :class="{ 'is-collapsed': rightSidebarCollapsed }">
+      <rightSidebar
+        :collapsed="rightSidebarCollapsed"
+        @toggle-collapse="handleToggleRightSidebar"
+        @open-drawer="handleOpenDrawer"
+      />
+    </div>
   </div>
 </template>
 <script setup>
@@ -61,15 +63,35 @@ const showSettings = ref(false);
 const isEditSettings = ref(false);
 const currentSettingCard = ref(null);
 const isPlacedTop = ref(false);
+const rightSidebarCollapsed = ref(false);
 
 // AI 抽屉相关
 const aiDrawerVisible = ref(false);
-const currentChatId = ref('');
+const currentCardId = ref('');
+const currentConversationId = ref('');
 const polishText = ref('');
 const AI_DRAWER_WIDTH = 400;
 
-const handleOpenDrawer = (id) => {
+const syncActiveChatId = async () => {
+  try {
+    const res = await ipc.invoke('controller.window.getSessions', { platform: t('whatsapp.title') });
+    const list = Array.isArray(res?.data) ? res.data : [];
+    const active = list.find(item =>
+      item.active_status === 'true' ||
+      item.active_status === true ||
+      item.activeStatus === 1 ||
+      item.activeStatus === 'true'
+    );
+    const activeId = active?.card_id || active?.cardId || '';
+    currentCardId.value = activeId ? String(activeId) : '';
+  } catch (error) {
+    console.error('sync active chat id failed:', error);
+  }
+};
+
+const handleOpenDrawer = async (id) => {
   if (id === 'ai') {
+    await syncActiveChatId();
     aiDrawerVisible.value = true;
     polishText.value = ''; // 如果是侧边栏手动打开，清空待润色文本
   }
@@ -78,22 +100,24 @@ const handleOpenDrawer = (id) => {
 onMounted(() => {
   // 监听来自 WhatsApp.js 的打开请求
   ipc.on('open-ai-polish-drawer', (event, data) => {
-    console.log('catid', data);
-    
-    currentChatId.value = data.chatId;
-    polishText.value = data.text || '';
+    currentCardId.value = data?.cardId || currentCardId.value;
+    currentConversationId.value = data?.conversationId || data?.chatId || currentConversationId.value;
+    polishText.value = data?.text || data?.originalText || '';
     aiDrawerVisible.value = true;
   });
 
   // 监听会话切换，同步 chatId
   ipc.on('chat-id-change', (event, data) => {
-    currentChatId.value = data.chatId;
+    currentCardId.value = data?.cardId || currentCardId.value;
+    currentConversationId.value = data?.conversationId || data?.chatId || '';
   });
+
+  syncActiveChatId();
 });
 
-watch(aiDrawerVisible, (visible) => {
+watch([aiDrawerVisible, rightSidebarCollapsed], ([visible, collapsed]) => {
   ipc.invoke('controller.window.setRightOverlayWidth', {
-    width: visible ? AI_DRAWER_WIDTH : 0
+    width: visible && !collapsed ? AI_DRAWER_WIDTH : 0
   }).catch((error) => {
     console.error('sync right overlay width failed:', error);
   });
@@ -107,6 +131,13 @@ onUnmounted(() => {
 
 const handleLayoutChange = (val) => {
   isPlacedTop.value = val;
+};
+
+const handleToggleRightSidebar = () => {
+  rightSidebarCollapsed.value = !rightSidebarCollapsed.value;
+  if (rightSidebarCollapsed.value) {
+    aiDrawerVisible.value = false;
+  }
 };
 
 const handleOpenSettings = (data) => {
@@ -203,5 +234,10 @@ const receiveCardId = (card)=> {
   background-color: #f8f9fa;
   border-left: 1px solid #e0e0e0;
   flex-shrink: 0;
+  transition: width 0.2s ease;
+}
+
+.sidebar-div.is-collapsed {
+  width: 70px;
 }
 </style>

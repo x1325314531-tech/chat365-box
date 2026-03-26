@@ -560,6 +560,80 @@ class Index extends Application {
       }
     });
     // 接收渲染进程发送的 IPC 消息，并执行 JS 操作
+    // Forward AI drawer open events from webview scripts to the main renderer.
+    ipcMain.on('open-ai-drawer', async (event, payload) => {
+      try {
+        const senderWebContents = event.sender;
+        const processId = senderWebContents?.id;
+        const data = payload && typeof payload === 'object' ? payload : {};
+
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (!mainWin || !mainWin.webContents) {
+          Log.warn('[open-ai-drawer] main window not found');
+          return;
+        }
+
+        let card = processId ? await app.sdb.selectOne('cards', { window_id: processId }) : null;
+        if (!card) {
+          card = await app.sdb.selectOne('cards', { active_status: 'true', platform: 'WhatsApp' });
+        }
+        const resolvedCardId = String(card?.card_id || '');
+        const conversationId = String(data.chatId || data.conversationId || '');
+        const rawText = data.originalText ?? data.text ?? '';
+        const text = typeof rawText === 'string' ? rawText : String(rawText || '');
+
+        mainWin.webContents.send('open-ai-polish-drawer', {
+          chatId: conversationId,
+          conversationId,
+          cardId: resolvedCardId,
+          text,
+          originalText: text,
+        });
+
+        if (resolvedCardId || conversationId) {
+          mainWin.webContents.send('chat-id-change', {
+            chatId: conversationId,
+            conversationId,
+            cardId: resolvedCardId,
+          });
+        }
+      } catch (error) {
+        Log.error('[open-ai-drawer] forward failed:', error);
+      }
+    });
+
+    // Forward contact switch events from WhatsApp webview to renderer.
+    ipcMain.on('chat-id-change', async (event, payload) => {
+      try {
+        const senderWebContents = event.sender;
+        const processId = senderWebContents?.id;
+        const data = payload && typeof payload === 'object' ? payload : {};
+
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (!mainWin || !mainWin.webContents) {
+          return;
+        }
+
+        let card = processId ? await app.sdb.selectOne('cards', { window_id: processId }) : null;
+        if (!card) {
+          card = await app.sdb.selectOne('cards', { active_status: 'true', platform: 'WhatsApp' });
+        }
+
+        const resolvedCardId = String(card?.card_id || '');
+        const conversationId = String(data.chatId || data.conversationId || '');
+
+        mainWin.webContents.send('chat-id-change', {
+          chatId: conversationId,
+          conversationId,
+          cardId: resolvedCardId,
+        });
+      } catch (error) {
+        Log.error('[chat-id-change] forward failed:', error);
+      }
+    });
+
     ipcMain.on('execute-js-operation', async (event,url) => {
       const platforms = app.platforms ?? []
       try {
