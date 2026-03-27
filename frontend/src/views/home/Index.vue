@@ -2,6 +2,9 @@
   <el-container style="height: 100vh;">
     <!-- 左侧导航栏 -->
     <el-aside width="50px" class="aside-menu">
+      <div class="aside-logo">
+        <img src="@/assets/slide/slide-login.png"/>
+      </div>
       <div class="nav-container">
         <div
             v-for="item in menuItems"
@@ -268,11 +271,23 @@ async function confirmLogout() {
 .aside-menu {
   position: relative; /* 为了定位底部按钮 */
   border-right: 1px solid #e0e0e0; /* 添加右侧边框 */
-  background-color: white;
+ background: linear-gradient(180deg, #DFEDF8 0%, #D8EFFD 31.25%, #F4F8FB 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: hidden; /* 不影响底部按钮 */
+}
+.aside-logo { 
+  width: 38px;
+  height: 38px;
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  img { 
+    width: 100%;
+    height: 100%;
+  }
 }
 .nav-container {
   width: 100%;
@@ -297,7 +312,8 @@ async function confirmLogout() {
 }
 
 .nav-item.active {
-  background-color: #f5f8ff; /* 激活状态背景 */
+  background-color: rgba(255, 255, 255, 0.5);
+; /* 激活状态背景 */
   color: white; /* 激活状态图标颜色 */
   border-right: 3px solid #52c41a;
 
