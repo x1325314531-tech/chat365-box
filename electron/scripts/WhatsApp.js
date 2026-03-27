@@ -360,6 +360,7 @@ let currentPdrAiSuggestion = '';
 let currentPdrTab = 'polish'; // polish | draft | rewrite
 let isPdrTranslationEnabled = false;
 let lastPolishedText = ''; // 记录最后一次润色后的文本，避免重复弹出面板
+const AI_TOOLBAR_COLLAPSE_STORAGE_KEY = 'chat365_whatsapp_ai_toolbar_collapsed';
 
 // 钱包地址正则 (ETH/BNB/TRON等)
 const walletAddressRegex = /\b0x[a-fA-F0-9]{40}\b/g;
@@ -2374,6 +2375,14 @@ function injectAiToolbar() {
     // 获取当前会话 ID
     const chatId = window._chat365_state.currentChatId || getCurrentChatId();
     if (!chatId) return;
+    if (typeof window._chat365_state.aiToolbarCollapsed !== 'boolean') {
+        try {
+            window._chat365_state.aiToolbarCollapsed = localStorage.getItem(AI_TOOLBAR_COLLAPSE_STORAGE_KEY) === '1';
+        } catch (error) {
+            window._chat365_state.aiToolbarCollapsed = false;
+            console.warn('读取 AI 工具栏折叠状态失败:', error);
+        }
+    }
 
     // 初始化该会话的独立配置 (如果不存在)
     if (!window._chat365_state._local_ai_configs[chatId]) {
@@ -2422,6 +2431,37 @@ function injectAiToolbar() {
 
     let toolbar = document.getElementById('chat365-ai-toolbar');
     const isChatChanged = window._chat365_state.lastToolbarChatId !== chatId;
+    const setToolbarCollapsedState = (collapsed) => {
+        window._chat365_state.aiToolbarCollapsed = !!collapsed;
+        try {
+            localStorage.setItem(AI_TOOLBAR_COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0');
+        } catch (error) {
+            console.warn('保存 AI 工具栏折叠状态失败:', error);
+        }
+    };
+
+    const applyToolbarCollapsedState = (container) => {
+        if (!container) return;
+        const collapsed = !!window._chat365_state.aiToolbarCollapsed;
+        const configArea = container.querySelector('#ai-toolbar-config-area');
+        const toggleBtn = container.querySelector('#ai-btn-config-collapse');
+
+        if (configArea) {
+            configArea.style.display = collapsed ? 'none' : 'flex';
+            configArea.style.marginLeft = collapsed ? '0' : '8px';
+            configArea.style.paddingLeft = collapsed ? '0' : '8px';
+            configArea.style.borderLeft = collapsed ? 'none' : '1px solid #eee';
+        }
+
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('is-collapsed', collapsed);
+            toggleBtn.title = collapsed ? '展开配置' : '收起配置';
+            const iconNode = toggleBtn.querySelector('.toggle-icon');
+            const textNode = toggleBtn.querySelector('.toggle-text');
+            if (iconNode) iconNode.textContent = collapsed ? '>' : '<';
+            if (textNode) textNode.textContent = collapsed ? '展开' : '收起';
+        }
+    };
 
     if (!toolbar) {
         toolbar = document.createElement('div');
@@ -2439,6 +2479,10 @@ function injectAiToolbar() {
             <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
                 AI润色
+            </div>
+            <div class="ai-toolbar-btn ai-toolbar-toggle-btn" id="ai-btn-config-collapse" title="收起配置">
+                <span class="toggle-icon">&lt;</span>
+                <span class="toggle-text">收起</span>
             </div>
             <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
                 <!-- 配置区域容器 -->
@@ -2461,7 +2505,7 @@ function injectAiToolbar() {
 
         if (!window._local_ai_config.enabled) {
             area.innerHTML = `
-                <div class="pdr-switch-container" style="flex-direction: row;">
+                <div class="pdr-switch-container" style="flex-direction: row; border-radius:8px; padding:6px 12px;  border: 1px solid #eee;">
                     <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置</span>
                     <label class="pdr-switch">
                         <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
@@ -2489,8 +2533,8 @@ function injectAiToolbar() {
             };
 
             area.innerHTML = `
-                <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px;">
-                    <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置</span>
+                <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px; border-radius:8px; padding:6px 12px;  border: 1px solid #eee;">
+                    <span style="font-size: 11px; opacity: 0.7;  font-weight: normal; color: #555;">独立AI配置</span>
                     <label class="pdr-switch">
                         <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
                         <span class="pdr-slider"></span>
@@ -2515,6 +2559,8 @@ function injectAiToolbar() {
             saveSessionIndependentAiConfig(chatId, window._local_ai_config);
             renderToolbarConfig(container);
         };
+
+        applyToolbarCollapsedState(container);
     };
 
     if (!document.getElementById('ai-toolbar-style')) {
@@ -2560,6 +2606,21 @@ function injectAiToolbar() {
                 box-shadow: 0 4px 10px rgba(46, 211, 106, 0.2);
             }
             .ai-toolbar-btn svg { color: #2ed36a; }
+            .ai-toolbar-toggle-btn {
+                min-width: 62px;
+                justify-content: center;
+                gap: 4px;
+            }
+            .ai-toolbar-toggle-btn .toggle-icon {
+                font-size: 10px;
+                line-height: 1;
+                font-weight: 700;
+            }
+            .ai-toolbar-toggle-btn.is-collapsed {
+                background: #f0fff4;
+                border-color: #2ed36a;
+                color: #2ed36a;
+            }
 
             .ai-custom-select {
                 position: relative; display: flex; align-items: center; border: 1px solid #dcdfe6;
@@ -2599,6 +2660,16 @@ function injectAiToolbar() {
     
     // 渲染初始配置区 (使用已有的或全局的)
     renderToolbarConfig(toolbar);
+
+    const collapseBtn = toolbar.querySelector('#ai-btn-config-collapse');
+    if (collapseBtn) {
+        collapseBtn.onclick = () => {
+            const nextCollapsed = !window._chat365_state.aiToolbarCollapsed;
+            setToolbarCollapsedState(nextCollapsed);
+            applyToolbarCollapsedState(toolbar);
+        };
+    }
+    applyToolbarCollapsedState(toolbar);
     
     toolbar.querySelector('#ai-btn-auto-polish').onclick = () => {
         const text = getInputContent();
@@ -3078,9 +3149,10 @@ function monitorMainNode() {
                         processImageMessageList(); 
                         processVoiceMessageList(); // 添加语音消息处理
                         initSidebarResize(); // 初始化侧边栏拉伸
-                        injectAiToolbar(); // 注入 AI 工具栏
+                        // injectAiToolbar(); // 注入 AI 工具栏
                         injectHeaderAiButton(); // 注入顶部 AI 按钮
                     }, 500);
+                     setTimeout(() => injectAiToolbar(), 5000);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
