@@ -1,49 +1,25 @@
 <script setup>
-import { computed, ref } from 'vue';
-import { Fold, Expand } from '@element-plus/icons-vue';
-
 const props = defineProps({
-  collapsed: {
+  aiVisible: {
     type: Boolean,
     default: false
   }
 });
 
-const activeItem = ref('ai');
-const emits = defineEmits(['open-drawer', 'toggle-collapse']);
+const emits = defineEmits(['open-drawer']);
 
-const expandLabel = computed(() => (props.collapsed ? '展开' : '收起'));
-const expandIcon = computed(() => (props.collapsed ? Expand : Fold));
-
-const handleItemClick = (id) => {
-  if (id === 'expand') {
-    emits('toggle-collapse');
-    return;
-  }
-
-  activeItem.value = id;
-  emits('open-drawer', id);
+const handleItemClick = () => {
+  emits('open-drawer', 'ai');
 };
 </script>
 
 <template>
-  <div class="right-sidebar" :class="{ collapsed }">
+  <div class="right-sidebar">
     <div class="menu-container">
       <div
-        class="menu-item"
-        :class="{ active: collapsed }"
-        @click="handleItemClick('expand')"
-      >
-        <div class="icon-wrapper">
-          <el-icon :size="20"><component :is="expandIcon" /></el-icon>
-        </div>
-        <span class="label">{{ expandLabel }}</span>
-      </div>
-
-      <div
         class="menu-item ai-item"
-        :class="{ active: activeItem === 'ai' }"
-        @click="handleItemClick('ai')"
+        :class="{ active: props.aiVisible }"
+        @click="handleItemClick"
       >
         <div class="icon-wrapper ai-icon-bg">
           <div class="ai-logo">
@@ -136,15 +112,5 @@ const handleItemClick = (id) => {
 .menu-item.active .icon-wrapper {
   outline: 2px solid #28c05d;
   outline-offset: 2px;
-}
-
-.right-sidebar.collapsed .menu-container {
-  gap: 14px;
-}
-
-
-
-.right-sidebar.collapsed .icon-wrapper {
-  margin-bottom: 0;
 }
 </style>

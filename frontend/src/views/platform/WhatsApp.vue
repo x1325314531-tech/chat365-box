@@ -25,9 +25,9 @@
     </div>
  
 
-    <!-- AI 润色抽屉 -->
+    <!-- AI polish drawer -->
     <div
-      v-if="aiDrawerVisible && !rightSidebarCollapsed"
+      v-if="aiDrawerVisible"
       class="ai-polish-drawer"
     >
       <aiPolishing
@@ -38,10 +38,9 @@
         :initial-text="polishText"
       />
   </div>
-    <div class="sidebar-div" :class="{ 'is-collapsed': rightSidebarCollapsed }">
+    <div class="sidebar-div">
       <rightSidebar
-        :collapsed="rightSidebarCollapsed"
-        @toggle-collapse="handleToggleRightSidebar"
+        :ai-visible="aiDrawerVisible"
         @open-drawer="handleOpenDrawer"
       />
     </div>
@@ -63,9 +62,8 @@ const showSettings = ref(false);
 const isEditSettings = ref(false);
 const currentSettingCard = ref(null);
 const isPlacedTop = ref(false);
-const rightSidebarCollapsed = ref(false);
 
-// AI 抽屉相关
+// AI drawer state
 const aiDrawerVisible = ref(false);
 const currentCardId = ref('');
 const currentConversationId = ref('');
@@ -92,14 +90,19 @@ const syncActiveChatId = async () => {
 
 const handleOpenDrawer = async (id) => {
   if (id === 'ai') {
-    await syncActiveChatId();
-    aiDrawerVisible.value = true;
-    polishText.value = ''; // 如果是侧边栏手动打开，清空待润色文本
+    const nextVisible = !aiDrawerVisible.value;
+
+    if (nextVisible) {
+      await syncActiveChatId();
+      polishText.value = ''; // Clear manual input when opening from sidebar
+    }
+
+    aiDrawerVisible.value = nextVisible;
   }
 };
 
 onMounted(() => {
-  // 监听来自 WhatsApp.js 的打开请求
+  // Listen for open requests from WhatsApp.js
   ipc.on('open-ai-polish-drawer', (event, data) => {
     currentCardId.value = data?.cardId || currentCardId.value;
     currentConversationId.value = data?.conversationId || data?.chatId || currentConversationId.value;
@@ -107,7 +110,7 @@ onMounted(() => {
     aiDrawerVisible.value = true;
   });
 
-  // 监听会话切换，同步 chatId
+  // Listen for conversation switch and sync chat id
   ipc.on('chat-id-change', (event, data) => {
     const nextCardId = data?.cardId || currentCardId.value;
     const nextConversationId = data?.conversationId || data?.chatId || '';
@@ -118,7 +121,7 @@ onMounted(() => {
     currentCardId.value = nextCardId;
     currentConversationId.value = nextConversationId;
 
-    // 切换联系人时清空润色内容，避免沿用上一个会话的原文与建议
+    // Reset polish content when conversation changes to avoid stale text.
     if (hasConversationChanged) {
       polishText.value = '';
     }
@@ -127,8 +130,8 @@ onMounted(() => {
   syncActiveChatId();
 });
 
-watch([aiDrawerVisible, rightSidebarCollapsed], ([visible, collapsed]) => {
-  const reservedWidth = visible && !collapsed
+watch(aiDrawerVisible, (visible) => {
+  const reservedWidth = visible
     ? AI_DRAWER_WIDTH + RIGHT_SIDEBAR_WIDTH
     : RIGHT_SIDEBAR_WIDTH;
 
@@ -149,12 +152,6 @@ const handleLayoutChange = (val) => {
   isPlacedTop.value = val;
 };
 
-const handleToggleRightSidebar = () => {
-  rightSidebarCollapsed.value = !rightSidebarCollapsed.value;
-  if (rightSidebarCollapsed.value) {
-    aiDrawerVisible.value = false;
-  }
-};
 
 const handleOpenSettings = (data) => {
   if (data) {
@@ -188,15 +185,15 @@ const handleSettingsCancel = () => {
   }
 };
 
-// # 定义通信频道，即路由
+// # Define IPC route
 const ipcApiRoute = {
   addSession: 'controller.window.addSession',
 }
 const receiveCardId = (card)=> {
   const args = {cardId:card.cardId,title:card.title,online:card.online,platform:t('whatsapp.title'),activeStatus:true}
-  //初始化机器码
+  // Initialize session
   ipc.invoke(ipcApiRoute.addSession, args).then(res => {
-    // console.log('收到数据：',res)
+    // console.log('received data:', res)
   })
 }
 
@@ -255,9 +252,6 @@ const receiveCardId = (card)=> {
   z-index: 3;
 }
 
-.sidebar-div.is-collapsed {
-  width: 70px;
-}
 
 .ai-polish-drawer {
   width: 330px;
@@ -270,3 +264,4 @@ const receiveCardId = (card)=> {
   z-index: 2;
 }
 </style>
+
