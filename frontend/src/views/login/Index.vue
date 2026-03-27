@@ -1,36 +1,29 @@
 <template>
   <div class="login-page">
-    <div class="login-container">
-      <div class="info-container">
-        <div ref="animationContainer" class="animation">
-          <img src ="@/assets/images/logo_bg.png" class="bg-img" />
+    <!-- 顶部语言切换 -->
+    <div class="header-tools">
+      <el-dropdown @command="switchLang" trigger="click" class="lang-dropdown">
+        <div class="lang-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span class="lang-text">{{ currentLocale === 'zh' ? '简体中文' : (currentLocale === 'en' ? 'English' : 'Français') }}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-      </div>
-    
-      <div class="login-form">
-        <!-- 语言切换 -->
-        <div class="select-language">
-          <el-dropdown @command="switchLang" trigger="click">
-            <span class="lang-trigger">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              {{ currentLocale === 'zh' ? '简体中文' : (currentLocale === 'en' ? 'English' : 'Français') }}
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="zh" :class="{ 'is-active': currentLocale === 'zh' }">简体中文</el-dropdown-item>
-                <el-dropdown-item command="en" :class="{ 'is-active': currentLocale === 'en' }">English</el-dropdown-item>
-                <el-dropdown-item command="fr" :class="{ 'is-active': currentLocale === 'fr' }">Français</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="zh" :class="{ 'is-active': currentLocale === 'zh' }">简体中文</el-dropdown-item>
+            <el-dropdown-item command="en" :class="{ 'is-active': currentLocale === 'en' }">English</el-dropdown-item>
+            <el-dropdown-item command="fr" :class="{ 'is-active': currentLocale === 'fr' }">Français</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </div>
 
+    <!-- 居中登录框包裹区 -->
+    <div class="login-wrapper">
+      <div class="login-form">
         <div class="logo">
           <img src="@/assets/images/logo.png" alt="Logo" class="logo-img" />
-          <h1 class="hero-title">
-            <span class="gradient-text">Chat365</span>
-          </h1>
+          <h1 class="hero-title">Chat 365</h1>
         </div>
 
         <el-form
@@ -47,18 +40,18 @@
             <el-input v-model="form.password" :placeholder="t('login.passwordPlaceholder')" :prefix-icon="Lock" type="password" show-password class="input-item" size="large" />
           </el-form-item>
           <el-form-item v-if="isMachineCode">
-            <el-input v-model="form.machineCode" :placeholder="t('login.machineCodePlaceholder')" readonly class="input-item">
+            <el-input v-model="form.machineCode" :placeholder="t('login.machineCodePlaceholder')" readonly class="input-item" size="large">
               <template #append>
                 <el-button size="large" @click="copyMachineCode" :icon="DocumentCopy" />
               </template>
             </el-input>
           </el-form-item>
           <el-form-item prop="agree" class="form-item-agree">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; width: 100%;">
               <label class="agreement-label">
                 <input type="checkbox" v-model="form.agree" class="agreement-checkbox" />
                 <span class="agreement-text">{{ t('login.agreeText') }}</span>
-                <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">{{ t('login.agreementLink') }}</a>
+                <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">【{{ t('login.agreementLink') }}】</a>
               </label>
             </div>
           </el-form-item>
@@ -369,182 +362,127 @@ const handleLogin = async () => {
 <style scoped>
 .login-page {
   display: flex;
-  justify-content: center;
-  align-items: center;
   width: 100vw;
   height: 100vh;
-  background-color: #f5f8fa;
-}
-
-.login-container {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.1);
-}
-
-.info-container {
-  width: 82%;
-  padding: 0;
-  color: white;
-  /* background-color: #2878f0; */
-  background-color: #ffffff;
+  background: url('@/assets/images/chat_login_bg.png') no-repeat center center;
+  background-size: cover;
   position: relative;
-  overflow: hidden;
 }
 
-.info-container h2 {
-  font-size: 24px;
-  margin-bottom: 10px;
+/* 顶部语言切换钮 */
+.header-tools {
+  position: absolute;
+  top: 30px;
+  right: 40px;
+  z-index: 10;
 }
 
-.info-container p {
-  font-size: 16px;
-  text-align: center;
+.lang-btn {
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  color: #333;
+  font-size: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
 }
 
-.animation {
+.lang-btn:hover {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.lang-text {
+  margin: 0 6px;
+  font-weight: 500;
+}
+
+/* 右侧表单区布局 */
+.login-wrapper {
+  display: flex;
   width: 100%;
   height: 100%;
-  display: flex;
-  justify-content: center;
+  justify-content: flex-end; /* 靠右对齐 */
   align-items: center;
+  padding-right: 12%; /* 右侧间距 */
 }
 
-.bg-img {
-  width: 100%;
-   height: 100%; 
-  object-fit: cover; 
-}
-
+/* 根据图片，表单容器是一个带有白色白透效果的块 */
 .login-form {
-  width: 40%;
-  padding: 40px;
+  width: 440px;
+  padding: 45px 50px;
+  background: rgba(230, 245, 255, 0.7); /* 偏蓝透亮背景色 */
+  backdrop-filter: blur(15px);
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  background-color: #ffffff;
-  justify-content: center;
-  position: relative;
 }
-.select-language { 
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border: 1px solid #dedede;
-  border-radius: 4px;
-  width: 100px;
-}
+
 .logo {
-  text-align: center;
-  margin-bottom: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 40px;
 }
 
 .logo-img {
-  width: 68px;
+  width: 52px;
   height: auto;
-  margin-bottom: 15px;
+  margin-right: 10px;
+  border-radius: 12px;
 }
 
 .hero-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #333;
+  font-size: 32px;
+  font-weight: 800;
+  color: #000;
   margin: 0;
-}
-
-.gradient-text {
-  font-size: 60px;
-  /* background: linear-gradient(90deg, #f4da0d, #67e76a, rgba(189, 21, 21, 0.99), #119ee2, #fbc2eb); */
-  background-color: #2377dd;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero-subtitle {
-  font-size: 1rem;
-  color: #666;
-  margin-top: 0.5rem;
+  letter-spacing: 0.5px;
 }
 
 .input-container {
   width: 100%;
-  margin-top: 30px;
-  display: flex;
-  flex-direction: column; /* 垂直排列 */
-  justify-content: center; /* 垂直居中 */
 }
 
 .input-item {
-  margin-bottom: 8px; /* 增加间距 */
+  margin-bottom: 8px; 
 }
 
-.input {
-  width: 100%;
-  padding: 15px;
-  margin-bottom: 10px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  outline: none;
-  font-size: 16px;
+/* 深度覆盖 el-input 样式，使其看起来圆润白净 */
+:deep(.el-input__wrapper) {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+  height: 54px;
 }
 
-.forgot-password {
-  color: #888;
-  font-size: 14px;
-  margin-top: 10px;
-  text-decoration: none;
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #28a745 !important;
 }
 
-.login-button {
-  margin-top: 20px;
-  width: 100%; /* 改成全宽 */
-  height: 50px;
-  border-radius: 25px; /* 圆角 */
-  background-color: #28a745;
-  color: white;
-  font-size: 16px;
-  font-weight: bold;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.3s;
+:deep(.el-input__inner) {
+  font-size: 15px;
+  color: #333;
+}
+:deep(.el-input__prefix-inner) {
+  color: #999;
 }
 
-.login-button:hover {
-  background-color: #218838; /* 悬停效果 */
-}
-
-/* agree form-item 减少底部空间 */
+/* 用户协议条 */
 .form-item-agree {
-  margin-bottom: 0;
-}
-
-/* 让包含登录按钮的 form-item 撑满宽度 */
-:deep(.el-form-item__content) {
-  width: 100%;
-}
-
-.service-agreement {
-  width: 100%;
-  margin-top: 8px;
-  margin-bottom: 2px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .agreement-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   user-select: none;
 }
@@ -554,12 +492,32 @@ const handleLogin = async () => {
   height: 16px;
   flex-shrink: 0;
   cursor: pointer;
-  accent-color: #28a745;
+  accent-color: #ccc;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  appearance: none;
+  background-color: #fff;
+  position: relative;
+}
+.agreement-checkbox:checked {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+.agreement-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .agreement-text {
   font-size: 13px;
-  color: #555;
+  color: #888;
 }
 
 .agreement-link {
@@ -568,5 +526,24 @@ const handleLogin = async () => {
   text-decoration: none;
 }
 
+/* 登录大按钮 */
+.login-button {
+  margin-top: 25px;
+  width: 100%; 
+  height: 52px;
+  border-radius: 10px; 
+  background-color: #17A948;
+  color: white;
+  font-size: 17px;
+  font-weight: bold;
+  border: none;
+  letter-spacing: 2px;
+}
 
+.login-button:hover {
+  background-color: #138D3C; 
+}
+:deep(.el-form-item__content) {
+  width: 100%;
+}
 </style>

@@ -566,6 +566,7 @@ async function sendImmediate() {
   color: #2b302d;
   font-weight: 600;
   margin-bottom: 8px;
+  text-align: left;
 }
 
 .style-row {
