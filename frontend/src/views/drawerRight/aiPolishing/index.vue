@@ -272,9 +272,11 @@ async function handlePolish() {
 async function handleTranslate() {
   if (!polishedText.value) return;
   try {
-    const res = await post('/app/agent/translate', {
+    const res = await post('/app/translate', {
       text: polishedText.value,
-      target: 'zh'
+     targetLang: "zh",
+      fromLang: "en"
+
     });
     if (res && res.code === 200) {
       translatedText.value = res.data;
@@ -282,6 +284,15 @@ async function handleTranslate() {
   } catch (e) {
     console.error('handleTranslate failed', e);
   }
+}
+
+async function handleTranslationToggle(enabled) {
+  if (!enabled) {
+    translatedText.value = '';
+    return;
+  }
+  if (!polishedText.value) return;
+  await handleTranslate();
 }
 
 async function applyToDraft() {
@@ -343,8 +354,19 @@ async function sendImmediate() {
 
           <div class="right-col">
             <div class="block-label suggest-label">
-              <span class="star">✦</span>
-              <span>AI Suggestions (润色建议)</span>
+              <div class="suggest-label-left">
+                <span class="star">✦</span>
+                <span>AI Suggestions (润色建议)</span>
+              </div>
+              <div class="suggest-tools">
+                <span class="translate-text">翻译中文</span>
+                <el-switch
+                  v-model="isTranslationEnabled"
+                  class="translate-switch"
+                  style="--el-switch-on-color: #22C55E; --el-switch-off-color: #bfbfbf"
+                  @change="handleTranslationToggle"
+                />
+              </div>
             </div>
             <div class="suggestion-box" :class="{ 'is-empty': !isLoading && !polishedText }" v-loading="isLoading">
               <template v-if="polishedText">
@@ -367,25 +389,23 @@ async function sendImmediate() {
         <div class="style-panel">
           <div class="style-title">回复风格</div>
 
-          <div class="style-row">
-            <span class="style-name">回复语调：</span>
-            <el-tag class="style-tag" round>{{ toneDisplayName }}</el-tag>
-          </div>
-
-          <div class="style-row">
-            <span class="style-name">回复主题：</span>
-            <el-tag class="style-tag" round>{{ themeDisplayName }}</el-tag>
-          </div>
-
-          <div class="style-row">
-            <span class="style-name">回复角色：</span>
-            <el-tag class="style-tag" round>{{ roleDisplayName }}</el-tag>
+          <div class="style-inline-row">
+            <div class="style-item">
+              <span class="style-name">语调：</span>
+              <el-tag class="style-tag" round>{{ toneDisplayName }}</el-tag>
+            </div>
+            <div class="style-item">
+              <span class="style-name">主题：</span>
+              <el-tag class="style-tag" round>{{ themeDisplayName }}</el-tag>
+            </div>
+            <div class="style-item">
+              <span class="style-name">角色：</span>
+              <el-tag class="style-tag" round>{{ roleDisplayName }}</el-tag>
+            </div>
           </div>
         </div>
 
         <div class="bottom-actions">
-          <!-- <el-button class="action-btn action-primary" :disabled="!polishedText" @click="applyToDraft">
-            鏇挎崲鍒拌崏绋?          </el-button> -->
           <el-button class="action-btn  action-primary" :disabled="!polishedText" @click="sendImmediate">
            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             发送聊天
@@ -547,7 +567,31 @@ async function sendImmediate() {
   color: #20ab59;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.suggest-label-left {
+  display: inline-flex;
+  align-items: center;
   gap: 5px;
+}
+
+.suggest-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #6a756e;
+}
+
+.translate-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.translate-switch {
+  transform: scale(0.9);
+  transform-origin: right center;
 }
 
 .original-input :deep(.el-textarea__inner) {
@@ -657,30 +701,48 @@ async function sendImmediate() {
   text-align: left;
 }
 
-.style-row {
+.style-inline-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
 }
 
-.style-row:last-child {
-  margin-bottom: 0;
+.style-inline-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.style-inline-row::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: rgba(58, 130, 89, 0.2);
+}
+
+.style-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid #d7e4db;
+  border-radius: 999px;
+  padding: 4px 8px;
 }
 
 .style-name {
-  width: 76px;
   color: #68726b;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .style-tag {
   --el-tag-bg-color: #e4f8e8;
   --el-tag-border-color: #2ec66d;
   --el-tag-text-color: #24a65a;
-  height: 28px;
-  padding: 0 14px;
-  font-size: 13px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .bottom-actions {

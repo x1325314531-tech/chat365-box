@@ -2507,9 +2507,17 @@ function injectAiToolbar() {
             area.innerHTML = `
                 <div class="pdr-switch-container" style="flex-direction: row; border-radius:8px; padding:6px 12px;  border: 1px solid #eee;">
                     <span style="font-size: 11px; opacity: 0.7; font-weight: normal; color: #555;">独立AI配置</span>
-                    <label class="pdr-switch">
-                        <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
-                        <span class="pdr-slider"></span>
+                    <label class="pdr-switch" style="pointer-events: none; opacity: 0.7;">
+                        <input
+                            type="checkbox"
+                            id="local-ai-toggle"
+                            data-display-only="1"
+                            tabindex="-1"
+                            aria-disabled="true"
+                            ${window._local_ai_config.enabled ? 'checked' : ''}
+                            style="accent-color: #22C55E; pointer-events: none;"
+                        >
+                        <span class="pdr-slider" style="background: ${window._local_ai_config.enabled ? '#22C55E' : '#dcdfe6'};"></span>
                     </label>
                 </div>
                 <div style="display: flex; gap: 4px; border: 1px solid #2ed36a; border-radius: 12px; padding: 6px 12px; font-size: 11px; color: #2ed36a; background: rgba(46, 211, 106, 0.05);">
@@ -2535,9 +2543,17 @@ function injectAiToolbar() {
             area.innerHTML = `
                 <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px; border-radius:8px; padding:6px 12px;  border: 1px solid #eee;">
                     <span style="font-size: 11px; opacity: 0.7;  font-weight: normal; color: #555;">独立AI配置</span>
-                    <label class="pdr-switch">
-                        <input type="checkbox" id="local-ai-toggle" ${window._local_ai_config.enabled ? 'checked' : ''}>
-                        <span class="pdr-slider"></span>
+                    <label class="pdr-switch" style="pointer-events: none; opacity: 0.7;">
+                        <input
+                            type="checkbox"
+                            id="local-ai-toggle"
+                            data-display-only="1"
+                            tabindex="-1"
+                            aria-disabled="true"
+                            ${window._local_ai_config.enabled ? 'checked' : ''}
+                            style="accent-color: #22C55E; pointer-events: none;"
+                        >
+                        <span class="pdr-slider" style="background: ${window._local_ai_config.enabled ? '#22C55E' : '#dcdfe6'};"></span>
                     </label>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
@@ -2548,17 +2564,20 @@ function injectAiToolbar() {
             `;
         }
 
-        area.querySelector('#local-ai-toggle').onchange = (e) => {
-            window._local_ai_config.enabled = e.target.checked;
-            if (window._local_ai_config.enabled) {
-                // Initialize default local values from global if empty
-                if (!window._local_ai_config.tone) window._local_ai_config.tone = globalAiConfig?.tone;
-                if (!window._local_ai_config.theme) window._local_ai_config.theme = globalAiConfig?.theme;
-                if (!window._local_ai_config.role) window._local_ai_config.role = globalAiConfig?.role;
-            }
-            saveSessionIndependentAiConfig(chatId, window._local_ai_config);
-            renderToolbarConfig(container);
-        };
+        const localAiToggle = area.querySelector('#local-ai-toggle');
+        if (localAiToggle && localAiToggle.dataset.displayOnly !== '1') {
+            localAiToggle.onchange = (e) => {
+                window._local_ai_config.enabled = e.target.checked;
+                if (window._local_ai_config.enabled) {
+                    // Initialize default local values from global if empty
+                    if (!window._local_ai_config.tone) window._local_ai_config.tone = globalAiConfig?.tone;
+                    if (!window._local_ai_config.theme) window._local_ai_config.theme = globalAiConfig?.theme;
+                    if (!window._local_ai_config.role) window._local_ai_config.role = globalAiConfig?.role;
+                }
+                saveSessionIndependentAiConfig(chatId, window._local_ai_config);
+                renderToolbarConfig(container);
+            };
+        }
 
         applyToolbarCollapsedState(container);
     };
@@ -3149,10 +3168,9 @@ function monitorMainNode() {
                         processImageMessageList(); 
                         processVoiceMessageList(); // 添加语音消息处理
                         initSidebarResize(); // 初始化侧边栏拉伸
-                        // injectAiToolbar(); // 注入 AI 工具栏
+                        injectAiToolbar(); // 注入 AI 工具栏
                         injectHeaderAiButton(); // 注入顶部 AI 按钮
                     }, 500);
-                     setTimeout(() => injectAiToolbar(), 5000);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
