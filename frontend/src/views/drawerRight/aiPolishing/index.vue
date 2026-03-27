@@ -513,6 +513,18 @@ async function sendImmediate() {
   margin: 0 0 10px;
 }
 
+.ai-tabs :deep(.el-tabs__item.is-active) {
+  color: #22C55E;
+}
+
+.ai-tabs :deep(.el-tabs__item:hover) {
+  color: #22C55E;
+}
+
+.ai-tabs :deep(.el-tabs__active-bar) {
+  background-color: #22C55E;
+}
+
 .ai-tabs :deep(.el-tabs__content) {
   flex: 1;
   overflow: auto;

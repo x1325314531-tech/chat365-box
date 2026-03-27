@@ -1,101 +1,64 @@
 <template>
-  <el-container direction="vertical" style="height: 100%; padding: 20px; box-sizing: border-box; overflow-y: auto;">
-    <!-- 顶部部分 -->
-        <div class="header-top">
-          <el-row :gutter="20">
-            <el-col :xs="24" :sm="12" :md="12" :lg="6">
-             <el-card shadow="hover">
-             <div class="countdown">
+  <div class="home-page-container">
+    <!-- 顶部导航栏 -->
+    <div class="top-nav">
+      <div class="nav-left">
+        <div class="nav-item">
           <el-icon><AlarmClock /></el-icon>
-          <span class="countdown-tex">{{ currentTime }}</span>
+          <span class="nav-text">{{ currentTime }}</span>
         </div>
-          </el-card>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="12" :lg="6">
-              <el-card shadow="hover">
-                <div class="clear-cache-content">
-                  <i class="iconfont icon-qingchu"></i>
-                  {{ $t('home.clearCache') }}
-                </div>
-              </el-card>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="12" :lg="6">
-                  <el-card shadow="hover">
-                 <div class="select-language">
-                   <el-dropdown trigger="click" @command="handleLangChange">
-                     <span class="lang-trigger">
-                       <i class="iconfont icon-language language"></i>
-                       {{ currentLangLabel }}
-                       <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                     </span>
-                     <template #dropdown>
-                       <el-dropdown-menu>
-                         <el-dropdown-item
-                           v-for="lang in langOptions"
-                           :key="lang.value"
-                           :command="lang.value"
-                           :class="{ 'is-active': locale === lang.value }"
-                         >
-                           {{ lang.flag }} {{ lang.label }}
-                         </el-dropdown-item>
-                       </el-dropdown-menu>
-                     </template>
-                   </el-dropdown>
-                 </div>
-               </el-card>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="12" :lg="6">
-              <el-card shadow="hover">
-              <div class="card-item version-card">
-                <UpdateVersion/>
-              </div>
-              </el-card>
-            </el-col>
-          </el-row>
-       
-       
+        <div class="nav-item btn-item" @click="handleClearCache">
+          <i class="iconfont icon-qingchu"></i>
+          <span class="nav-text">{{ $t('home.clearCache') }}</span>
+        </div>
+        <div class="nav-item update-item">
+          <UpdateVersion/>
+        </div>
       </div>
-      
-      <!-- 用户信息区域 -->
-      <div class="header-user-info">
-        <div class="greeting">{{ $t('home.greeting', { name: userInfo.name || 'User' }) }}</div>
-        <div class="info-cards-row">
+      <div class="nav-right">
+        <!-- 多语言 -->
+        <el-dropdown trigger="click" @command="handleLangChange">
+           <div class="nav-item btn-item lang-trigger">
+             <i class="iconfont icon-language language"></i>
+             <span class="nav-text" style="color: #666">{{ currentLangLabel }}</span>
+           </div>
+           <template #dropdown>
+             <el-dropdown-menu>
+               <el-dropdown-item v-for="lang in langOptions" :key="lang.value" :command="lang.value" :class="{ 'is-active': locale === lang.value }">
+                 {{ lang.flag }} {{ lang.label }}
+               </el-dropdown-item>
+             </el-dropdown-menu>
+           </template>
+        </el-dropdown>
+        <!-- 退出登录 -->
+        <div class="nav-item btn-item" @click="handleLogout">
+          <el-icon class="logout-icon"><SwitchButton /></el-icon>
+          <span class="nav-text">{{ $t('home.logout', '退出登录') }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 用户信息与充值模块 -->
+    <div class="info-section">
+      <div class="user-info-card">
+        <div class="user-greeting">{{ $t('home.greeting', { name: userInfo.name || 'User' }) }}</div>
+        <div class="info-metrics">
           <!-- 账户类型 -->
-          <div class="info-card-item">
-            <div class="info-icon account-icon">
-              <svg viewBox="0 0 24 24" width="40" height="40">
-                <circle cx="12" cy="8" r="5" fill="#1890ff"/>
-                <path d="M12 14c-6 0-9 3-9 6v1h18v-1c0-3-3-6-9-6z" fill="#1890ff"/>
-                <circle cx="18" cy="16" r="4" fill="#40a9ff" stroke="#fff" stroke-width="1"/>
-                <path d="M16 16h4M18 14v4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <div class="info-text">
-              <span class="info-label">{{ $t('home.accountType') }}</span>
-              <span class="info-value">{{ $t('home.accountValue') }}</span>
+          <div class="metric-item">
+            <img :src="subaccountIcon" class="metric-icon" />
+            <div class="metric-text-box">
+              <div class="metric-label">{{ $t('home.accountType') }}</div>
+              <div class="metric-value">{{ $t('home.accountValue') }}</div>
             </div>
           </div>
-
           <!-- 可用字符 -->
-          <div class="info-card-item">
-            <div class="info-icon chars-icon">
-              <svg viewBox="0 0 24 24" width="40" height="40">
-                <path d="M4 4h12l4 4v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" fill="#ffa940"/>
-                <path d="M6 8h8M6 12h6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-                <circle cx="17" cy="17" r="5" fill="#1890ff"/>
-                <path d="M15.5 17h3M17 15.5v3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <div class="info-text">
-              <span class="info-label">{{ $t('home.availableChars') }}</span>
-              <span class="info-value">
+          <div class="metric-item">
+            <img :src="charQuotaIcon" class="metric-icon" />
+            <div class="metric-text-box">
+              <div class="metric-label">{{ $t('home.availableChars') }}</div>
+              <div class="metric-value">
                 {{ availableChars }}
-                <el-popover
-                  placement="bottom-start"
-                  :width="280"
-                  trigger="hover"
-                  popper-class="char-details-popover"
-                >
+                <el-popover placement="bottom-start" :width="280" trigger="hover" popper-class="char-details-popover">
                   <template #reference>
                     <el-icon class="info-question"><QuestionFilled /></el-icon>
                   </template>
@@ -120,88 +83,68 @@
                     </div>
                   </div>
                 </el-popover>
-              </span>
+              </div>
             </div>
           </div>
-
           <!-- 可用端口 -->
-          <div class="info-card-item">
-            <div class="info-icon port-icon">
-              <svg viewBox="0 0 24 24" width="40" height="40">
-                <rect x="2" y="4" width="14" height="16" rx="2" fill="#1890ff"/>
-                <circle cx="9" cy="10" r="3" fill="#fff"/>
-                <rect x="6" y="14" width="6" height="3" rx="1" fill="#fff"/>
-                <rect x="10" y="6" width="12" height="14" rx="2" fill="#40a9ff"/>
-                <path d="M14 10h4M14 13h4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <div class="info-text">
-              <span class="info-label">{{ $t('home.availablePorts') }}</span>
-              <span class="info-value">{{charInfo.usedPortCount}}/{{ charInfo.totalPortCount }}</span>
+          <div class="metric-item">
+            <img :src="portQuotaIcon" class="metric-icon" />
+            <div class="metric-text-box">
+              <div class="metric-label">{{ $t('home.availablePorts') }}（已用/总数）</div>
+              <div class="metric-value">{{charInfo.usedPortCount}}/{{ charInfo.totalPortCount }}</div>
             </div>
           </div>
         </div>
       </div>
-       <!-- 快捷入口-->
-      <div class="quick-access">
-        <div class="quick-access-title">{{ $t('home.quickAccess') }}</div>
-        <div class="quick-access-grid">
-          <div 
-            class="quick-item" 
-            v-for="(item, index) in quickAccessList" 
-            :key="index"
-            @click="handleQuickAccess(item)"
-          >
-            <div class="quick-icon">
-              <img :src="item.icon" :alt="item.titleKey" width="36" height="36" />
-            </div>
-            <div class="quick-text">
-              <span class="quick-title">{{ $t(item.titleKey) }}</span>
-              <span class="quick-desc">{{ $t(item.descKey) }}</span>
-            </div>
+
+      <div class="recharge-card">
+        <div class="recharge-text">
+          <div class="recharge-title">套餐续费</div>
+          <div class="recharge-subtitle">续享套餐优惠<br/>特权不断</div>
+          <el-button type="success" color="#2cd67a" class="recharge-btn">前往充值</el-button>
+        </div>
+        <div class="recharge-illustration">
+          <img :src="planRenewalIcon" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 快捷入口模块 -->
+    <div class="quick-access-section">
+      <div class="section-title">{{ $t('home.quickAccess') }}</div>
+      <div class="quick-grid">
+        <div class="quick-item" v-for="(item, index) in quickAccessList" :key="index" @click="handleQuickAccess(item)">
+          <div class="quick-item-icon">
+            <img :src="item.icon" :alt="item.titleKey" />
+          </div>
+          <div class="quick-item-text">
+            <div class="quick-item-title">{{ $t(item.titleKey) }}</div>
+            <div class="quick-item-desc">{{ $t(item.descKey) }}</div>
           </div>
         </div>
       </div>
-    <el-header style="display: flex; align-items: stretch; gap: 20px; height: 250px;">
-      
-      <!-- 左侧轮播图 -->
-      <el-carousel autoplay height="100%" class="carousel-container">
-        <el-carousel-item v-for="(color, index) in colors" :key="index">
-          <div class="carousel-item" :style="{ backgroundColor: color }"></div>
-        </el-carousel-item>
-      </el-carousel>
-
-      <!-- 右侧信息展示区 -->
-      <el-card class="info-card" :style="{ height: '100%' }">
-        <div class="info-content">
-          <h3>------</h3>
-          <p>{{ $t('home.planRemaining') }}：<strong>----条</strong></p>
-          <p>{{ $t('home.sessionPorts') }}：<strong>---</strong> <el-icon><i class="el-icon-chat-dot-square"></i></el-icon></p>
-          <el-button type="success" size="small">{{ $t('home.renewPlan') }}</el-button>
-        </div>
-      </el-card>
-    </el-header>
-
-    <!-- 内容主体部分 -->
-    <el-main style="flex: none; overflow: visible;" v-if="chartShow">
-      <el-card>
+    </div>
+    
+    <!-- 底部隐藏图表保持功能 -->
+    <div v-if="chartShow" class="chart-section" style="margin-top: 20px;">
+       <el-card>
         <div class="title">{{ $t('home.dataStats') }}</div>
         <LineChart />
       </el-card>
-    </el-main>
-  </el-container>
-
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { AlarmClock, QuestionFilled, ArrowDown, Refresh } from '@element-plus/icons-vue'
+import { AlarmClock, QuestionFilled, Refresh, SwitchButton } from '@element-plus/icons-vue'
 import LineChart from '../components/LineChart.vue'
-import Notification from "@/utils/notification";
+import Notification from "@/utils/notification"
 import UpdateVersion from '@/views/components/UpdateVersion.vue'
-import { get } from '@/utils/request'
+import { get, del } from '@/utils/request'
+import { ipc } from '@/utils/ipcRenderer'
 import useSocketIO from '@/utils/useSocketIO'
 
 // WebSocket 
@@ -218,7 +161,7 @@ const langOptions = [
 
 const currentLangLabel = computed(() => {
   const found = langOptions.find(l => l.value === locale.value)
-  return found ? `${found.flag} ${found.label}` : '🇨🇳 中文'
+  return found ? `${found.label}` : '简体中文'
 })
 
 const handleLangChange = (lang) => {
@@ -232,7 +175,7 @@ let timer = null
 
 // 获取用户信息
 const userInfo = ref({})
-const  chartShow= ref(false)
+const chartShow = ref(false)
 const loadUserInfo = () => {
   const info = localStorage.getItem('userInfo')
   if (info) {
@@ -247,8 +190,8 @@ const charInfo = ref({
   accountUsed: {
     todayUsed: 0
   },
-   totalPortCount: 0,
-   usedPortCount: 0,
+  totalPortCount: 0,
+  usedPortCount: 0,
 })
 
 const availableChars = computed(() => {
@@ -278,6 +221,26 @@ const updateTime = () => {
   currentTime.value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
+const handleClearCache = async () => {
+   try {
+     Notification.success('清除缓存成功', 'Success')
+   } catch(e) {}
+}
+
+const handleLogout = () => {
+  del('/app/account/logout').then(res => {
+    if (res.code === 200) {
+      ipc.invoke('controller.window.logout', {}).then(() => {
+        localStorage.removeItem('box-token');
+        localStorage.removeItem('userInfo');
+        router.push('/login');
+      })
+    }
+  }).catch(error => {
+    console.error('退出失败:', error);
+  })
+}
+
 // 组件挂载时启动定时器
 onMounted(() => {
   loadUserInfo() // 加载用户信息
@@ -301,35 +264,36 @@ onUnmounted(() => {
   off('message')
 })
 
-// 模拟轮播图色块数据
-const colors = ref(['#4caf50', '#2196f3', '#ff9800'])
+// 导入SVG/PNG图标
+import translateIcon from '@/assets/home/translate.png'
+import aiReplyIcon from '@/assets/home/ai-reply.png'
+import materialIcon from '@/assets/home/material.png'
+import platformIcon from '@/assets/home/platform.png'
+import wsGroupIcon from '@/assets/home/ws-group.png'
+import wsJoinIcon from '@/assets/home/ws-join.png'
+import wsLeaveIcon from '@/assets/home/ws-leave.png'
+import wsImportIcon from '@/assets/home/ws-import.png'
+import wsAiIcon from '@/assets/home/ws-ai.png'
+import wsContactIcon from '@/assets/home/ws-contact.png'
+import fansIcon from '@/assets/home/fans.png'
 
-// 导入SVG图标
-import translateIcon from '@/assets/svgs/translate.svg'
-import aiReplyIcon from '@/assets/svgs/ai-reply.svg'
-import materialIcon from '@/assets/svgs/material.svg'
-import platformIcon from '@/assets/svgs/platform.svg'
-import wsGroupIcon from '@/assets/svgs/ws-group.svg'
-import wsJoinIcon from '@/assets/svgs/ws-join.svg'
-import wsLeaveIcon from '@/assets/svgs/ws-leave.svg'
-import wsImportIcon from '@/assets/svgs/ws-import.svg'
-import wsAiIcon from '@/assets/svgs/ws-ai.svg'
-import wsContactIcon from '@/assets/svgs/ws-contact.svg'
-import fansIcon from '@/assets/svgs/fans.svg'
-
+import subaccountIcon from '@/assets/home/sub-account.png'
+import charQuotaIcon from '@/assets/home/char-quota.png'
+import portQuotaIcon from '@/assets/home/port-quota.png'
+import planRenewalIcon from '@/assets/home/plan-renewal.png'
 // 快捷入口数据 (使用 i18n key 而非硬编码文案)
 const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
   { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
   { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
-  { id: 'platform', icon: platformIcon, titleKey: 'quickItems.platform', descKey: 'quickItems.platformDesc' },
   { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
   { id: 'wsJoin', icon: wsJoinIcon, titleKey: 'quickItems.wsJoin', descKey: 'quickItems.wsJoinDesc' },
   { id: 'wsLeave', icon: wsLeaveIcon, titleKey: 'quickItems.wsLeave', descKey: 'quickItems.wsLeaveDesc' },
-  { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
   { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
-  { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' },
-  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' }
+  { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
+  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
+  { id: 'platform', icon: platformIcon, titleKey: 'quickItems.platform', descKey: 'quickItems.platformDesc' },
+  { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' }
 ])
 
 const router = useRouter()
@@ -339,8 +303,7 @@ const handleQuickAccess = (item) => {
     router.push({ path: '/home/settings', query: { activeMenu: 'translate' } })
   } else if (item.id === 'aiReply') {
     router.push({ path: '/home/settings', query: { activeMenu: 'aiReply' } })
-  } 
-  else if (item.id === 'fans') {
+  } else if (item.id === 'fans') {
     router.push('/home/fans')
   } else { 
      Notification.message({ 
@@ -349,175 +312,312 @@ const handleQuickAccess = (item) => {
      })
   }
 }
-
-
 </script>
 
 <style lang="less" scoped>
-.carousel-container {
-  width: 70%;
+/* =========== 整体布局 =========== */
+.home-page-container {
+  min-height: 100vh;
+  background-color: #f5f7fa; /* 淡灰色背景 */
+  padding: 12px 12px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
-.header-top {
-  padding: 0 20px;
-  margin-bottom: 10px;
 
-  .el-col {
-    margin-bottom: 20px;
+/* 隐藏原有滚动条，使用自定义简洁样式 */
+.home-page-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.home-page-container::-webkit-scrollbar-thumb {
+  background: #dbdbdb;
+  border-radius: 10px;
+}
+.home-page-container::-webkit-scrollbar-thumb:hover {
+  background: #c1c1c1;
+}
+
+/* =========== 顶部导航栏 =========== */
+.top-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.nav-left, .nav-right {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.nav-item {
+  background-color: #ffffff;
+  border-radius: 6px;
+  padding: 0 16px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #333333;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+
+  .el-icon {
+    font-size: 16px;
+    margin-right: 6px;
+    color: #666;
   }
-
-  :deep(.el-card) {
-    height: 80px; // 设定统一高度
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-
-    .el-card__body {
-      padding: 0 20px;
-      width: 100%;
-    }
+  .icon-language {
+    font-size: 16px;
+    margin-right: 6px;
+    color: #666;
   }
 }
-.countdown { 
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 100%;
-}
-.countdown-tex { 
-  margin-left: 8px;
-}
-.carousel-item {
-  width: 100%;
-  height: 100%;
+
+.nav-text {
+  color: #333;
 }
 
-.info-card {
-  width: 30%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.card-item { 
+.update-item {
+  padding: 0;   
+  box-shadow: none;
+  height: 44px;
   display: flex;
   align-items: center;
-  height: 100%;
 }
 
-.clear-cache-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 100%;
-}
-                    
-.info-content {
-  text-align: center;
-}
-
-.title {
-  font-size: 20px;
-  margin-bottom: 10px;
-}
-.select-language {
+.btn-item {
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
+  transition: all 0.3s ease;
+  &:hover {
+    background-color: #fcfcfc;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
 }
+
 .lang-trigger {
+  border: none;
+  outline: none;
+}
+
+.logout-icon {
+  transform: rotate(90deg); /* 模拟退出登录方向或使用原色 */
+}
+
+/* =========== 中间信息卡片模块 =========== */
+.info-section {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #333;
-}
-.lang-trigger:hover {
-  color: #1890ff;
-}
-.language { 
-  font-size: 20px;
-}
-
-/* 下拉菜单激活项样式 */
-:deep(.el-dropdown-menu__item.is-active) {
-  color: #1890ff;
-  font-weight: 500;
-  background-color: #e6f7ff;
-}
-
-/* 用户信息区域样式 */
-.header-user-info {
-  border-radius: 8px;
-  padding: 16px 0;
-  margin: 0 20px 20px 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-}
-
-.greeting {
-  color: #333;
-  font-size: 14px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  margin-bottom: 16px;
-  text-align: left;
-  margin-left: 12px;
-}
-
-.info-cards-row {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-}
-
-.info-card-item {
-  display: flex;
-  align-items: center;
   gap: 12px;
+  margin-bottom: 12px;
 }
 
-.info-icon {
-  width: 48px;
-  height: 48px;
+/* 左侧用户信息卡片 */
+.user-info-card {
+  flex: 1; /* 吸附剩余空间 */
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 24px 30px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+}
+
+.user-greeting {
+  font-size: 15px;
+  color: #333333;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+}
+
+.info-metrics {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+}
+
+.metric-item {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 16px;
+  flex: 1;
 }
 
-.info-text {
+.metric-icon {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.metric-text-box {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.info-label {
-  font-size: 12px;
+.metric-label {
+  font-size: 13px;
   color: #8c8c8c;
 }
 
-.info-value {
+.metric-value {
   font-size: 16px;
   color: #262626;
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 4px;
 }
 
-.info-value .info-question {
+.info-question {
   font-size: 14px;
   color: #bfbfbf;
+  margin-left: 6px;
   cursor: pointer;
-  margin-left: 4px;
+  &:hover {
+    color: #1890ff;
+  }
 }
 
-.info-value .info-question:hover {
-  color: #1890ff;
+/* 右侧充值卡片 */
+.recharge-card {
+  width: 260px; 
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Popover 内容样式 */
+.recharge-text {
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+}
+
+.recharge-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.recharge-subtitle {
+  font-size: 13px;
+  color: #999;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.recharge-btn {
+  width: 86px;
+  height: 32px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #2DD26A;
+  color: #ffffff;
+}
+
+.recharge-illustration {
+  position: absolute;
+  right: 20px;
+  bottom: 10px; 
+  width: 120px;
+  height: 120px;
+  background-image: radial-gradient(circle, #eff6ff 30%, transparent 70%);
+  pointer-events: none;
+  opacity: 0.8;
+  z-index: 1;
+  img { 
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
+
+/* =========== 快捷入口模块 =========== */
+.quick-access-section {
+  background-color: #ffffff;
+  padding: 24px;
+}
+
+.section-title {
+
+  font-size: 18px;
+  font-weight: 400;
+  color: #333333;
+  margin-bottom: 16px;
+  padding-left: 2px;
+  text-align: left;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.quick-item {
+  background: #FAFAFA;
+  border-radius: 6px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    transform: translateY(-1px);
+  }
+}
+
+.quick-item-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background-color: #fcfcfc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+  }
+}
+
+.quick-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.quick-item-title {
+  font-size: 14px;
+  color: #262626;
+  font-weight: 500;
+}
+
+.quick-item-desc {
+  font-size: 12px;
+  color: #8c8c8c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* =========== Popover 内容样式保持原样 =========== */
 :deep(.char-details-popover) {
   padding: 16px !important;
   border-radius: 12px !important;
@@ -542,10 +642,9 @@ const handleQuickAccess = (item) => {
   color: #666;
   cursor: pointer;
   transition: color 0.2s;
-}
-
-.refresh-icon:hover {
-  color: #1890ff;
+  &:hover {
+    color: #1890ff;
+  }
 }
 
 .char-table {
@@ -582,92 +681,10 @@ const handleQuickAccess = (item) => {
   font-family: monospace;
 }
 
-/* 快捷入口样式 */
-.quick-access {
-  margin: 0 20px 20px 20px;
-  padding: 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-}
-
-.quick-access-title {
-  font-size: 14px;
-  color: #333;
-  margin-bottom: 20px;
+/* 下拉菜单激活项样式 */
+:deep(.el-dropdown-menu__item.is-active) {
+  color: #1890ff;
   font-weight: 500;
-  text-align: left;
-}
-
-.quick-access-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.quick-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #fafafa;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.quick-item:hover {
-  background: #f0f5ff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.quick-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.quick-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.quick-title {
-  font-size: 14px;
-  color: #262626;
-  font-weight: 500;
-}
-
-.quick-desc {
-  font-size: 12px;
-  color: #8c8c8c;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 自定义滚动条样式 */
-.el-container::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.el-container::-webkit-scrollbar-thumb {
-  background: #dbdbdb;
-  border-radius: 10px;
-}
-
-.el-container::-webkit-scrollbar-thumb:hover {
-  background: #c1c1c1;
-}
-
-.el-container::-webkit-scrollbar-track {
-  background: transparent;
+  background-color: #e6f7ff;
 }
 </style>

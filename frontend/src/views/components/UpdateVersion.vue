@@ -439,6 +439,7 @@ function handleStartUpdate() {
 
   .one-block-1 {
     font-size: 16px;
+    margin-right: 12px;
   }
 
   .ml-10 {
