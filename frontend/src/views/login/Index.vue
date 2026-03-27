@@ -20,10 +20,13 @@
 
     <!-- 居中登录框包裹区 -->
     <div class="login-wrapper">
+      <!-- 左侧留白区，确保不遮挡背景图左侧文字 -->
+      <div class="login-spacer"></div>
+      
       <div class="login-form">
-        <div class="logo">
-          <img src="@/assets/images/logo.png" alt="Logo" class="logo-img" />
-          <h1 class="hero-title">Chat 365</h1>
+        <div class="logo-container">
+          <img src="@/assets/images/logo.png" alt="Logo" class="form-logo" />
+          <span class="logo-text">Chat 365</span>
         </div>
 
         <el-form
@@ -34,30 +37,67 @@
           @submit.prevent
         >
           <el-form-item prop="userName">
-            <el-input v-model="form.userName" :placeholder="t('login.usernamePlaceholder')" :prefix-icon="User" class="input-item" size="large" />
+            <el-input 
+              v-model="form.userName" 
+              :placeholder="t('login.usernamePlaceholder')" 
+              class="custom-input" 
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><User /></el-icon>
+              </template>
+            </el-input>
           </el-form-item>
           <el-form-item prop="password">
-            <el-input v-model="form.password" :placeholder="t('login.passwordPlaceholder')" :prefix-icon="Lock" type="password" show-password class="input-item" size="large" />
+            <el-input 
+              v-model="form.password" 
+              :placeholder="t('login.passwordPlaceholder')" 
+              type="password" 
+              show-password 
+              class="custom-input" 
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><Lock /></el-icon>
+              </template>
+            </el-input>
           </el-form-item>
           <el-form-item v-if="isMachineCode">
-            <el-input v-model="form.machineCode" :placeholder="t('login.machineCodePlaceholder')" readonly class="input-item" size="large">
+            <el-input v-model="form.machineCode" :placeholder="t('login.machineCodePlaceholder')" readonly class="custom-input" size="large">
               <template #append>
                 <el-button size="large" @click="copyMachineCode" :icon="DocumentCopy" />
               </template>
             </el-input>
           </el-form-item>
           <el-form-item prop="agree" class="form-item-agree">
-            <div style="display: flex; align-items: center; width: 100%;">
+            <div class="agreement-wrapper">
               <label class="agreement-label">
                 <input type="checkbox" v-model="form.agree" class="agreement-checkbox" />
+                <span class="checkbox-custom"></span>
                 <span class="agreement-text">{{ t('login.agreeText') }}</span>
                 <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">【{{ t('login.agreementLink') }}】</a>
               </label>
             </div>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" v-if="isMachineCode" @click="handleLogin" :loading="submitLoading" class="login-button">{{ t('login.loginBtn') }}</el-button>
-            <el-button type="primary" v-else @click="handleAccountLogin" :loading="submitLoading" class="login-button">{{ t('login.loginBtn') }}</el-button>
+            <el-button 
+              type="primary" 
+              v-if="isMachineCode" 
+              @click="handleLogin" 
+              :loading="submitLoading" 
+              class="submit-btn"
+            >
+              {{ t('login.loginBtn') }}
+            </el-button>
+            <el-button 
+              type="primary" 
+              v-else 
+              @click="handleAccountLogin" 
+              :loading="submitLoading" 
+              class="submit-btn"
+            >
+              {{ t('login.loginBtn') }}
+            </el-button>
           </el-form-item>
         </el-form>
       </div>
@@ -364,186 +404,327 @@ const handleLogin = async () => {
   display: flex;
   width: 100vw;
   height: 100vh;
-  background: url('@/assets/images/chat_login_bg.png') no-repeat center center;
+  background: url('@/assets/images/chat_login_bg.png') no-repeat;
   background-size: cover;
+  background-position: left center;
   position: relative;
+  overflow: hidden;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
-/* 顶部语言切换钮 */
+/* 顶部语言切换按钮 */
 .header-tools {
   position: absolute;
-  top: 30px;
-  right: 40px;
-  z-index: 10;
+  top: 24px;
+  right: 32px;
+  z-index: 100;
 }
 
 .lang-btn {
   display: flex;
   align-items: center;
-  background-color: #ffffff;
-  padding: 8px 16px;
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 6px 14px;
+  border-radius: 100px;
   cursor: pointer;
   color: #333;
   font-size: 14px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 1);
 }
 
 .lang-btn:hover {
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  background: #ffffff;
 }
 
 .lang-text {
-  margin: 0 6px;
+  margin: 0 8px;
   font-weight: 500;
 }
 
-/* 右侧表单区布局 */
+/* 核心布局区 */
 .login-wrapper {
   display: flex;
   width: 100%;
   height: 100%;
-  justify-content: flex-end; /* 靠右对齐 */
+  padding: 0 4% 0 6%; /* 增加左侧内边距，给背景图留白 */
   align-items: center;
-  padding-right: 12%; /* 右侧间距 */
+  position: relative;
+  z-index: 2;
 }
 
-/* 根据图片，表单容器是一个带有白色白透效果的块 */
+.login-spacer {
+  flex: 1.8; /* 进一步增大左侧弹性占比，将表单推向极右侧 */
+  min-width: 400px; /* 设置硬性最小宽度，保护背景图文字区 */
+}
+
+/* 登录表单卡片 - Glassmorphism */
 .login-form {
-  width: 440px;
-  padding: 45px 50px;
-  background: rgba(230, 245, 255, 0.7); /* 偏蓝透亮背景色 */
-  backdrop-filter: blur(15px);
-  border: 1.5px solid rgba(255, 255, 255, 0.8);
-  border-radius: 24px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  flex: 0 0 440px; /* 固定宽度 */
+  padding: 48px;
+  background: rgba(230, 245, 255, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: 32px;
+  box-shadow: 0 20px 60px rgba(0, 50, 100, 0.12);
   display: flex;
   flex-direction: column;
+  animation: slideInRight 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.logo {
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Logo 样式还原 */
+.logo-container {
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 40px;
 }
 
-.logo-img {
-  width: 52px;
-  height: auto;
-  margin-right: 10px;
-  border-radius: 12px;
+.form-logo {
+  width: 48px;
+  height: 48px;
+  margin-right: 12px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.hero-title {
-  font-size: 32px;
-  font-weight: 800;
-  color: #000;
-  margin: 0;
-  letter-spacing: 0.5px;
+.logo-text {
+  font-size: 30px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.5px;
 }
 
 .input-container {
   width: 100%;
 }
 
-.input-item {
-  margin-bottom: 8px; 
+/* 输入框改版 */
+.custom-input {
+  margin-bottom: 4px;
 }
 
-/* 深度覆盖 el-input 样式，使其看起来圆润白净 */
 :deep(.el-input__wrapper) {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-  border: none !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid transparent !important;
   box-shadow: none !important;
-  border-radius: 10px !important;
-  height: 54px;
+  border-radius: 12px !important;
+  height: 56px;
+  padding: 0 16px !important;
+  transition: all 0.3s ease;
 }
 
 :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #28a745 !important;
+  background-color: #ffffff !important;
+  border-color: #17A948 !important;
+  box-shadow: 0 0 0 4px rgba(23, 169, 72, 0.1) !important;
 }
 
 :deep(.el-input__inner) {
-  font-size: 15px;
-  color: #333;
-}
-:deep(.el-input__prefix-inner) {
-  color: #999;
+  font-size: 15.5px;
+  color: #222;
 }
 
-/* 用户协议条 */
+:deep(.el-input__prefix) {
+  font-size: 18px;
+  margin-right: 8px;
+  color: #a0a0a0;
+}
+
+/* 复选框与协议条 */
 .form-item-agree {
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+.agreement-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 .agreement-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  position: relative;
   cursor: pointer;
   user-select: none;
+  font-size: 14px;
 }
 
 .agreement-checkbox {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  cursor: pointer;
-  accent-color: #ccc;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  appearance: none;
-  background-color: #fff;
-  position: relative;
-}
-.agreement-checkbox:checked {
-  background-color: #28a745;
-  border-color: #28a745;
-}
-.agreement-checkbox:checked::after {
-  content: '';
   position: absolute;
-  top: 2px;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkbox-custom {
+  height: 18px;
+  width: 18px;
+  background-color: #fff;
+  border: 2px solid #dcdfe6;
+  border-radius: 5px;
+  margin-right: 10px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.agreement-checkbox:checked ~ .checkbox-custom {
+  background-color: #17A948;
+  border-color: #17A948;
+}
+
+.checkbox-custom:after {
+  content: "";
+  position: absolute;
+  display: none;
   left: 5px;
-  width: 4px;
-  height: 8px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
   border: solid white;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
+.agreement-checkbox:checked ~ .checkbox-custom:after {
+  display: block;
+}
+
 .agreement-text {
-  font-size: 13px;
-  color: #888;
+  color: #666;
 }
 
 .agreement-link {
-  font-size: 13px;
-  color: #28a745;
+  color: #17A948;
   text-decoration: none;
+  font-weight: 500;
+  margin-left: 2px;
 }
 
-/* 登录大按钮 */
-.login-button {
-  margin-top: 25px;
-  width: 100%; 
-  height: 52px;
-  border-radius: 10px; 
-  background-color: #17A948;
-  color: white;
-  font-size: 17px;
-  font-weight: bold;
-  border: none;
-  letter-spacing: 2px;
+.agreement-link:hover {
+  text-decoration: underline;
 }
 
-.login-button:hover {
-  background-color: #138D3C; 
+/* 提交按钮 */
+.submit-btn {
+  width: 100%;
+  height: 56px;
+  border-radius: 12px;
+  background-color: #17A948 !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 16px rgba(23, 169, 72, 0.2);
 }
+
+.submit-btn:hover {
+  background-color: #138D3C !important;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(23, 169, 72, 0.3);
+}
+
+.submit-btn:active {
+  transform: translateY(1px);
+}
+
+/* 响应式适配 */
+@media screen and (max-width: 1440px) {
+  .login-spacer {
+    flex: 1.4;
+    min-width: 320px;
+  }
+}
+
+@media screen and (max-width: 1200px) {
+  .login-wrapper {
+    padding: 0 3% 0 5%;
+  }
+  .login-form {
+    flex: 0 0 400px;
+    padding: 36px;
+  }
+  .login-spacer {
+    flex: 1.2;
+    min-width: 200px;
+  }
+}
+
+/* 专项优化：984px 左右的窗口，让表单进一步缩窄并保持靠右，不要居中 */
+@media screen and (max-width: 1100px) and (min-width: 851px) {
+  .login-page {
+    background-position: left center; /* 确保文字靠左不移动 */
+  }
+  .login-form {
+    flex: 0 0 370px; /* 缩窄表单 */
+    padding: 30px;
+  }
+  .login-spacer {
+    flex: 2; /* 增大间距占比，强力推向右侧 */
+  }
+  .logo-container {
+    margin-bottom: 30px;
+  }
+}
+
+/* 只有当宽度极其有限时，才切换为居中模式 */
+@media screen and (max-width: 850px) {
+  .login-page {
+    background-position: 25% center;
+  }
+  .login-wrapper {
+    justify-content: center;
+    padding: 0 24px;
+  }
+  .login-spacer {
+    display: none;
+  }
+  .login-form {
+    width: 100%;
+    max-width: 400px;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 30px 80px rgba(0, 50, 100, 0.15);
+  }
+}
+
+@media screen and (max-width: 500px) {
+  .login-form {
+    padding: 30px 24px;
+    border-radius: 20px;
+  }
+}
+
+@media screen and (max-height: 750px) {
+  .login-form {
+    padding: 30px 48px;
+  }
+  .logo-container {
+    margin-bottom: 28px;
+  }
+  :deep(.el-input__wrapper) {
+    height: 50px;
+  }
+  .submit-btn {
+    height: 50px;
+  }
+}
+
 :deep(.el-form-item__content) {
   width: 100%;
 }
+
 </style>
