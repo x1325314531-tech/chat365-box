@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post } from '@/utils/request';
@@ -37,9 +37,9 @@ const defaultLocalConfig = {
   tone: '',
   theme: '',
   role: '',
-  toneName: '默认',
-  themeName: '默认',
-  roleName: '默认'
+  toneName: '榛樿',
+  themeName: '榛樿',
+  roleName: '榛樿'
 };
 
 const config = ref({
@@ -58,9 +58,9 @@ const globalConfig = ref({
   role: 'default',
   model: 'Gemini',
   historyCount: 3,
-  toneName: '默认',
-  themeName: '默认',
-  roleName: '默认'
+  toneName: '榛樿',
+  themeName: '榛樿',
+  roleName: '榛樿'
 });
 
 const translateConfig = ref({
@@ -69,28 +69,35 @@ const translateConfig = ref({
 
 const toneDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.toneName || '默认')
-    : (globalConfig.value.toneName || '默认');
+    ? (config.value.toneName || '榛樿')
+    : (globalConfig.value.toneName || '榛樿');
 });
 
 const themeDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.themeName || '默认')
-    : (globalConfig.value.themeName || '默认');
+    ? (config.value.themeName || '榛樿')
+    : (globalConfig.value.themeName || '榛樿');
 });
 
 const roleDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.roleName || '默认')
-    : (globalConfig.value.roleName || '默认');
+    ? (config.value.roleName || '榛樿')
+    : (globalConfig.value.roleName || '榛樿');
 });
+
+
+const hasActiveConversation = computed(() => {
+  const cid = String(props.conversationId || '').trim();
+  return !!cid && cid !== 'default' && cid !== 'null' && cid !== 'undefined';
+});
+
 
 onMounted(async () => {
   await fetchDicts();
   await loadGlobalAiConfig();
   await loadTranslateConfig();
   await loadSessionConfig();
-  if (originalText.value) {
+  if (hasActiveConversation.value && originalText.value) {
     handlePolish();
   }
 });
@@ -99,8 +106,21 @@ watch(
   () => props.initialText,
   (newVal) => {
     originalText.value = newVal ?? '';
-    if (newVal) {
+    if (hasActiveConversation.value && newVal) {
       handlePolish();
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => hasActiveConversation.value,
+  (available) => {
+    if (!available) {
+      originalText.value = '';
+      polishedText.value = '';
+      translatedText.value = '';
+      isLoading.value = false;
     }
   },
   { immediate: true }
@@ -140,9 +160,9 @@ async function loadGlobalAiConfig() {
       globalConfig.value = {
         ...globalConfig.value,
         ...whatsappConfig,
-        toneName: whatsappConfig.toneName || '默认',
-        themeName: whatsappConfig.themeName || '默认',
-        roleName: whatsappConfig.roleName || '默认',
+        toneName: whatsappConfig.toneName || '榛樿',
+        themeName: whatsappConfig.themeName || '榛樿',
+        roleName: whatsappConfig.roleName || '榛樿',
         historyCount: Number(whatsappConfig.historyCount) || 3,
         model: whatsappConfig.model || 'Gemini'
       };
@@ -191,6 +211,7 @@ async function saveConfig() {
 }
 
 async function handlePolish() {
+  if (!hasActiveConversation.value) return;
   if (!originalText.value) return;
 
   isLoading.value = true;
@@ -236,7 +257,7 @@ async function handlePolish() {
       }
     }
   } catch (e) {
-    Notification.message({ message: `润色失败: ${e.message}`, type: 'error' });
+    Notification.message({ message: `娑﹁壊澶辫触: ${e.message}`, type: 'error' });
   } finally {
     isLoading.value = false;
   }
@@ -267,7 +288,7 @@ async function applyToDraft() {
   });
 
   Notification.message({
-    message: result?.status ? '已替换到草稿' : '替换失败',
+    message: result?.status ? '宸叉浛鎹㈠埌鑽夌' : '鏇挎崲澶辫触',
     type: result?.status ? 'success' : 'error'
   });
 }
@@ -292,6 +313,7 @@ async function sendImmediate() {
 
 <template>
   <div class="ai-polish-panel">
+    <div v-if="hasActiveConversation">
     <div class="panel-header">
       <div class="panel-title"><span class="star">✦</span>AI 对话润色</div>
       <button class="panel-close" type="button" @click="emit('close')">×</button>
@@ -301,7 +323,7 @@ async function sendImmediate() {
       <el-tab-pane label="AI润色" name="polish">
         <div class="content-row">
           <div class="left-col">
-            <div class="block-label">ORIGINAL (原文)</div>
+            <div class="block-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> ORIGINAL (原文)</div>
             <el-input
               v-model="originalText"
               class="original-input"
@@ -347,10 +369,10 @@ async function sendImmediate() {
 
         <div class="bottom-actions">
           <!-- <el-button class="action-btn action-primary" :disabled="!polishedText" @click="applyToDraft">
-            替换到草稿
-          </el-button> -->
+            鏇挎崲鍒拌崏绋?          </el-button> -->
           <el-button class="action-btn  action-primary" :disabled="!polishedText" @click="sendImmediate">
-           发送聊天
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            发送聊天
           </el-button>
         </div>
       </el-tab-pane>
@@ -405,6 +427,10 @@ async function sendImmediate() {
         </div>
       </el-tab-pane>
     </el-tabs>
+    </div>
+    <div class="polishing-box-empty" v-else>
+      <el-empty :image-size="48" description="暂无会话" />
+    </div>
   </div>
 </template>
 
@@ -638,5 +664,13 @@ async function sendImmediate() {
   font-size: 13px;
   color: #59635d;
   margin-bottom: 6px;
+  text-align: left;
+}
+.polishing-box-empty { 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
 }
 </style>
+
