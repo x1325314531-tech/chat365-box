@@ -619,8 +619,8 @@ class WindowService extends Service {
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
                 view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
             } else {
-                // 侧边模式：左侧导航(50) + AsideCard(240/100) + border(1)
-                const xOffset = this.isShrunk ? 151 : 291;
+                // 侧边模式：左侧导航(50) + AsideCard(265/100) + border(1)
+                const xOffset = this.isShrunk ? 151 : 316;
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
                 view.setBounds({ x: xOffset, y: 0, width: viewWidth, height });
             }

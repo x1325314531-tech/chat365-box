@@ -436,36 +436,31 @@ function placedLeft() {
     <!-- 顶部标题和按钮 -->
     <div class="header">
       <div class="header-shrink">
-         <span v-if="!openSidebar"> {{ title }}</span>
+         <span v-if="!openSidebar" class="header-title-text">{{ title }}</span>
+         <span v-else class="header-title-text" style="font-size: 14px; color: #00b66f; margin-left: 5px;">Wha...</span>
         <span class="shrink" @click="handleShrink" :class="{'is-active': openSidebar}">
             <i class="iconfont icon-shrink"></i>
-          </span>
+        </span>
       </div>
-      <el-row v-if="!openSidebar">
-        <el-col :span="24">
-          <p>{{ title + ` ${t('aside.sessionCount', { count: conversations.length })}` }}</p>
-        </el-col>
-      </el-row>
-      <el-row class="header-actions" :class="{'is-shrunk': openSidebar}">
-        <el-col :span="openSidebar ? 24 : 12">
-          <el-button :loading="addLoading" size="default" @click="addConversation" type="primary" :title="openSidebar ? t('aside.newSession') : ''">
+      
+      <div class="header-actions" :class="{'is-shrunk': openSidebar}">
+          <el-button :loading="addLoading" size="default" @click="addConversation" type="success" class="header-btn btn-new" :title="openSidebar ? t('aside.newSession') : ''">
             <el-icon><Plus /></el-icon>
-            <span v-if="!openSidebar">{{ t('aside.newSession') }}</span>
+            <span v-if="!openSidebar">{{ t('aside.newSession') || '新建' }}</span>
+            <span v-else>新建</span>
           </el-button>
-        </el-col>
-        <el-col :span="openSidebar ? 24 : 12">
-          <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success" :title="openSidebar ? t('aside.startAll') : ''">
+          
+          <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="primary" class="header-btn btn-start" :title="openSidebar ? t('aside.startAll') : ''">
             <el-icon><SwitchButton/></el-icon>
-            <span v-if="!openSidebar">{{ t('aside.startAll') }}</span>
+            <span v-if="!openSidebar">{{ t('aside.startAll') || '启动' }}</span>
+            <span v-else>启动</span>
           </el-button>
-        </el-col>
-      </el-row>
+      </div>
     </div>
+    
     <!-- 会话列表 -->
     <div class="conversation-list" ref="conversationListRef">
-      <el-card
-          :body-style="{ padding: openSidebar ? '10px 0 0' : '10px 10px 10px', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'base-line' }"
-          shadow="never"
+      <div
           v-for="(card, index) in conversations"
           :key="card.card_id"
           :class="{ 'selected-card': card.active_status === 'true', 'loading-card': card.loading, 'is-shrunk': openSidebar }"
@@ -473,68 +468,65 @@ function placedLeft() {
           v-loading="card.loading ?? false"
           @click="!card.loading && selectCard(index, card)"
       >
-        <!-- 状态和用户信息 -->
-        <div class="status header-title" v-if="!openSidebar">
-          <!-- <span class="status-label" :class="{ 'online-status': card.online_status==='true' }">{{ card.online_status === 'true' ? '在线' : '未登录' }}</span> -->
-          <span v-if="card.card_name" class="subtitle subtitle-title">{{ props.title }} </span>
-          <span class="subtitle-phone" v-if="card.my_phone">{{ card.my_phone}}</span>
-          
-        </div>
-        <div class="card-header" :class="{'is-shrunk': openSidebar}">
-          <!-- 根据 card.unread_count 控制徽标的显示 (兼容有无 avatar_url) -->
+        <div class="card-avatar-area">
           <el-badge
-              style="margin-right: 0"
               v-if="card.unread_count > 0 || card.show_badge === 'true'"
               :value="card.unread_count > 0 ? card.unread_count : ''"
               :is-dot="card.unread_count <= 0 && card.show_badge === 'true'"
               type="danger"
           >
-            <el-avatar v-if="card.avatar_url" :src="card.avatar_url" class="avatar" />
-            <el-avatar v-else class="avatar">
-               <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
-            </el-avatar>
-          </el-badge>
-
-          <!-- 当没有未读提醒时 -->
-          <template v-else>
-            <div v-if="card.avatar_url" class="avatar-wrapper">
-              <el-avatar :src="card.avatar_url" class="avatar" />
+            <div class="avatar-wrapper">
+              <el-avatar v-if="card.avatar_url" :src="card.avatar_url" class="avatar" />
+              <el-avatar v-else class="avatar">
+                 <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
+              </el-avatar>
               <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
             </div>
-            <!-- 当没有 avatar_url 时显示默认头像 -->
-            <el-avatar v-else class="avatar">
-              <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
-              <span class="online-status" :class="{'online-status-online': card.online_status === 'true'}"></span>
-            </el-avatar>
+          </el-badge>
+          <!-- 当没有未读提醒时 -->
+          <template v-else>
+            <div class="avatar-wrapper">
+              <el-avatar v-if="card.avatar_url" :src="card.avatar_url" class="avatar" />
+              <el-avatar v-else class="avatar">
+                <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
+              </el-avatar>
+              <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
+            </div>
           </template>
-
-          <h4 v-if="!openSidebar" class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</h4>
-         <!--- <span v-if="card.card_name" class="subtitle">({{ props.title }})</span>-->
+          <!-- 折叠下的名字 -->
+          <div v-if="openSidebar" class="shrunk-label">
+            {{ card.card_name || 'Master' }}
+          </div>
         </div>
-        <!-- 右上角的按钮 -->
-        <div class="action-buttons" v-if="!openSidebar">
-          <!-- <el-icon v-if="card.online_status==='true' && props.title==='WhatsApp'" :size="20" @click.stop="importContacts(card)">
-            <img style="height: 20px;width: 20px" :src="importSvg" class="platform-svg" draggable="false">
-          </el-icon> -->
-<!--          <el-icon v-if="card.online_status==='true'" :size="20" @click.stop="userPortrait(card)">-->
-<!--            <img style="height: 20px;width: 20px" :src="userportrait" class="platform-svg" draggable="false">-->
-<!--          </el-icon>-->
-          <el-icon :size="20" @click.stop="handleSetting(card)">
-            <Setting />
-          </el-icon>
-          <el-icon :size="20" @click.stop="handleRefresh(card)">
-            <Refresh />
-          </el-icon>
-          <el-icon :size="20" @click.stop="handleClose(card)">
-            <Delete />
-          </el-icon>
-<!--          <el-icon :size="20" @click.stop="executeCode(card)">-->
-<!--            <Pointer />-->
-<!--          </el-icon>-->
+        
+        <div class="card-content-area" v-if="!openSidebar">
+           <div class="card-title-row">
+             <span class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</span>
+             <el-dropdown trigger="click" @click.stop class="more-options" placement="bottom-end">
+               <span class="more-dots" @click.stop>
+                 <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+               </span>
+               <template #dropdown>
+                 <el-dropdown-menu>
+                   <el-dropdown-item @click="handleRefresh(card)">
+                     <el-icon><Refresh /></el-icon>刷新
+                   </el-dropdown-item>
+                   <el-dropdown-item @click="handleSetting(card)">
+                     <el-icon><Setting /></el-icon>设置
+                   </el-dropdown-item>
+                   <el-dropdown-item @click="handleClose(card)" style="color: #f56c6c;">
+                     <el-icon><Delete /></el-icon>删除
+                   </el-dropdown-item>
+                 </el-dropdown-menu>
+               </template>
+             </el-dropdown>
+           </div>
+           
+           <div class="subtitle-phone" v-if="card.my_phone">{{ card.my_phone}}</div>
+           <div class="subtitle-desc" v-if="card.my_phone">Mali</div>
         </div>
-      </el-card>
+      </div>
     </div>
-
 
     <!-- 导入联系人面板 -->
     <ContactImporter
@@ -547,26 +539,24 @@ function placedLeft() {
         v-model:visible="userPortraitPanel"
         :card-data="userPortraitPanelData"
     />
+    
     <div class="footer" :class="{'footer-shrink': openSidebar }">
-      <div @click="sessionPlacedTop" class="place-top-btn">
-         <i class="iconfont btn-icon icon-top-bar"></i>
-        <span v-if="!openSidebar">会话置于顶部</span>
+      <div @click="sessionPlacedTop" class="place-top-btn" :class="{'shrunk-btn': openSidebar}">
+         <i class="iconfont icon-top-bar" :class="{'shrunk-icon': openSidebar}"></i>
+         <span v-if="!openSidebar">会话置于顶部</span>
       </div>
     </div>
   </div>
 
   <div v-else class="sidebar-top">
-    <div class="left-actions">
-      <el-button :loading="addLoading" size="default" @click="addConversation" type="primary" class="new-session-btn">
-        <el-icon><Plus /></el-icon>
-        <span>{{ t('aside.newSession') }}</span>
+    <!-- Main large actions -->
+    <div class="top-main-actions">
+      <el-button :loading="addLoading" size="default" @click="addConversation" type="success" class="top-main-btn btn-new">
+        <el-icon><Plus /></el-icon> <span>新建会话</span>
       </el-button>
-      <div class="mini-icons">
-           <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="success" :title="openSidebar ? t('aside.startAll') : ''">
-            <el-icon><SwitchButton/></el-icon>
-            <span v-if="!openSidebar">{{ t('aside.startAll') }}</span>
-          </el-button>
-      </div>
+      <el-button :loading="activeButtonLoading" size="default" @click="openAll" type="primary" class="top-main-btn btn-start">
+        <el-icon><SwitchButton/></el-icon> <span>一键启动</span>
+      </el-button>
     </div>
 
     <div class="conversation-list-horizontal" ref="conversationListRef">
@@ -583,367 +573,426 @@ function placedLeft() {
           :is-dot="card.unread_count <= 0 && card.show_badge === 'true'"
           type="danger"
         >
-          <el-avatar v-if="card.avatar_url" :size="32" :src="card.avatar_url" />
-          <el-avatar v-else :size="32">
-             <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
-          </el-avatar>
+          <div class="avatar-wrapper-horiz">
+            <el-avatar v-if="card.avatar_url" :size="36" :src="card.avatar_url" />
+            <el-avatar v-else :size="36">
+               <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
+            </el-avatar>
+            <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
+          </div>
         </el-badge>
         <!-- 当没有未读提醒时 -->
         <template v-else>
-          <el-avatar v-if="card.avatar_url" :size="32" :src="card.avatar_url" />
-          <el-avatar v-else :size="32">
-            <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
-          </el-avatar>
+          <div class="avatar-wrapper-horiz">
+            <el-avatar v-if="card.avatar_url" :size="36" :src="card.avatar_url" />
+            <el-avatar v-else :size="36">
+              <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
+            </el-avatar>
+            <span class="online-status" :class="{'online-status-online': card.online_status === 'true'}"></span>
+          </div>
         </template>
-        <span class="horizontal-title">{{ card.card_name || props.title }}</span>
       </div>
     </div>
-
-    <div class="right-actions">
-      <el-button size="small" @click="placedLeft">置于左侧</el-button>
-      <el-button size="small" @click="openAll">展开全部</el-button>
+      <!-- rightactions stacked -->
+    <div class="top-stacked-actions">
+      <div class="top-outline-btn" @click="placedLeft">
+         <i class="iconfont icon-sidebar" style="margin-right:2px; font-size: 14px;"></i> 置于左侧
+      </div>
+      <div class="top-outline-btn" @click="openAll">
+         <i class="iconfont icon-expand" style="margin-right:2px; font-size: 14px;"></i> 展开全部
+      </div>
     </div>
   </div>
 </template>
+
 <style scoped>
-.drawer-footer {
-  text-align: center;
-}
+/* 侧边栏全局与基础结构 */
 .sidebar {
-  width: 220px;
-  padding: 10px;
+  width: 265px;
+  padding: 15px 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transition: width 0.3s ease;
   position: relative;
   height: 100vh;
+  background-color: #ebf3f9; /* 淡蓝色背景 */
+  box-sizing: border-box;
 }
 .sidebar-shrink { 
-  width: 80px;
-}
-.conversation-card.loading-card {
-  opacity: 0.6;
-  pointer-events: none;
-  cursor: not-allowed;
-}
-::v-deep .el-drawer__header {
-  margin-bottom: 0;
-  padding: 0;
-  color: #5c5c5c;
+  width: 100px;
+  padding: 15px 10px;
 }
 
+/* 顶部 Header */
 .header {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
 }
 .header-shrink { 
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+.header-title-text {
+  font-size: 16px;
+  color: #00b66f;
+  font-weight: 500;
 }
 .shrink { 
   cursor: pointer;
   display: flex;
   align-items: center;
+  color: #6a7178;
 }
+.shrink .iconfont {
+  transition: transform 0.3s ease;
+  font-size: 18px;
+}
+.shrink.is-active .iconfont {
+  transform: rotate(180deg);
+}
+
+/* 按钮组区块 */
+.header-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.header-actions.is-shrunk {
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 12px;
+}
+
+.header-btn {
+  flex: 1;
+  border-radius: 6px;
+  font-size: 14px;
+  height: 38px;
+  border: none;
+}
+.btn-new {
+  background-color: #25d366 !important;
+  color: white;
+  padding: 12px !important;
+}
+.btn-new:hover {
+  background-color: #20b858 !important;
+}
+.btn-start {
+  background-color: #2b91ff !important;
+  color: white;
+  padding: 12px !important;
+}
+.btn-start:hover {
+  background-color: #227be0 !important;
+}
+.header-actions.is-shrunk .header-btn {
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-top: 0 !important;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* 消息列表容器 */
 .conversation-list {
   flex-grow: 1;
   overflow-y: auto;
-  max-height: calc(100vh - 130px);
+  max-height: calc(100vh - 180px);
+  padding: 4px;
+  border-radius: 6px;
+}
+.conversation-list::-webkit-scrollbar {
+  width: 4px;
+}
+.conversation-list::-webkit-scrollbar-thumb {
+  background-color: #d1d9e2;
+  border-radius: 4px;
 }
 
+/* 卡片样式 */
 .conversation-card {
-  margin-bottom: 10px;
-  border: 1px solid #e0e0e0;
-  border-radius: 5px;
+  margin-bottom: 8px;
+    border: 1px solid transparent;
   position: relative;
   cursor: pointer;
   user-select: none;
   display: flex;
-  flex-direction: column;
-  /* 移除之前添加的 padding-top */
-}
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 12px;
+  transition: all 0.2s ease;
+  background-color: transparent;
 
+  border-bottom: 1px solid #D3D9DF;
+}
 .conversation-card:hover {
-  border-color: #42b983;
+  background-color: rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
 }
+.conversation-card.selected-card {
+  background-color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid transparent;
+   border-radius: 12px;
 
-.selected-card {
-  border-color: #42b983;
-  background-color: #e8f5e9;
 }
-.header-title { 
-  margin-bottom: 10px;
- 
-}
-/* 将状态和操作按钮绝对定位在卡片的同一水平线上 */
-.status {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  font-size: 14px;
-  display: flex;
-   align-items: baseline;
-   flex-direction: column;
-}
-
-.status-label {
-  background-color: #e0e0e0;
-  color: #666;
-  padding: 2px 5px;
-  border-radius: 4px;
-  /* 移除 margin-bottom，避免不必要的间距 */
-}
-
-.online-status {
-  background-color: #00b66f;
-  color: #fff;
-}
-
-.card-header {
-  display: flex;
+.conversation-card.is-shrunk {
+  flex-direction: column;
   align-items: center;
-  margin-top: 30px; /* 为状态和操作按钮留出空间，避免重叠 */
-  transition: all 0.3s ease;
+  padding: 12px 6px;
+}
+.loading-card {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
-.card-header.is-shrunk {
-  margin-top: 10px;
+/* 卡片内部结构 */
+.card-avatar-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+.card-content-area {
+  margin-left: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
+  min-width: 0; 
+  align-items: baseline;
 }
-
 .avatar {
-  width: 40px;
-  height: 40px;
-  transition: all 0.3s ease;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   position: relative;
 }
 .avatar-img { 
   width: 100%;
   height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 .avatar-wrapper {
   position: relative;
   display: inline-block;
+  line-height: normal;
 }
-
-:deep(.card-header .el-badge__content),
-:deep(.horizontal-card .el-badge__content) {
-  top: 5px;
-  right: auto;
-  left: 5px;
-  transform: translateY(-50%) translateX(-50%);
-  border: none;
-}
-
 .online-status {
   position: absolute;
-  bottom: 2px;
+  bottom: 0px;
   right: 2px;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background-color: #c0c4cc;
   border: 2px solid #fff;
   transition: background-color 0.3s ease;
 }
-
 .online-status-online {
-  background-color: #00b66f;
+  background-color: #25d366;
 }
 
+.shrunk-label {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #1a1b1d;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+.selected-card .shrunk-label {
+  color: #337bf6;
+}
+
+/* 右侧文本区域 */
+.card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 2px;
+}
 .title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
+  color: #26A3FF;
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+  /* flex: 1; */
 }
 
-.subtitle {
-  font-size: 12px;
-  color: #999;
-  margin-left: 4px;
+/* ...更多操作按钮 */
+.more-options {
+  cursor: pointer;
+  padding: 2px 4px;
 }
-.subtitle-title { 
-   font-size: 16px;
+.more-dots {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  color: #b0c0ce;
 }
+.dot {
+  width: 4px;
+  height: 4px;
+  background-color: #b0c0ce;
+  border-radius: 50%;
+}
+.more-options:hover .dot {
+  background-color: #6a7178;
+}
+
 .subtitle-phone {
-  margin-top: -4px;
-  color: #999;
+  font-size: 13px;
+  color: #afb1b4;
+  margin-bottom: 2px;
 }
-.action-buttons {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  gap: 5px;
+.subtitle-desc {
+  font-size: 12px;
+  color: #6a7178;
 }
 
-.header-actions.is-shrunk {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.header-actions.is-shrunk .el-col {
-  display: flex;
-  justify-content: center;
-}
-
-.header-actions.is-shrunk .el-button {
-  padding: 8px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.shrink .iconfont {
-  transition: transform 0.3s ease;
-}
-
-.shrink.is-active .iconfont {
-  transform: rotate(180deg);
-}
-
-.conversation-list::-webkit-scrollbar {
-  width: 0;
-}
-
-.el-drawer__body::-webkit-scrollbar {
-  width: 0;
-}
+/* 底部功能区 */
 .footer { 
   position: absolute;
-  bottom: 6px;
+  bottom: 0px;
   left: 0;
+  width: 100%;
+  padding: 15px 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100%;
-  padding-bottom: 20px;
-  background: white;
+  background: transparent;
 }
-/* 顶部布局样式 */
+.place-top-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #16c063;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #16c063;
+  width: 80%;
+  background-color: transparent;
+  transition: all 0.2s;
+}
+.place-top-btn:hover {
+  background-color: rgba(22, 192, 99, 0.05);
+}
+.place-top-btn.shrunk-btn {
+  width: 46px;
+  padding: 8px 0;
+  justify-content: center;
+  gap: 0;
+}
+
+/* --- 顶部横排形态 (isPlacedTop) --- */
 .sidebar-top {
   width: 100%;
-  height: 80px;
+  height: 64px;
   background-color: #fff;
   border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
-  padding: 0 15px;
+  padding: 0 16px;
   box-sizing: border-box;
 }
 
-.left-actions {
+/* 左侧两个叠加方块按钮 */
+.top-stacked-actions {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-right: 15px;
+  gap: 6px;
+  margin-right: 16px;
 }
-
-.new-session-btn {
-  color: #fff;
-  height: 34px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-
-.mini-icons {
+.top-outline-btn {
   display: flex;
-  gap: 10px;
-  padding-left: 4px;
-}
-
-.mini-icon {
-  font-size: 14px;
-  color: #999;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border: 1px solid #e1e4e8;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #666;
   cursor: pointer;
+  background: transparent;
+  width: 76px;
+}
+.top-outline-btn:hover {
+  background: #f9f9f9;
 }
 
+/* 横排的大按钮 */
+.top-main-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 20px;
+}
+.top-main-btn {
+  border-radius: 6px;
+  height: 38px;
+  min-width: 90px;
+}
+
+/* 横排头像列表 */
 .conversation-list-horizontal {
   flex: 1;
   display: flex;
-  gap: 10px;
+  gap: 12px;
   overflow-x: auto;
-  padding: 5px 0;
-  height: 50px;
   align-items: center;
+  height: 100%;
 }
-
 .conversation-list-horizontal::-webkit-scrollbar {
-  height: 2px;
+  height: 4px;
 }
-
 .conversation-list-horizontal::-webkit-scrollbar-thumb {
-  background-color: #eee;
+  background-color: #eaeaea;
 }
 
 .horizontal-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 60px;
   cursor: pointer;
-  padding: 4px;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  padding: 2px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: all 0.2s;
 }
-
-.horizontal-card:hover {
-  background-color: #f5f7fa;
-}
-
 .horizontal-card.selected-card {
-  border-color: #2ecc71;
-  background-color: #e8f5e9;
+  border-color: #25d366;
+}
+.avatar-wrapper-horiz {
+  position: relative;
 }
 
-.horizontal-title {
-  font-size: 10px;
-  color: #666;
-  max-width: 50px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-top: 2px;
-}
-
-.right-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-left: 15px;
-}
-
-.right-actions .el-button--small {
-    padding: 4px 8px;
-    font-size: 10px;
-    height: 22px;
-}
-.right-actions .el-button+.el-button { 
-  margin-left: 0;
-}
-.place-top-btn {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  border:1px solid #2ecc71;
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 4px 8px;
-  font-size: 14px;
-  color: #2ecc71;
-}
-
-.btn-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
+:deep(.card-avatar-area .el-badge__content),
+:deep(.horizontal-card .el-badge__content) {
+  top: 5px;
+  right: auto;
+  left: 5px;
+  transform: translateY(-50%) translateX(-50%);
+  border: none;
 }
 </style>
