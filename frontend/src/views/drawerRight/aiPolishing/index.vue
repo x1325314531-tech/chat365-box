@@ -37,9 +37,9 @@ const defaultLocalConfig = {
   tone: '',
   theme: '',
   role: '',
-  toneName: '榛樿',
-  themeName: '榛樿',
-  roleName: '榛樿'
+  toneName: '默认',
+  themeName: '默认',
+  roleName: '默认'
 };
 
 const config = ref({
@@ -58,9 +58,9 @@ const globalConfig = ref({
   role: 'default',
   model: 'Gemini',
   historyCount: 3,
-  toneName: '榛樿',
-  themeName: '榛樿',
-  roleName: '榛樿'
+  toneName: '默认',
+  themeName: '默认',
+  roleName: '默认'
 });
 
 const translateConfig = ref({
@@ -69,20 +69,20 @@ const translateConfig = ref({
 
 const toneDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.toneName || '榛樿')
-    : (globalConfig.value.toneName || '榛樿');
+    ? (config.value.toneName || '默认')
+    : (globalConfig.value.toneName || '默认');
 });
 
 const themeDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.themeName || '榛樿')
-    : (globalConfig.value.themeName || '榛樿');
+    ? (config.value.themeName || '默认')
+    : (globalConfig.value.themeName || '默认');
 });
 
 const roleDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.roleName || '榛樿')
-    : (globalConfig.value.roleName || '榛樿');
+    ? (config.value.roleName || '默认')
+    : (globalConfig.value.roleName || '默认');
 });
 
 
@@ -166,9 +166,9 @@ async function loadGlobalAiConfig() {
       globalConfig.value = {
         ...globalConfig.value,
         ...whatsappConfig,
-        toneName: whatsappConfig.toneName || '榛樿',
-        themeName: whatsappConfig.themeName || '榛樿',
-        roleName: whatsappConfig.roleName || '榛樿',
+        toneName: whatsappConfig.toneName || '默认',
+        themeName: whatsappConfig.themeName || '默认',
+        roleName: whatsappConfig.roleName || '默认',
         historyCount: Number(whatsappConfig.historyCount) || 3,
         model: whatsappConfig.model || 'Gemini'
       };
@@ -263,7 +263,7 @@ async function handlePolish() {
       }
     }
   } catch (e) {
-    Notification.message({ message: `娑﹁壊澶辫触: ${e.message}`, type: 'error' });
+    Notification.message({ message: `Al润色失败: ${e.message}`, type: 'error' });
   } finally {
     isLoading.value = false;
   }
@@ -294,7 +294,7 @@ async function applyToDraft() {
   });
 
   Notification.message({
-    message: result?.status ? '宸叉浛鎹㈠埌鑽夌' : '鏇挎崲澶辫触',
+    message: result?.status ? '成功获取到数据' : '修改失败',
     type: result?.status ? 'success' : 'error'
   });
 }
@@ -346,10 +346,20 @@ async function sendImmediate() {
               <span class="star">✦</span>
               <span>AI Suggestions (润色建议)</span>
             </div>
-            <div class="suggestion-box" v-loading="isLoading">
-              <div v-if="polishedText" class="suggestion-text">{{ polishedText }}</div>
-              <el-empty v-else :image-size="48" description="暂无建议" />
-              <div v-if="translatedText" class="translation-text">{{ translatedText }}</div>
+            <div class="suggestion-box" :class="{ 'is-empty': !isLoading && !polishedText }" v-loading="isLoading">
+              <template v-if="polishedText">
+                <div class="suggestion-text">{{ polishedText }}</div>
+                <div v-if="translatedText" class="translation-text">{{ translatedText }}</div>
+              </template>
+              <div v-else class="suggestion-empty">
+                <div class="empty-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 3L13.9 8.1L19 10L13.9 11.9L12 17L10.1 11.9L5 10L10.1 8.1L12 3Z" fill="currentColor" />
+                  </svg>
+                </div>
+                <div class="empty-title">暂无建议</div>
+                <div class="empty-tip">输入原文后，系统会自动生成润色结果</div>
+              </div>
             </div>
           </div>
         </div>
@@ -390,7 +400,7 @@ async function sendImmediate() {
               <div class="main-label">开启独立AI配置</div>
               <div class="sub-label">仅当前会话生效，关闭后使用全局配置</div>
             </div>
-            <el-switch v-model="config.enabled" @change="saveConfig" />
+            <el-switch v-model="config.enabled" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="saveConfig" />
           </div>
 
           <template v-if="config.enabled">
@@ -467,7 +477,8 @@ async function sendImmediate() {
   gap: 6px;
   font-size: 20px;
   font-weight: 700;
-  color: #21b35b;
+  color: #22C55E;
+
 }
 
 .star {
@@ -540,12 +551,71 @@ async function sendImmediate() {
 
 .suggestion-box {
   height: 168px;
-  border: 1px solid #4bc178;
-  border-radius: 10px;
-  background: #dfe8e1;
+  border: 1px solid #71c88f;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #edf9f1 0%, #e3efe7 100%);
   padding: 12px;
   box-sizing: border-box;
   overflow: auto;
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.suggestion-box.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.suggestion-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.suggestion-box::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: rgba(58, 130, 89, 0.28);
+}
+
+.suggestion-box::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.suggestion-empty {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #738178;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #6cb686;
+  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #d9efdf 100%);
+  border: 1px solid rgba(105, 177, 132, 0.35);
+  box-shadow: 0 6px 14px rgba(83, 156, 112, 0.16);
+  margin-bottom: 8px;
+}
+
+.empty-title {
+  color: #5f6e65;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.empty-tip {
+  margin-top: 4px;
+  color: #7d8b83;
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 200px;
 }
 
 .suggestion-text {
@@ -614,8 +684,8 @@ async function sendImmediate() {
 }
 
 .action-primary {
-  background: #24c35d;
-  border-color: #24c35d;
+  background: #22C55E;
+  border-color: #22C55E;
   color: #fff;
 }
 
