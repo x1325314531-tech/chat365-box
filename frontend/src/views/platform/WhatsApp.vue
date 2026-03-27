@@ -70,7 +70,8 @@ const aiDrawerVisible = ref(false);
 const currentCardId = ref('');
 const currentConversationId = ref('');
 const polishText = ref('');
-const AI_DRAWER_WIDTH = 400;
+const RIGHT_SIDEBAR_WIDTH = 70;
+const AI_DRAWER_WIDTH = 330;
 
 const syncActiveChatId = async () => {
   try {
@@ -116,8 +117,12 @@ onMounted(() => {
 });
 
 watch([aiDrawerVisible, rightSidebarCollapsed], ([visible, collapsed]) => {
+  const reservedWidth = visible && !collapsed
+    ? AI_DRAWER_WIDTH + RIGHT_SIDEBAR_WIDTH
+    : RIGHT_SIDEBAR_WIDTH;
+
   ipc.invoke('controller.window.setRightOverlayWidth', {
-    width: visible && !collapsed ? AI_DRAWER_WIDTH : 0
+    width: reservedWidth
   }).catch((error) => {
     console.error('sync right overlay width failed:', error);
   });
@@ -235,9 +240,22 @@ const receiveCardId = (card)=> {
   border-left: 1px solid #e0e0e0;
   flex-shrink: 0;
   transition: width 0.2s ease;
+  position: relative;
+  z-index: 3;
 }
 
 .sidebar-div.is-collapsed {
   width: 70px;
+}
+
+.ai-polish-drawer {
+  width: 330px;
+  height: 100%;
+  flex-shrink: 0;
+  background: #eef0ef;
+  border-left: 1px solid #dfe3df;
+  overflow: hidden;
+  position: relative;
+  z-index: 2;
 }
 </style>

@@ -1,16 +1,8 @@
 <script setup>
-import { computed, ref, onMounted, watch } from 'vue';
-import { 
-  MagicStick, 
-  Setting, 
-  Refresh, 
-  CopyDocument, 
-  Promotion,
-  Check
-} from '@element-plus/icons-vue';
+import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { ipc } from '@/utils/ipcRenderer';
-import { post } from "@/utils/request";
-import Notification from "@/utils/notification";
+import { post } from '@/utils/request';
+import Notification from '@/utils/notification';
 
 const props = defineProps({
   chatId: {
@@ -26,6 +18,8 @@ const props = defineProps({
     default: ''
   }
 });
+
+const emit = defineEmits(['close']);
 
 const activeTab = ref('polish');
 const originalText = ref(props.initialText);
@@ -43,9 +37,9 @@ const defaultLocalConfig = {
   tone: '',
   theme: '',
   role: '',
-  toneName: 'Default',
-  themeName: 'Default',
-  roleName: 'Default'
+  toneName: '默认',
+  themeName: '默认',
+  roleName: '默认'
 };
 
 const config = ref({
@@ -54,8 +48,8 @@ const config = ref({
 
 const sessionConfigKey = computed(() => {
   const cardId = String(props.chatId || '');
-  const conversationId = String(props.conversationId || '');
-  return conversationId ? `${cardId}::${conversationId}` : cardId;
+  const cid = String(props.conversationId || '');
+  return cid ? `${cardId}::${cid}` : cardId;
 });
 
 const globalConfig = ref({
@@ -64,13 +58,31 @@ const globalConfig = ref({
   role: 'default',
   model: 'Gemini',
   historyCount: 3,
-  toneName: 'Default',
-  themeName: 'Default',
-  roleName: 'Default'
+  toneName: '默认',
+  themeName: '默认',
+  roleName: '默认'
 });
 
 const translateConfig = ref({
   sendTargetLang: 'zh'
+});
+
+const toneDisplayName = computed(() => {
+  return config.value.enabled
+    ? (config.value.toneName || '默认')
+    : (globalConfig.value.toneName || '默认');
+});
+
+const themeDisplayName = computed(() => {
+  return config.value.enabled
+    ? (config.value.themeName || '默认')
+    : (globalConfig.value.themeName || '默认');
+});
+
+const roleDisplayName = computed(() => {
+  return config.value.enabled
+    ? (config.value.roleName || '默认')
+    : (globalConfig.value.roleName || '默认');
 });
 
 onMounted(async () => {
@@ -83,7 +95,6 @@ onMounted(async () => {
   }
 });
 
-// 监听文本变化（当从外部触发且抽屉已打开时）
 watch(
   () => props.initialText,
   (newVal) => {
@@ -105,10 +116,10 @@ watch(
 async function fetchDicts() {
   const toneRes = await ipc.invoke('controller.window.getDictData', 'box_agent_tone');
   if (toneRes && toneRes.code === 200) dictTone.value = toneRes.data;
-  
+
   const themeRes = await ipc.invoke('controller.window.getDictData', 'box_agent_theme');
   if (themeRes && themeRes.code === 200) dictTheme.value = themeRes.data;
-  
+
   const roleRes = await ipc.invoke('controller.window.getDictData', 'box_agent_role');
   if (roleRes && roleRes.code === 200) dictRole.value = roleRes.data;
 }
@@ -133,11 +144,11 @@ async function loadGlobalAiConfig() {
         themeName: whatsappConfig.themeName || '默认',
         roleName: whatsappConfig.roleName || '默认',
         historyCount: Number(whatsappConfig.historyCount) || 3,
-        model: whatsappConfig.model || 'Gemini',
+        model: whatsappConfig.model || 'Gemini'
       };
     }
   } catch (e) {
-    console.error('Translate failed', e);
+    console.error('loadGlobalAiConfig failed', e);
   }
 }
 
@@ -151,34 +162,37 @@ async function loadTranslateConfig() {
       };
     }
   } catch (e) {
-    console.error('Translate failed', e);
+    console.error('loadTranslateConfig failed', e);
   }
 }
 
 async function saveConfig() {
-  // 更新名称
-  const tone = dictTone.value.find(i => i.dictValue === config.value.tone);
+  const tone = dictTone.value.find((i) => i.dictValue === config.value.tone);
   if (tone) config.value.toneName = tone.dictLabel;
-  
-  const theme = dictTheme.value.find(i => i.dictValue === config.value.theme);
+
+  const theme = dictTheme.value.find((i) => i.dictValue === config.value.theme);
   if (theme) config.value.themeName = theme.dictLabel;
-  
-  const role = dictRole.value.find(i => i.dictValue === config.value.role);
+
+  const role = dictRole.value.find((i) => i.dictValue === config.value.role);
   if (role) config.value.roleName = role.dictLabel;
 
-  await ipc.invoke('controller.window.saveSessionConfig', { chatId: sessionConfigKey.value, config: config.value });
-  Notification.message({ message: 'Config saved', type: 'success' });
-  
-  // 通知 WhatsApp 注入脚本更新
+  const configPayload = JSON.parse(JSON.stringify(toRaw(config.value)));
+
+  await ipc.invoke('controller.window.saveSessionConfig', {
+    chatId: sessionConfigKey.value,
+    config: configPayload
+  });
+
   await ipc.invoke('controller.window.sendToWv', {
     chatId: props.chatId,
     channel: 'sync-ai-config',
-    args: [config.value]
+    args: [configPayload]
   });
 }
 
 async function handlePolish() {
   if (!originalText.value) return;
+
   isLoading.value = true;
   polishedText.value = '';
   translatedText.value = '';
@@ -199,6 +213,7 @@ async function handlePolish() {
       chatId: props.chatId,
       count: historyCount
     });
+
     const history = Array.isArray(historyRes?.data)
       ? historyRes.data
       : (Array.isArray(historyRes) ? historyRes : []);
@@ -215,13 +230,13 @@ async function handlePolish() {
 
     const res = await post('/app/agentChat', params);
     if (res && res.code === 200) {
-      polishedText.value = res.data;
+      polishedText.value = res.data || '';
       if (isTranslationEnabled.value) {
         handleTranslate();
       }
     }
   } catch (e) {
-    Notification.message({ message: 'Polish failed: ' + e.message, type: 'error' });
+    Notification.message({ message: `润色失败: ${e.message}`, type: 'error' });
   } finally {
     isLoading.value = false;
   }
@@ -230,188 +245,163 @@ async function handlePolish() {
 async function handleTranslate() {
   if (!polishedText.value) return;
   try {
-    const res = await post('/app/agent/translate', { text: polishedText.value, target: 'zh' });
+    const res = await post('/app/agent/translate', {
+      text: polishedText.value,
+      target: 'zh'
+    });
     if (res && res.code === 200) {
       translatedText.value = res.data;
     }
   } catch (e) {
-    console.error('Translate failed', e);
+    console.error('handleTranslate failed', e);
   }
 }
 
 async function applyToDraft() {
   if (!polishedText.value) return;
+
   const result = await ipc.invoke('controller.window.sendToWv', {
     chatId: props.chatId,
     channel: 'apply-polish-to-draft',
     args: [polishedText.value]
   });
+
   Notification.message({
-    message: result?.status ? 'Applied to draft' : 'Apply failed',
+    message: result?.status ? '已替换到草稿' : '替换失败',
     type: result?.status ? 'success' : 'error'
   });
 }
 
 async function sendImmediate() {
   if (!polishedText.value) return;
+
   const result = await ipc.invoke('controller.window.sendToWv', {
     chatId: props.chatId,
     channel: 'send-polished-message',
     args: [polishedText.value]
   });
+
   Notification.message({
-    message: result?.status ? 'Message sent' : 'Send failed',
+    message: result?.status ? '已发送' : '发送失败',
     type: result?.status ? 'success' : 'error'
   });
+  originalText.value= '';
+  polishedText.value = ''
 }
-
-function copyResult() {
-  navigator.clipboard.writeText(polishedText.value);
-  Notification.message({ message: 'Copied', type: 'success' });
-}
-
 </script>
 
 <template>
-  <div class="ai-polish-container">
-    <el-tabs v-model="activeTab" class="custom-tabs">
-      <el-tab-pane name="polish">
-        <template #label>
-          <div class="tab-label">
-            <el-icon><MagicStick /></el-icon>
-            <span>AI润色</span>
-          </div>
-        </template>
-        
-        <div class="polish-content">
-          <div class="section-card">
-            <div class="section-title">原文内容</div>
+  <div class="ai-polish-panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="star">✦</span>AI 对话润色</div>
+      <button class="panel-close" type="button" @click="emit('close')">×</button>
+    </div>
+
+    <el-tabs v-model="activeTab" class="ai-tabs">
+      <el-tab-pane label="AI润色" name="polish">
+        <div class="content-row">
+          <div class="left-col">
+            <div class="block-label">ORIGINAL (原文)</div>
             <el-input
               v-model="originalText"
+              class="original-input"
               type="textarea"
-              :rows="4"
-              placeholder="请输入需要润色的回复内容..."
+              :rows="9"
               resize="none"
+              placeholder="请输入原文内容"
+              @blur="handlePolish"
             />
-            <div class="section-actions">
-              <el-button type="primary" :loading="isLoading" @click="handlePolish" round>
-                开始润色</el-button>
-            </div>
           </div>
 
-          <div class="section-card result-card" v-loading="isLoading">
-            <div class="section-title">
-              <span>润色建议</span>
-              <div class="title-right">
-                <span class="sub-label">翻译为中文</span>
-                <el-switch v-model="isTranslationEnabled" size="small" @change="handleTranslate" />
-              </div>
+          <div class="right-col">
+            <div class="block-label suggest-label">
+              <span class="star">✦</span>
+              <span>AI Suggestions (润色建议)</span>
             </div>
-            
-            <div class="result-box">
-              <div v-if="polishedText" class="text-content">
-                {{ polishedText }}
-              </div>
-              <div v-if="translatedText" class="translation-content">
-                {{ translatedText }}
-              </div>
-              <el-empty v-if="!polishedText && !isLoading" description="暂无建议" :image-size="60" />
-            </div>
-
-            <div class="result-actions" v-if="polishedText">
-              <el-button-group>
-                <el-button :icon="CopyDocument" @click="copyResult">复制</el-button>
-                <el-button type="success" :icon="Check" @click="applyToDraft">填入草稿</el-button>
-                <el-button type="primary" :icon="Promotion" @click="sendImmediate">发送聊天</el-button>
-              </el-button-group>
-            </div>
-          </div>
-
-          <div class="config-summary">
-            <div class="summary-item">
-              <span class="label">当前风格:</span>
-              <el-tag size="small" type="info" effect="plain">
-                {{ config.enabled ? config.toneName : globalConfig.toneName }}
-              </el-tag>
-              <el-tag size="small" type="info" effect="plain">
-                {{ config.enabled ? config.themeName : globalConfig.themeName }}
-              </el-tag>
-              <el-tag size="small" type="info" effect="plain">
-                {{ config.enabled ? config.roleName : globalConfig.roleName }}
-              </el-tag>
+            <div class="suggestion-box" v-loading="isLoading">
+              <div v-if="polishedText" class="suggestion-text">{{ polishedText }}</div>
+              <el-empty v-else :image-size="48" description="暂无建议" />
+              <div v-if="translatedText" class="translation-text">{{ translatedText }}</div>
             </div>
           </div>
         </div>
+
+        <div class="style-panel">
+          <div class="style-title">回复风格</div>
+
+          <div class="style-row">
+            <span class="style-name">回复语调：</span>
+            <el-tag class="style-tag" round>{{ toneDisplayName }}</el-tag>
+          </div>
+
+          <div class="style-row">
+            <span class="style-name">回复主题：</span>
+            <el-tag class="style-tag" round>{{ themeDisplayName }}</el-tag>
+          </div>
+
+          <div class="style-row">
+            <span class="style-name">回复角色：</span>
+            <el-tag class="style-tag" round>{{ roleDisplayName }}</el-tag>
+          </div>
+        </div>
+
+        <div class="bottom-actions">
+          <!-- <el-button class="action-btn action-primary" :disabled="!polishedText" @click="applyToDraft">
+            替换到草稿
+          </el-button> -->
+          <el-button class="action-btn  action-primary" :disabled="!polishedText" @click="sendImmediate">
+           发送聊天
+          </el-button>
+        </div>
       </el-tab-pane>
 
-      <el-tab-pane name="settings">
-        <template #label>
-          <div class="tab-label">
-            <el-icon><Setting /></el-icon>
-            <span>AI设置</span>
-          </div>
-        </template>
-
-        <div class="settings-content">
-          <div class="section-card">
-            <div class="setting-item-row">
-              <div class="setting-info">
-                <div class="main-label">开启独立AI配置</div>
-                <div class="sub-label">仅对当前会话生效，关闭则使用全局配置</div>
-              </div>
-              <el-switch v-model="config.enabled" @change="saveConfig" />
+      <el-tab-pane label="设置" name="settings">
+        <div class="settings-wrap">
+          <div class="setting-row">
+            <div class="setting-label">
+              <div class="main-label">开启独立AI配置</div>
+              <div class="sub-label">仅当前会话生效，关闭后使用全局配置</div>
             </div>
+            <el-switch v-model="config.enabled" @change="saveConfig" />
           </div>
 
-          <transition name="fade">
-            <div v-if="config.enabled" class="section-card">
-              <div class="form-item">
-                <div class="form-label">回复语调</div>
-                <el-select v-model="config.tone" placeholder="选择语调" @change="saveConfig" style="width: 100%">
-                  <el-option
-                    v-for="item in dictTone"
-                    :key="item.dictValue"
-                    :label="item.dictLabel"
-                    :value="item.dictValue"
-                  />
-                </el-select>
-              </div>
-
-              <div class="form-item">
-                <div class="form-label">回复主题</div>
-                <el-select v-model="config.theme" placeholder="选择主题" @change="saveConfig" style="width: 100%">
-                  <el-option
-                    v-for="item in dictTheme"
-                    :key="item.dictValue"
-                    :label="item.dictLabel"
-                    :value="item.dictValue"
-                  />
-                </el-select>
-              </div>
-
-              <div class="form-item">
-                <div class="form-label">回复角色</div>
-                <el-select v-model="config.role" placeholder="选择角色" @change="saveConfig" style="width: 100%">
-                  <el-option
-                    v-for="item in dictRole"
-                    :key="item.dictValue"
-                    :label="item.dictLabel"
-                    :value="item.dictValue"
-                  />
-                </el-select>
-              </div>
+          <template v-if="config.enabled">
+            <div class="setting-field">
+              <div class="field-label">回复语调</div>
+              <el-select v-model="config.tone" placeholder="选择语调" style="width: 100%" @change="saveConfig">
+                <el-option
+                  v-for="item in dictTone"
+                  :key="item.dictValue"
+                  :label="item.dictLabel"
+                  :value="item.dictValue"
+                />
+              </el-select>
             </div>
-          </transition>
-          
-          <div v-if="!config.enabled" class="global-preview">
-            <div class="section-title">全局配置预览</div>
-            <div class="info-grid">
-              <div class="info-item"><span class="label">语调:</span> {{ globalConfig.toneName }}</div>
-              <div class="info-item"><span class="label">主题:</span> {{ globalConfig.themeName }}</div>
-              <div class="info-item"><span class="label">角色:</span> {{ globalConfig.roleName }}</div>
+
+            <div class="setting-field">
+              <div class="field-label">回复主题</div>
+              <el-select v-model="config.theme" placeholder="选择主题" style="width: 100%" @change="saveConfig">
+                <el-option
+                  v-for="item in dictTheme"
+                  :key="item.dictValue"
+                  :label="item.dictLabel"
+                  :value="item.dictValue"
+                />
+              </el-select>
             </div>
-            <div class="hint">如需修改，请前往“系统设置-AI回复设置”或开启上方独立配置</div>
-          </div>
+
+            <div class="setting-field">
+              <div class="field-label">回复角色</div>
+              <el-select v-model="config.role" placeholder="选择角色" style="width: 100%" @change="saveConfig">
+                <el-option
+                  v-for="item in dictRole"
+                  :key="item.dictValue"
+                  :label="item.dictLabel"
+                  :value="item.dictValue"
+                />
+              </el-select>
+            </div>
+          </template>
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -419,172 +409,234 @@ function copyResult() {
 </template>
 
 <style scoped>
-.ai-polish-container {
+.ai-polish-panel {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
+  background: #eef0ef;
+  color: #2f3832;
+  box-sizing: border-box;
+ 
+
 }
 
-.custom-tabs :deep(.el-tabs__header) {
-  margin: 0;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0 16px;
-}
-
-.tab-label {
+.panel-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+   background: linear-gradient(135deg, #F8FFFE 0%, #F0FAF5 100%);
+    padding: 20px 22px;
+}
+
+.panel-title {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  padding: 8px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #21b35b;
 }
 
-.polish-content, .settings-content {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.star {
+  color: #21b35b;
+  font-size: 14px;
 }
 
-.section-card {
-  background: #fff;
+.panel-close {
+  border: 0;
+  background: transparent;
+  color: #747d77;
+  width: 24px;
+  height: 24px;
   border-radius: 12px;
-  padding: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
 }
 
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.panel-close:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.section-actions {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.result-card {
+.ai-tabs {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0px 22px;
+}
+
+.ai-tabs :deep(.el-tabs__header) {
+  margin: 0 0 10px;
+}
+
+.ai-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: auto;
+}
+
+.content-row {
   display: flex;
   flex-direction: column;
 }
 
-.result-box {
-  flex: 1;
-  background: #f1f5f9;
-  border-radius: 8px;
+.block-label {
+  font-size: 12px;
+  color: #5a635d;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.suggest-label {
+  color: #20ab59;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.original-input :deep(.el-textarea__inner) {
+  height: 168px;
+  min-height: 168px;
+  border: 1px solid #d4d9d6;
+  border-radius: 10px;
+  background: #e4e4e4;
+  box-shadow: none;
+  color: #3a423d;
+  font-size: 14px;
+}
+
+.suggestion-box {
+  height: 168px;
+  border: 1px solid #4bc178;
+  border-radius: 10px;
+  background: #dfe8e1;
   padding: 12px;
-  min-height: 120px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #334155;
+  box-sizing: border-box;
+  overflow: auto;
 }
 
-.translation-content {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #cbd5e1;
-  color: #64748b;
+.suggestion-text {
+  color: #3f4a43;
   font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
 }
 
-.result-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-}
-
-.config-summary {
-  margin-top: auto;
-}
-
-.summary-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.translation-text {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #b9c7bc;
+  color: #617068;
   font-size: 12px;
-  color: #64748b;
 }
 
-.setting-item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.style-panel {
+  margin-top: 12px;
 }
 
-.main-label {
-  font-size: 14px;
+.style-title {
+  font-size: 15px;
+  color: #2b302d;
   font-weight: 600;
-  color: #1e293b;
+  margin-bottom: 8px;
 }
 
-.sub-label {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 2px;
+.style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.form-item {
-  margin-bottom: 16px;
-}
-
-.form-item:last-child {
+.style-row:last-child {
   margin-bottom: 0;
 }
 
-.form-label {
+.style-name {
+  width: 76px;
+  color: #68726b;
   font-size: 13px;
-  color: #475569;
+}
+
+.style-tag {
+  --el-tag-bg-color: #e4f8e8;
+  --el-tag-border-color: #2ec66d;
+  --el-tag-text-color: #24a65a;
+  height: 28px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.bottom-actions {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.action-btn {
+  height: 42px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.action-primary {
+  background: #24c35d;
+  border-color: #24c35d;
+  color: #fff;
+}
+
+.action-primary:hover,
+.action-primary:focus {
+  background: #1fb152;
+  border-color: #1fb152;
+  color: #fff;
+}
+
+.action-secondary {
+  background: #f5f6f5;
+  border-color: #d8ddd9;
+  color: #303933;
+}
+
+.settings-wrap {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid #dde2de;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.main-label {
+  color: #2f3832;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sub-label {
+  color: #76817a;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.setting-field {
+  margin-bottom: 12px;
+}
+
+.setting-field:last-child {
+  margin-bottom: 0;
+}
+
+.field-label {
+  font-size: 13px;
+  color: #59635d;
   margin-bottom: 6px;
 }
-
-.global-preview {
-  padding: 8px;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.info-item {
-  font-size: 12px;
-  color: #475569;
-  background: #fff;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-}
-
-.info-item .label {
-  color: #94a3b8;
-  display: block;
-  margin-bottom: 2px;
-}
-
-.hint {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 12px;
-  font-style: italic;
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s, transform 0.3s;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
 </style>
-

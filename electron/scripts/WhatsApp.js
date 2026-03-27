@@ -157,6 +157,85 @@ if (typeof window._chat365_state === 'undefined') {
 }
 // ==========================================================
 
+const SESSION_INDEPENDENT_AI_DB_NAME = 'WhatsAppSssionIndependentAIConfigCacheDB';
+const SESSION_INDEPENDENT_AI_STORE_NAME = 'sessionConfig';
+const DEFAULT_LOCAL_AI_CONFIG = {
+    enabled: false,
+    tone: '',
+    theme: '',
+    role: '',
+    toneName: '',
+    themeName: '',
+    roleName: ''
+};
+let sessionIndependentAiConfigDBInstance = null;
+
+function openSessionIndependentAiConfigDB() {
+    if (sessionIndependentAiConfigDBInstance) {
+        return Promise.resolve(sessionIndependentAiConfigDBInstance);
+    }
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(SESSION_INDEPENDENT_AI_DB_NAME, 1);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(SESSION_INDEPENDENT_AI_STORE_NAME)) {
+                db.createObjectStore(SESSION_INDEPENDENT_AI_STORE_NAME, { keyPath: 'chatId' });
+            }
+        };
+        request.onsuccess = (event) => {
+            sessionIndependentAiConfigDBInstance = event.target.result;
+            resolve(sessionIndependentAiConfigDBInstance);
+        };
+        request.onerror = (event) => {
+            reject(event.target.error || new Error('open session independent ai config db failed'));
+        };
+    });
+}
+
+async function getSessionIndependentAiConfig(chatId) {
+    if (!chatId) return null;
+    try {
+        const db = await openSessionIndependentAiConfigDB();
+        return await new Promise((resolve) => {
+            const tx = db.transaction([SESSION_INDEPENDENT_AI_STORE_NAME], 'readonly');
+            const store = tx.objectStore(SESSION_INDEPENDENT_AI_STORE_NAME);
+            const request = store.get(chatId);
+            request.onsuccess = () => {
+                const record = request.result;
+                resolve(record && record.config ? record.config : null);
+            };
+            request.onerror = () => resolve(null);
+        });
+    } catch (e) {
+        console.warn('[AI Config Cache] read indexedDB failed:', e);
+        return null;
+    }
+}
+
+async function saveSessionIndependentAiConfig(chatId, config) {
+    if (!chatId || !config || typeof config !== 'object') return;
+    try {
+        const db = await openSessionIndependentAiConfigDB();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction([SESSION_INDEPENDENT_AI_STORE_NAME], 'readwrite');
+            const store = tx.objectStore(SESSION_INDEPENDENT_AI_STORE_NAME);
+            store.put({
+                chatId,
+                config: {
+                    ...DEFAULT_LOCAL_AI_CONFIG,
+                    ...config
+                },
+                updatedAt: Date.now()
+            });
+            tx.oncomplete = () => resolve();
+            tx.onerror = (event) => reject(event.target.error || new Error('save session config tx failed'));
+            tx.onabort = (event) => reject(event.target.error || new Error('save session config tx aborted'));
+        });
+    } catch (e) {
+        console.warn('[AI Config Cache] write indexedDB failed:', e);
+    }
+}
+
 function printElementEvery5Seconds() {
     console.info('✅ 进入 WhatsApp.js 脚本');
 
@@ -2082,10 +2161,15 @@ window.electronAPI.ipcRenderer.on('send-polished-message', (event, text) => {
     sendPolishedMessage(text);
 });
 
-window.electronAPI.ipcRenderer.on('sync-ai-config', (event, config) => {
+window.electronAPI.ipcRenderer.on('sync-ai-config', async (event, config) => {
     const chatId = window._chat365_state.currentChatId || getCurrentChatId();
-    window._chat365_state._local_ai_configs[chatId] = config;
-    window._local_ai_config = config;
+    const normalizedConfig = {
+        ...DEFAULT_LOCAL_AI_CONFIG,
+        ...(config || {})
+    };
+    window._chat365_state._local_ai_configs[chatId] = normalizedConfig;
+    window._local_ai_config = normalizedConfig;
+    await saveSessionIndependentAiConfig(chatId, normalizedConfig);
     
     // 强制重绘工具栏以反映开关状态
     injectAiToolbar();
@@ -2293,15 +2377,18 @@ function injectAiToolbar() {
 
     // 初始化该会话的独立配置 (如果不存在)
     if (!window._chat365_state._local_ai_configs[chatId]) {
-        window._chat365_state._local_ai_configs[chatId] = {
-            enabled: false,
-            tone: '',
-            theme: '',
-            role: '',
-            toneName: '',
-            themeName: '',
-            roleName: ''
-        };
+        window._chat365_state._local_ai_configs[chatId] = { ...DEFAULT_LOCAL_AI_CONFIG };
+        getSessionIndependentAiConfig(chatId).then((cachedConfig) => {
+            if (!cachedConfig || typeof cachedConfig !== 'object') return;
+            const latestChatId = window._chat365_state.currentChatId || getCurrentChatId();
+            if (latestChatId !== chatId) return;
+            window._chat365_state._local_ai_configs[chatId] = {
+                ...DEFAULT_LOCAL_AI_CONFIG,
+                ...cachedConfig
+            };
+            window._local_ai_config = window._chat365_state._local_ai_configs[chatId];
+            injectAiToolbar();
+        });
     }
 
     // 为了兼容旧代码，将当前会话的配置引用赋值给 window._local_ai_config
@@ -2462,6 +2549,7 @@ function injectAiToolbar() {
                             window._local_ai_config.role = val;
                             window._local_ai_config.roleName = labelText;
                         }
+                        saveSessionIndependentAiConfig(chatId, window._local_ai_config);
                         
                         renderToolbarConfig(container);
                     };
@@ -2486,6 +2574,7 @@ function injectAiToolbar() {
                 if (!window._local_ai_config.theme) window._local_ai_config.theme = globalAiConfig?.theme;
                 if (!window._local_ai_config.role) window._local_ai_config.role = globalAiConfig?.role;
             }
+            saveSessionIndependentAiConfig(chatId, window._local_ai_config);
             renderToolbarConfig(container);
         };
     };
