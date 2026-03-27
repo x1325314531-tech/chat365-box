@@ -106,6 +106,12 @@ watch(
   () => props.initialText,
   (newVal) => {
     originalText.value = newVal ?? '';
+    if (!newVal) {
+      polishedText.value = '';
+      translatedText.value = '';
+      isLoading.value = false;
+      return;
+    }
     if (hasActiveConversation.value && newVal) {
       handlePolish();
     }
@@ -674,4 +680,3 @@ async function sendImmediate() {
   height: 100%;
 }
 </style>
-

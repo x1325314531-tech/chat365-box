@@ -1,4 +1,4 @@
-// whatsapp-content.js
+﻿// whatsapp-content.js
 // 版本：2026-01-30 v2 - 添加 IndexedDB 存储发送消息原文
 console.log('🚀 [Chat365] WhatsApp.js 正在载入...');
 console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)');
@@ -2438,7 +2438,7 @@ function injectAiToolbar() {
         toolbar.innerHTML = `
             <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
-                自动润色
+                AI润色
             </div>
             <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
                 <!-- 配置区域容器 -->

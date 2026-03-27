@@ -109,8 +109,19 @@ onMounted(() => {
 
   // 监听会话切换，同步 chatId
   ipc.on('chat-id-change', (event, data) => {
-    currentCardId.value = data?.cardId || currentCardId.value;
-    currentConversationId.value = data?.conversationId || data?.chatId || '';
+    const nextCardId = data?.cardId || currentCardId.value;
+    const nextConversationId = data?.conversationId || data?.chatId || '';
+    const hasConversationChanged =
+      String(nextCardId || '') !== String(currentCardId.value || '') ||
+      String(nextConversationId || '') !== String(currentConversationId.value || '');
+
+    currentCardId.value = nextCardId;
+    currentConversationId.value = nextConversationId;
+
+    // 切换联系人时清空润色内容，避免沿用上一个会话的原文与建议
+    if (hasConversationChanged) {
+      polishText.value = '';
+    }
   });
 
   syncActiveChatId();
