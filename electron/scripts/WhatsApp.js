@@ -2477,25 +2477,12 @@ function injectAiToolbar() {
         } else {
             const makeCustomDropdown = (id, label, dict, selectedValue) => {
                 const selectedItem = dict.find(item => item.dictValue === selectedValue) || dict[0] || {};
-                const optionsHtml = dict.map(item => {
-                    const isSelected = item.dictValue === selectedValue;
-                    return `
-                        <div class="ai-select-option ${isSelected ? 'selected' : ''}" data-value="${item.dictValue}" data-label="${item.dictLabel}">
-                            <span>${item.dictLabel}</span>
-                            ${isSelected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                        </div>
-                    `;
-                }).join('');
 
                 return `
-                    <div class="ai-custom-select" id="${id}">
+                    <div class="ai-custom-select" id="${id}" style="cursor: default;">
                         <div class="ai-select-label">${label}</div>
-                        <div class="ai-select-trigger">
+                        <div class="ai-select-trigger" style="cursor: default; padding-right: 8px; border: none; background: transparent; pointer-events: none;">
                             <span class="select-value">${selectedItem.dictLabel || ''}</span>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="ai-select-arrow" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </div>
-                        <div class="ai-select-dropdown">
-                            ${optionsHtml}
                         </div>
                     </div>
                 `;
@@ -2515,55 +2502,6 @@ function injectAiToolbar() {
                     ${makeCustomDropdown('local-role-select', '角色', window._dictRole, window._local_ai_config.role || globalAiConfig?.role)}
                 </div>
             `;
-
-            ['local-tone-select', 'local-theme-select', 'local-role-select'].forEach(id => {
-                const el = area.querySelector('#' + id);
-                const trigger = el.querySelector('.ai-select-trigger');
-                const dropdown = el.querySelector('.ai-select-dropdown');
-                
-                trigger.onclick = (e) => {
-                    e.stopPropagation();
-                    area.querySelectorAll('.ai-custom-select.open').forEach(openEl => {
-                        if (openEl !== el) openEl.classList.remove('open');
-                    });
-                    el.classList.toggle('open');
-                };
-                
-                dropdown.querySelectorAll('.ai-select-option').forEach(opt => {
-                    opt.onclick = (e) => {
-                        e.stopPropagation();
-                        // 先移除 open 类目，确保接下来的 renderToolbarConfig 不会被拦截
-                        el.classList.remove('open');
-
-                        const val = opt.getAttribute('data-value');
-                        const labelText = opt.getAttribute('data-label');
-                        
-                        // 更新当前会话的配置
-                        if (id === 'local-tone-select') {
-                            window._local_ai_config.tone = val;
-                            window._local_ai_config.toneName = labelText;
-                        } else if (id === 'local-theme-select') {
-                            window._local_ai_config.theme = val;
-                            window._local_ai_config.themeName = labelText;
-                        } else if (id === 'local-role-select') {
-                            window._local_ai_config.role = val;
-                            window._local_ai_config.roleName = labelText;
-                        }
-                        saveSessionIndependentAiConfig(chatId, window._local_ai_config);
-                        
-                        renderToolbarConfig(container);
-                    };
-                });
-            });
-
-            if (!window._ai_dropdown_click_bound) {
-                document.addEventListener('click', () => {
-                    document.querySelectorAll('.ai-custom-select.open').forEach(openEl => {
-                        openEl.classList.remove('open');
-                    });
-                });
-                window._ai_dropdown_click_bound = true;
-            }
         }
 
         area.querySelector('#local-ai-toggle').onchange = (e) => {
