@@ -317,7 +317,7 @@ const handleQuickAccess = (item) => {
 <style lang="less" scoped>
 /* =========== 整体布局 =========== */
 .home-page-container {
-  min-height: 100vh;
+  min-height: 100%;
   background-color: #f5f7fa; /* 淡灰色背景 */
   padding: 12px 12px;
   box-sizing: border-box;
@@ -407,19 +407,21 @@ const handleQuickAccess = (item) => {
 /* =========== 中间信息卡片模块 =========== */
 .info-section {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
 }
 
 /* 左侧用户信息卡片 */
 .user-info-card {
-  flex: 1; /* 吸附剩余空间 */
+  flex: 1 1 500px;
   background-color: #ffffff;
   border-radius: 8px;
   padding: 24px 30px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .user-greeting {
@@ -433,9 +435,11 @@ const handleQuickAccess = (item) => {
 
 .info-metrics {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   padding: 0 15px;
+  gap: 16px;
 }
 
 .metric-item {
@@ -482,7 +486,8 @@ const handleQuickAccess = (item) => {
 
 /* 右侧充值卡片 */
 .recharge-card {
-  width: 260px; 
+  flex: 1 1 260px;
+  max-width: 280px;
   background-color: #ffffff;
   border-radius: 8px;
   padding: 24px;
@@ -556,12 +561,13 @@ const handleQuickAccess = (item) => {
 }
 
 .quick-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .quick-item {
+  width: calc((100% - 32px) / 3); /* 默认3列 (100% - 2个gap) / 3 */
   background: #FAFAFA;
   border-radius: 6px;
   padding: 18px 20px;
@@ -571,10 +577,23 @@ const handleQuickAccess = (item) => {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+  box-sizing: border-box;
 
   &:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 1200px) {
+  .quick-item {
+    width: calc((100% - 16px) / 2); /* 2列 */
+  }
+}
+
+@media (max-width: 768px) {
+  .quick-item {
+    width: 100%; /* 1列 */
   }
 }
 
