@@ -376,6 +376,7 @@ const audioCacheMap = new Map(); // 使用 Map 支持字符串(ID)或元素键
 
 // 获取规范的消息容器 (用于作为统一的缓存 Key)
 function getCanonicalVoiceContainer(element) {
+    
     if (!element) return null;
     
     if (element._wp_canonical_key) {
@@ -386,6 +387,7 @@ function getCanonicalVoiceContainer(element) {
 
     // 1. 优先寻找带有 data-id 的消息根容器 (最稳定)
     const messageNode = element.closest('[data-id]');
+     console.log('🎯 [ID] 成功从 data-id 提取 messageNode:', messageNode);
     if (messageNode) {
         const id = messageNode.getAttribute('data-id');
         if (id) {
@@ -5214,10 +5216,9 @@ function setVoiceTranslateBtnState(containerKey, isEnabled) {
 // 处理语音消息列表，添加翻译按钮
 function processVoiceMessageList() {
     // 查找所有语音消息 - 使用更通用的选择器
-    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"],.html-button[aria-label="Pause voice message"],.html-button[aria-label="播放语音消息"]'  );
+    const voiceMessages = document.querySelectorAll('span[data-icon="audio-play"], span[data-icon="audio-pause"],.html-button[aria-label="Pause voice message"],.html-button[aria-label="Play voice message"],.html-button[aria-label="播放语音消息"]'  );
     
     // console.log('🔍 扫描到语音消息数量:', voiceMessages.length);
-    
     voiceMessages.forEach((playIcon, index) => {
         // 尝试多种方式找到消息容器
         let messageNode = playIcon.closest('[data-id]'); // 常见消息容器
@@ -5232,7 +5233,7 @@ function processVoiceMessageList() {
         if (voiceContainer.querySelector('.voice-translate-btn')) {
             return;
         }
-
+        
         // 检测消息方向 (发送 vs 接收)
         // message-out 是发送的消息，message-in 是接收的消息
         const isOut = !!playIcon.closest('.message-out') || (messageNode && messageNode.classList.contains('message-out'));

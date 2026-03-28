@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, toRaw, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ipc } from '@/utils/ipcRenderer';
 import { post } from '@/utils/request';
 import Notification from '@/utils/notification';
@@ -19,8 +20,8 @@ const props = defineProps({
   }
 });
 
+const { t } = useI18n();
 const emit = defineEmits(['close']);
-
 const activeTab = ref('polish');
 const originalText = ref(props.initialText);
 const polishedText = ref('');
@@ -37,17 +38,17 @@ const defaultLocalConfig = {
   tone: '',
   theme: '',
   role: '',
-  toneName: '默认',
-  themeName: '默认',
-  roleName: '默认',
+  toneName: t('aiPolish.default'),
+  themeName: t('aiPolish.default'),
+  roleName: t('aiPolish.default'),
   historyCount: 3
 };
 
-const historyOptions = [
-  { label: '基于前 3 条对话记录', value: 3 },
-  { label: '基于前 5 条对话记录', value: 5 },
-  { label: '基于前 10 条对话记录', value: 10 }
-];
+const historyOptions = computed(() => [
+  { label: t('aiPolish.historyCount', { n: 3 }), value: 3 },
+  { label: t('aiPolish.historyCount', { n: 5 }), value: 5 },
+  { label: t('aiPolish.historyCount', { n: 10 }), value: 10 }
+]);
 
 const config = ref({
   ...defaultLocalConfig
@@ -65,9 +66,9 @@ const globalConfig = ref({
   role: 'default',
   model: 'Gemini',
   historyCount: 3,
-  toneName: '默认',
-  themeName: '默认',
-  roleName: '默认'
+  toneName: t('aiPolish.default'),
+  themeName: t('aiPolish.default'),
+  roleName: t('aiPolish.default')
 });
 
 const translateConfig = ref({
@@ -76,20 +77,20 @@ const translateConfig = ref({
 
 const toneDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.toneName || '默认')
-    : (globalConfig.value.toneName || '默认');
+    ? (config.value.toneName || t('aiPolish.default'))
+    : (globalConfig.value.toneName || t('aiPolish.default'));
 });
 
 const themeDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.themeName || '默认')
-    : (globalConfig.value.themeName || '默认');
+    ? (config.value.themeName || t('aiPolish.default'))
+    : (globalConfig.value.themeName || t('aiPolish.default'));
 });
 
 const roleDisplayName = computed(() => {
   return config.value.enabled
-    ? (config.value.roleName || '默认')
-    : (globalConfig.value.roleName || '默认');
+    ? (config.value.roleName || t('aiPolish.default'))
+    : (globalConfig.value.roleName || t('aiPolish.default'));
 });
 
 
@@ -173,9 +174,9 @@ async function loadGlobalAiConfig() {
       globalConfig.value = {
         ...globalConfig.value,
         ...whatsappConfig,
-        toneName: whatsappConfig.toneName || '默认',
-        themeName: whatsappConfig.themeName || '默认',
-        roleName: whatsappConfig.roleName || '默认',
+        toneName: whatsappConfig.toneName || t('aiPolish.default'),
+        themeName: whatsappConfig.themeName || t('aiPolish.default'),
+        roleName: whatsappConfig.roleName || t('aiPolish.default'),
         historyCount: Number(whatsappConfig.historyCount) || 3,
         model: whatsappConfig.model || 'Gemini'
       };
@@ -274,7 +275,7 @@ async function handlePolish() {
     }
   } catch (e) {
     if (!e.isHandled) {
-      Notification.message({ message: `Al润色失败: ${e.message}`, type: 'error' });
+      Notification.message({ message: `${t('aiPolish.polishFailed')}: ${e.message}`, type: 'error' });
     }
   } finally {
     isLoading.value = false;
@@ -317,7 +318,7 @@ async function applyToDraft() {
   });
 
   Notification.message({
-    message: result?.status ? '成功获取到数据' : '修改失败',
+    message: result?.status ? t('aiPolish.applySuccess') : t('aiPolish.applyFailed'),
     type: result?.status ? 'success' : 'error'
   });
 }
@@ -332,7 +333,7 @@ async function sendImmediate() {
   });
 
   Notification.message({
-    message: result?.status ? '已发送' : '发送失败',
+    message: result?.status ? t('aiPolish.sendSuccess') : t('aiPolish.sendFailed'),
     type: result?.status ? 'success' : 'error'
   });
   originalText.value= '';
@@ -344,22 +345,22 @@ async function sendImmediate() {
   <div class="ai-polish-panel">
     <div v-if="hasActiveConversation">
     <div class="panel-header">
-      <div class="panel-title"><span class="star">✦</span>AI 对话润色</div>
+      <div class="panel-title"><span class="star">✦</span>{{ $t('aiPolish.title') }}</div>
       <button class="panel-close" type="button" @click="emit('close')">×</button>
     </div>
 
     <el-tabs v-model="activeTab" class="ai-tabs">
-      <el-tab-pane label="AI润色" name="polish">
+      <el-tab-pane :label="$t('aiPolish.tabPolish')" name="polish">
         <div class="content-row">
           <div class="left-col">
-            <div class="block-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> ORIGINAL (原文)</div>
+            <div class="block-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> {{ $t('aiPolish.original') }}</div>
             <el-input
               v-model="originalText"
               class="original-input"
               type="textarea"
               :rows="9"
               resize="none"
-              placeholder="请输入原文内容"
+              :placeholder="$t('aiPolish.originalPlaceholder')"
               @blur="handlePolish"
             />
           </div>
@@ -368,10 +369,10 @@ async function sendImmediate() {
             <div class="block-label suggest-label">
               <div class="suggest-label-left">
                 <span class="star">✦</span>
-                <span>AI Suggestions (润色建议)</span>
+                <span>{{ $t('aiPolish.suggestions') }}</span>
               </div>
               <div class="suggest-tools">
-                <span class="translate-text">翻译中文</span>
+                <span class="translate-text">{{ $t('aiPolish.translateToZh') }}</span>
                 <el-switch
                   v-model="isTranslationEnabled"
                   class="translate-switch"
@@ -391,27 +392,27 @@ async function sendImmediate() {
                     <path d="M12 3L13.9 8.1L19 10L13.9 11.9L12 17L10.1 11.9L5 10L10.1 8.1L12 3Z" fill="currentColor" />
                   </svg>
                 </div>
-                <div class="empty-title">暂无建议</div>
-                <div class="empty-tip">输入原文后，系统会自动生成润色结果</div>
+                <div class="empty-title">{{ $t('aiPolish.noSuggestions') }}</div>
+                <div class="empty-tip">{{ $t('aiPolish.noSuggestionsDesc') }}</div>
               </div>
             </div>
           </div>
         </div>
 
         <div class="style-panel">
-          <div class="style-title">回复风格</div>
+          <div class="style-title">{{ $t('aiPolish.replyStyle') }}</div>
 
           <div class="style-inline-row">
             <div class="style-item">
-              <span class="style-name">语调：</span>
+              <span class="style-name">{{ $t('aiPolish.tone') }}</span>
               <el-tag class="style-tag" round>{{ toneDisplayName }}</el-tag>
             </div>
             <div class="style-item">
-              <span class="style-name">主题：</span>
+              <span class="style-name">{{ $t('aiPolish.theme') }}</span>
               <el-tag class="style-tag" round>{{ themeDisplayName }}</el-tag>
             </div>
             <div class="style-item">
-              <span class="style-name">角色：</span>
+              <span class="style-name">{{ $t('aiPolish.role') }}</span>
               <el-tag class="style-tag" round>{{ roleDisplayName }}</el-tag>
             </div>
           </div>
@@ -420,25 +421,25 @@ async function sendImmediate() {
         <div class="bottom-actions">
           <el-button class="action-btn  action-primary" :disabled="!polishedText" @click="sendImmediate">
            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-            发送聊天
+            {{ $t('aiPolish.sendChat') }}
           </el-button>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="设置" name="settings">
+      <el-tab-pane :label="$t('aiPolish.tabSettings')" name="settings">
         <div class="settings-wrap">
           <div class="setting-row">
             <div class="setting-label">
-              <div class="main-label">开启独立AI配置</div>
-              <div class="sub-label">仅当前会话生效，关闭后使用全局配置</div>
+              <div class="main-label">{{ $t('aiPolish.enableSessionConfig') }}</div>
+              <div class="sub-label">{{ $t('aiPolish.enableSessionConfigDesc') }}</div>
             </div>
             <el-switch v-model="config.enabled" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="saveConfig" />
           </div>
 
           <template v-if="config.enabled">
             <div class="setting-field">
-              <div class="field-label">回复语调</div>
-              <el-select v-model="config.tone" placeholder="选择语调" style="width: 100%" @change="saveConfig">
+              <div class="field-label">{{ $t('aiPolish.toneLabel') }}</div>
+              <el-select v-model="config.tone" :placeholder="$t('aiPolish.tonePlaceholder')" style="width: 100%" @change="saveConfig">
                 <el-option
                   v-for="item in dictTone"
                   :key="item.dictValue"
@@ -449,8 +450,8 @@ async function sendImmediate() {
             </div>
 
             <div class="setting-field">
-              <div class="field-label">回复主题</div>
-              <el-select v-model="config.theme" placeholder="选择主题" style="width: 100%" @change="saveConfig">
+              <div class="field-label">{{ $t('aiPolish.themeLabel') }}</div>
+              <el-select v-model="config.theme" :placeholder="$t('aiPolish.themePlaceholder')" style="width: 100%" @change="saveConfig">
                 <el-option
                   v-for="item in dictTheme"
                   :key="item.dictValue"
@@ -461,8 +462,8 @@ async function sendImmediate() {
             </div>
 
             <div class="setting-field">
-              <div class="field-label">回复角色</div>
-              <el-select v-model="config.role" placeholder="选择角色" style="width: 100%" @change="saveConfig">
+              <div class="field-label">{{ $t('aiPolish.roleLabel') }}</div>
+              <el-select v-model="config.role" :placeholder="$t('aiPolish.rolePlaceholder')" style="width: 100%" @change="saveConfig">
                 <el-option
                   v-for="item in dictRole"
                   :key="item.dictValue"
@@ -489,7 +490,7 @@ async function sendImmediate() {
     </el-tabs>
     </div>
     <div class="polishing-box-empty" v-else>
-      <el-empty :image-size="48" description="暂无会话" />
+      <el-empty :image-size="48" :description="$t('aiPolish.noSession')" />
     </div>
   </div>
 </template>
