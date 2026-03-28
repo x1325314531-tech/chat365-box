@@ -12,7 +12,7 @@ const platforms = [
     { platform: 'Telegram', url: 'https://web.telegram.org/a/' },
     { platform: 'TelegramK', url: 'https://web.telegram.org/k/' },
     { platform: 'WhatsApp', url: 'https://web.whatsapp.com/' },
-    { platform: 'FaceBook', url: 'https://www.facebook.com/messages' },
+    // { platform: 'FaceBook', url: 'https://www.facebook.com/messages' },
     // { platform: 'Zalo', url: 'https://chat.zalo.me/' },
     // { platform: 'Telegram', url: 'https://www.browserscan.net/zh/' },
     // { platform: 'WhatsApp', url: 'https://ipcs.vip/' },

@@ -28,7 +28,7 @@
         </div>
       </div>
       <!-- 退出按钮 -->
-      <div class="logout-button" @click="handleLogout">
+      <div class="logout-button" v-if="isLogout" @click="handleLogout">
         <el-tooltip
              class="box-item"
              effect="dark"
@@ -100,13 +100,14 @@ const ipcApiRoute = {
 const menuItems = ref([
   { id: 'home',name:'Home', icon: homeIcon, path: '/home', unreadCount: 0 },
   { id: 'whatsApp', name:'WhatsApp', icon: whatsappIcon, path: '/home/whatsapp', unreadCount: 0 },
-  { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
+  // { id:'faceBook', icon: facebookIcon, path: '/home/facebook', unreadCount:0},
   //  {id: 'zalo', icon:zaloIcon, path:'/home/zalo'},
 ]);
 
 // 存储所有会话的未读数映射 { cardId: { platform, count } }
 const sessionCounts = ref({});
 const isPlacedTop = ref(false)
+const isLogout = ref(false)
 // 计算并更新各平台的总未读数
 const updatePlatformUnreadCounts = () => {
   // 先重置所有菜单项的未读数

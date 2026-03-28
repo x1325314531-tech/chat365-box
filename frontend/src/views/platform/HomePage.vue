@@ -125,13 +125,27 @@
       </div>
     </div>
     
-    <!-- 底部隐藏图表保持功能 -->
-    <div v-if="chartShow" class="chart-section" style="margin-top: 20px;">
-       <el-card>
-        <div class="title">{{ $t('home.dataStats') }}</div>
-        <LineChart />
-      </el-card>
-    </div>
+    
+    <!-- 退出登录确认弹窗 -->
+    <el-dialog
+        v-model="logoutDialogVisible"
+        title="退出登录"
+        width="400px"
+        :show-close="true"
+        class="custom-logout-dialog"
+        align-center
+    >
+      <div class="dialog-content">
+        <p class="sessions-info">当前 {{ runningSessionsCount }} 个会话正在运行</p>
+        <p class="confirm-text">确认退出当前用户？</p>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="cancelLogout" class="cancel-btn">取消</el-button>
+          <el-button type="primary" @click="confirmLogout" class="confirm-btn">确定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -183,6 +197,9 @@ const loadUserInfo = () => {
   }
 }
 
+const logoutDialogVisible = ref(false);
+const runningSessionsCount = ref(0);
+
 // 字符使用情况
 const charInfo = ref({
   totalChar: 0,
@@ -227,10 +244,33 @@ const handleClearCache = async () => {
    } catch(e) {}
 }
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  // 1. 隐藏所有活跃视图，防止遮挡弹窗
+  await ipc.invoke('controller.window.hideWindow', {});
+  
+  // 2. 获取正在运行的会话数量
+  runningSessionsCount.value = await ipc.invoke('controller.window.getRunningSessionsCount', {});
+  
+  // 3. 显示自定义确认弹窗
+  logoutDialogVisible.value = true;
+}
+
+const cancelLogout = async () => {
+  logoutDialogVisible.value = false;
+  // 恢复活跃视图显示
+  await ipc.invoke('controller.window.restoreActiveViews', {});
+}
+
+const confirmLogout = async () => {
+  logoutDialogVisible.value = false;
+  
+  const userInfoStr = localStorage.getItem('userInfo');
+  const userInfoObj = JSON.parse(userInfoStr || '{}');
+  const accountId = userInfoObj.accountId;
+
   del('/app/account/logout').then(res => {
     if (res.code === 200) {
-      ipc.invoke('controller.window.logout', {}).then(() => {
+      ipc.invoke('controller.window.logout', { accountId: accountId }).then(() => {
         localStorage.removeItem('box-token');
         localStorage.removeItem('userInfo');
         router.push('/login');
@@ -238,6 +278,8 @@ const handleLogout = () => {
     }
   }).catch(error => {
     console.error('退出失败:', error);
+    // 即使失败也尝试恢复视图
+    ipc.invoke('controller.window.restoreActiveViews', {});
   })
 }
 
@@ -285,15 +327,16 @@ import planRenewalIcon from '@/assets/home/plan-renewal.png'
 const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
   { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
-  { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
-  { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
-  { id: 'wsJoin', icon: wsJoinIcon, titleKey: 'quickItems.wsJoin', descKey: 'quickItems.wsJoinDesc' },
-  { id: 'wsLeave', icon: wsLeaveIcon, titleKey: 'quickItems.wsLeave', descKey: 'quickItems.wsLeaveDesc' },
-  { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
-  { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
-  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
-  { id: 'platform', icon: platformIcon, titleKey: 'quickItems.platform', descKey: 'quickItems.platformDesc' },
-  { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' }
+   { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
+  // { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
+  // { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
+  // { id: 'wsJoin', icon: wsJoinIcon, titleKey: 'quickItems.wsJoin', descKey: 'quickItems.wsJoinDesc' },
+  // { id: 'wsLeave', icon: wsLeaveIcon, titleKey: 'quickItems.wsLeave', descKey: 'quickItems.wsLeaveDesc' },
+  // { icon: wsAiIcon, titleKey: 'quickItems.wsAi', descKey: 'quickItems.wsAiDesc' },
+  // { icon: wsImportIcon, titleKey: 'quickItems.wsImport', descKey: 'quickItems.wsImportDesc' },
+  // { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
+  // { id: 'platform', icon: platformIcon, titleKey: 'quickItems.platform', descKey: 'quickItems.platformDesc' },
+  // { icon: wsContactIcon, titleKey: 'quickItems.wsContact', descKey: 'quickItems.wsContactDesc' }
 ])
 
 const router = useRouter()
@@ -551,7 +594,7 @@ const handleQuickAccess = (item) => {
 }
 
 .section-title {
-
+  font-family:'PingFang SC';
   font-size: 18px;
   font-weight: 400;
   color: #333333;
@@ -625,6 +668,7 @@ const handleQuickAccess = (item) => {
   font-size: 14px;
   color: #262626;
   font-weight: 500;
+  text-align: left;
 }
 
 .quick-item-desc {
@@ -654,6 +698,7 @@ const handleQuickAccess = (item) => {
   font-size: 16px;
   font-weight: 600;
   color: #333;
+  
 }
 
 .refresh-icon {
@@ -705,5 +750,75 @@ const handleQuickAccess = (item) => {
   color: #1890ff;
   font-weight: 500;
   background-color: #e6f7ff;
+}
+
+/* 自定义退出弹窗样式 */
+:deep(.custom-logout-dialog) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.custom-logout-dialog .el-dialog__header) {
+  margin: 0;
+  padding: 20px 24px 10px;
+}
+
+:deep(.custom-logout-dialog .el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+:deep(.custom-logout-dialog .el-dialog__body) {
+  padding: 10px 24px 30px;
+}
+
+.dialog-content {
+  color: #666;
+  line-height: 1.6;
+}
+
+.sessions-info {
+  margin: 0;
+  font-size: 15px;
+  text-align: left;
+}
+
+.confirm-text {
+  margin: 5px 0 0;
+  font-size: 15px;
+  text-align: left;
+}
+
+:deep(.custom-logout-dialog .el-dialog__footer) {
+  padding: 0 24px 24px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancel-btn {
+  border-radius: 8px;
+  padding: 10px 20px;
+  height: 40px;
+  font-size: 15px;
+}
+
+.confirm-btn {
+  background-color: #26d366 !important; /* WhatsApp Green */
+  border-color: #26d366 !important;
+  border-radius: 8px;
+  padding: 10px 20px;
+  height: 40px;
+  font-size: 15px;
+  color: white;
+}
+
+.confirm-btn:hover {
+  background-color: #20bd5a !important;
+  border-color: #20bd5a !important;
 }
 </style>
