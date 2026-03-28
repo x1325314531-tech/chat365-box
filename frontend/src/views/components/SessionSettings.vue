@@ -1159,6 +1159,8 @@ const confirmClick = async () => {
 
       // 如果是新建会话，先通过 IPC 添加
       if (!props.isEdit) {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const accountId = userInfo.accountId;
         const addArgs = {
           activeStatus: false,
           cardId: configForm.cardId,
@@ -1166,6 +1168,7 @@ const confirmClick = async () => {
           name: configForm.name,
           online: true,
           platform: props.platform,
+          accountId: accountId,
           sessionId: res.data && (typeof res.data === 'object' ? (res.data.id || res.data.sessionId) : res.data)
         };
         console.log('addIPC', addArgs);

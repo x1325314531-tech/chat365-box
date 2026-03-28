@@ -19,6 +19,8 @@ const { t } = useI18n()
 const route = useRoute();
 const router = useRouter();
 const activeButtonLoading = ref(false)
+const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+const accountId = userInfo.accountId;
 const jsCode = ref('')
 const executeCode = (card)=>{
   const args = {cardId:card.cardId,code:jsCode.value};
@@ -142,7 +144,7 @@ watch([importPanel, userPortraitPanel], ([newImport, newUserPortrait]) => {
 // 获取所有会话数据
 async function getAllSessions() {
   try {
-    const res = await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title });
+    const res = await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title, accountId: accountId });
     if (res && res.data) {
       console.log('获取所有会话成功', res.data);
       const sessionList = res.data.map(item => {
@@ -210,7 +212,7 @@ function setActiveStatus() {
   console.log('activeCard', activeCard);
   
   if (activeCard) {
-    ipc.invoke(ipcApiRoute.selectSession, {cardId:activeCard.card_id,platform:props.title}).then(res => {
+    ipc.invoke(ipcApiRoute.selectSession, {cardId:activeCard.card_id, platform:props.title, accountId: accountId}).then(res => {
       // getAllSessions()
     })
   }
@@ -256,7 +258,7 @@ const openAll = async () => {
    
     try {
       // 调用 initSession 初始化会话
-      const res = await ipc.invoke(ipcApiRoute.initSession, { platform: props.title, cardId: card.card_id });
+      const res = await ipc.invoke(ipcApiRoute.initSession, { platform: props.title, cardId: card.card_id, accountId: accountId });
 
       // 根据返回结果更新 card 状态
       if (res.status) {
@@ -302,7 +304,7 @@ function selectCard(index, card) {
     selectedCardIndex.value = index;
 
     // 通过 IPC 调用 selectSession 接口以更新选中的会话状态
-    ipc.invoke(ipcApiRoute.selectSession, { cardId: card.card_id, platform: props.title })
+    ipc.invoke(ipcApiRoute.selectSession, { cardId: card.card_id, platform: props.title, accountId: accountId })
         .then((res) => {
           // 若响应成功，则取消卡片的加载状态
           if (res.status) {
@@ -356,7 +358,7 @@ function userPortrait(card) {
 // 处理刷新按钮点击
 async function handleRefresh(card) {
   card.loading = true;
-  const args = { cardId: card.cardId, platform: props.title };
+  const args = { cardId: card.cardId, platform: props.title, accountId: accountId };
   ipc.invoke(ipcApiRoute.refreshSession, args).then(res =>{
     if (res.status) {
       card.loading = false;
@@ -383,7 +385,7 @@ function handleClose(card) {
     type: 'warning'
   }).then(() => {
     card.loading = true;
-    ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.cardId }).then((res) => {
+    ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.cardId, accountId: accountId }).then((res) => {
       if (res.status) {
         card.loading = false;
       }

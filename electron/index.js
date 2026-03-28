@@ -57,6 +57,7 @@ class Index extends Application {
           session_id: 'TEXT',
           my_phone: 'TEXT',
           unread_count: 'INTEGER',
+          account_id: 'TEXT',
         },
         constraints: []
       },

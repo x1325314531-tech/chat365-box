@@ -33,13 +33,11 @@ class WindowService extends Service {
     }
 
     async addCard(args, event) {
-        const {cardId, platform, online, name, sessionId} = args;
+        const {cardId, platform, online, name, sessionId, accountId} = args;
         const url = platforms.find(item => item.platform.toLowerCase() === platform.toLowerCase())?.url;
         if (!url) return {message:'未找到对应平台的URL',status:false};
-        // const mainId = Addon.get('window').getMWCid();
-        // const mainWin = BrowserWindow.fromId(mainId);
         // 检查是否已存在会话
-        const cardCache = await app.sdb.selectOne('cards',{'card_id':cardId})
+        const cardCache = await app.sdb.selectOne('cards',{'card_id':cardId, 'account_id': accountId})
         if (cardCache) {
             return {status:false,message:'创建失败，已存在该窗口'};
         }
@@ -53,7 +51,8 @@ class WindowService extends Service {
             online_status: online ? 'true' : 'false',
             show_badge: 'false',
             card_name: name || '',
-            session_id: sessionId || ''
+            session_id: sessionId || '',
+            account_id: accountId || ''
         })
         await app.sdb.insert('card_config', {
             card_id: cardId, 
@@ -66,8 +65,8 @@ class WindowService extends Service {
     }
 
     async refreshCard(args, event) {
-        const { platform, cardId } = args;
-        const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId,platform:platform})
+        const { platform, cardId, accountId } = args;
+        const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId, platform:platform, account_id: accountId})
         if (!cardInfo) {
             // 尝试不区分大小写匹配
             const allCards = await app.sdb.select('cards', {card_id: cardId});
@@ -100,9 +99,9 @@ class WindowService extends Service {
     }
 
     async deleteCard(args, event) {
-        const { platform, cardId } = args;
+        const { platform, cardId, accountId } = args;
         try {
-            let count = await app.sdb.delete('cards',{card_id:cardId,platform:platform})
+            let count = await app.sdb.delete('cards',{card_id:cardId, platform:platform, account_id: accountId})
             if (count === 0) {
                  // 尝试不区分大小写匹配
                  const allCards = await app.sdb.select('cards', {card_id: cardId});
@@ -124,9 +123,9 @@ class WindowService extends Service {
     }
 
     async selectCard(args, event) {
-        const { cardId,platform } = args;
+        const { cardId, platform, accountId } = args;
         Log.info('卡片切换：',args)
-        const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId,platform:platform});
+        const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId, platform:platform, account_id: accountId});
         if (cardInfo) {
             const window = app.viewsMap.get(cardId);
             if (window && !window.webContents.isDestroyed()) {
@@ -152,9 +151,9 @@ class WindowService extends Service {
     }
     //初始化卡片，不显示
     async initCard(args, event) {
-        const { cardId,platform } = args;
+        const { cardId, platform, accountId } = args;
         Log.info('初始化卡片会话：',args)
-        const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId,platform:platform});
+        const cardInfo = await app.sdb.selectOne('cards',{card_id:cardId, platform:platform, account_id: accountId});
         if (cardInfo) {
             const window = app.viewsMap.get(cardId);
             if (window && !window.webContents.isDestroyed()) {
@@ -172,8 +171,8 @@ class WindowService extends Service {
         return {status:false,message:'找不到该会话信息'};
     }
     async getCards(args, event) {
-        const { platform } = args;
-        return await app.sdb.select('cards', {platform: platform});
+        const { platform, accountId } = args;
+        return await app.sdb.select('cards', { platform: platform, account_id: accountId });
     }
 
     async saveCardConfig(args, event) {
@@ -259,10 +258,11 @@ class WindowService extends Service {
         });
     }
     async logOut(args, event) {
+        const { accountId } = args;
         Log.info('开始执行全局退出注销流程...');
         
-        // 1. 获取所有卡片以确保能清除每个独立分区的存储
-        const allCards = await app.sdb.select('cards', {});
+        // 1. 获取该账号下的所有卡片以确保能清除每个独立分区的存储
+        const allCards = await app.sdb.select('cards', { account_id: accountId });
         
         // 2. 销毁所有活跃视图（WebContentsView）
         app.viewsMap.forEach((view, key) => {

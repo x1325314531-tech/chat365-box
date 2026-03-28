@@ -148,10 +148,10 @@ watch(() => route.path, () => {
 onMounted(async () => {
   updateActiveMenu();
 
-  // 初始化所有平台的未读数
-  const platforms = ['WhatsApp']; // 后续如有 Zalo/Telegram 可添加
+  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+  const accountId = userInfo.accountId;
   for (const p of platforms) {
-    const res = await ipc.invoke('controller.window.getSessions', { platform: p });
+    const res = await ipc.invoke('controller.window.getSessions', { platform: p, accountId: accountId });
     if (res && res.data) {
       res.data.forEach(card => {
         sessionCounts.value[card.card_id] = {
@@ -249,11 +249,12 @@ async function confirmLogout() {
   menuItems.value.forEach(item => {
     item.unreadCount = 0;
   });
-  sessionCounts.value = {};
+  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+  const accountId = userInfo.accountId;
   
   del('/app/account/logout').then(res => {
     if (res.code === 200) {
-      ipc.invoke(ipcApiRoute.logout, {}).then(() => {
+      ipc.invoke(ipcApiRoute.logout, { accountId: accountId }).then(() => {
         localStorage.removeItem('box-token');
         localStorage.removeItem('userInfo');
         router.push('/login');

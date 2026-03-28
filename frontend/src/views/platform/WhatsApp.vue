@@ -73,7 +73,9 @@ const AI_DRAWER_WIDTH = 330;
 
 const syncActiveChatId = async () => {
   try {
-    const res = await ipc.invoke('controller.window.getSessions', { platform: t('whatsapp.title') });
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const accountId = userInfo.accountId;
+    const res = await ipc.invoke('controller.window.getSessions', { platform: t('whatsapp.title') , accountId: accountId });
     const list = Array.isArray(res?.data) ? res.data : [];
     const active = list.find(item =>
       item.active_status === 'true' ||
