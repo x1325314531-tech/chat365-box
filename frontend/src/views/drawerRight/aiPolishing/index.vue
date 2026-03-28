@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post } from '@/utils/request';
@@ -54,8 +54,8 @@ const config = ref({
 });
 
 const sessionConfigKey = computed(() => {
-  const cardId = String(props.chatId || '');
-  const cid = String(props.conversationId || '');
+  const cardId = String(props.chatId || '').trim();
+  const cid = String(props.conversationId || '').trim();
   return cid ? `${cardId}::${cid}` : cardId;
 });
 
@@ -247,7 +247,7 @@ async function handlePolish() {
       : (Number(globalConfig.value.historyCount) || 3);
 
     const historyRes = await ipc.invoke('controller.window.getChatHistory', {
-      chatId: props.chatId,
+      chatId: String(props.chatId || '').trim(),
       count: resolvedHistoryCount
     });
 
@@ -727,25 +727,25 @@ async function sendImmediate() {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap; /* 允许换行 */
   padding-bottom: 2px;
 }
 
 .style-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid #d7e4db;
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 4px 6px;
 }
 
 .style-name {
   color: #68726b;
-  font-size: 12px;
+  font-size: 10px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+
 }
 
 .style-tag {
