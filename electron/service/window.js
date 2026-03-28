@@ -420,6 +420,7 @@ class WindowService extends Service {
 
         try {
             const history = await view.webContents.executeJavaScript(script, true);
+            Log.error(` history ${chatId}:`,  history);
             return Array.isArray(history) ? history : [];
         } catch (error) {
             Log.error(`[getChatHistory] execute script failed for ${chatId}:`, error);

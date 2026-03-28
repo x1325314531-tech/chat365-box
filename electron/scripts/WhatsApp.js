@@ -3168,9 +3168,10 @@ function monitorMainNode() {
                         processImageMessageList(); 
                         processVoiceMessageList(); // 添加语音消息处理
                         initSidebarResize(); // 初始化侧边栏拉伸
-                        injectAiToolbar(); // 注入 AI 工具栏
-                        injectHeaderAiButton(); // 注入顶部 AI 按钮
+                        // injectAiToolbar(); // 注入 AI 工具栏
+                        // injectHeaderAiButton(); // 注入顶部 AI 按钮
                     }, 500);
+                    setInterval(() => injectAiToolbar(),3000);
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)

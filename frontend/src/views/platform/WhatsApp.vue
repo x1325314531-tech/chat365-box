@@ -36,6 +36,7 @@
         :chat-id="currentCardId"
         :conversation-id="currentConversationId"
         :initial-text="polishText"
+        @close="aiDrawerVisible = false"
       />
   </div>
     <div class="sidebar-div">

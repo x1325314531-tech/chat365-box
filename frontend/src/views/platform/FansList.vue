@@ -263,9 +263,12 @@ const handlePlatform = (e) => {
 }
 // 获取所有 WhatsApp 账号（已登录且有号码的）
 const getAccounts = async () => {
-  
+  const accountId = userInfo.value.accountId;
   try {
-    const res = await ipc.invoke('controller.window.getSessions', { platform: searchForm.platform? searchForm.platform: 'WhatsApp' })
+    const res = await ipc.invoke('controller.window.getSessions', { 
+      platform: searchForm.platform ? searchForm.platform : 'WhatsApp',
+      accountId: accountId 
+    })
      console.log('res',res);
     if (res && Array.isArray(res.data) && res.data.length > 0) {
       const loggedInAccounts = res.data
@@ -283,7 +286,7 @@ const getAccounts = async () => {
     } else { 
       availableAccounts.value = []
       appPHONEDisable.value = true
-      searchForm.appPhone = []
+      searchForm.appPhone = ''
       console.log('⚠️ [Debug] 未找到可用账号或数据格式不正确');
     }
   } catch (err) {

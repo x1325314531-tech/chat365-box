@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post } from '@/utils/request';
@@ -39,8 +39,15 @@ const defaultLocalConfig = {
   role: '',
   toneName: '默认',
   themeName: '默认',
-  roleName: '默认'
+  roleName: '默认',
+  historyCount: 3
 };
+
+const historyOptions = [
+  { label: '基于前 3 条对话记录', value: 3 },
+  { label: '基于前 5 条对话记录', value: 5 },
+  { label: '基于前 10 条对话记录', value: 10 }
+];
 
 const config = ref({
   ...defaultLocalConfig
@@ -235,10 +242,13 @@ async function handlePolish() {
       ? (config.value.role || globalConfig.value.role)
       : globalConfig.value.role;
 
-    const historyCount = Number(globalConfig.value.historyCount) || 3;
+    const resolvedHistoryCount = config.value.enabled 
+      ? (Number(config.value.historyCount) || 3) 
+      : (Number(globalConfig.value.historyCount) || 3);
+
     const historyRes = await ipc.invoke('controller.window.getChatHistory', {
       chatId: props.chatId,
-      count: historyCount
+      count: resolvedHistoryCount
     });
 
     const history = Array.isArray(historyRes?.data)
@@ -456,6 +466,18 @@ async function sendImmediate() {
                   :key="item.dictValue"
                   :label="item.dictLabel"
                   :value="item.dictValue"
+                />
+              </el-select>
+            </div>
+
+            <div class="setting-field" style="margin-top: 14px;">
+              <div class="field-label">对话上下文</div>
+              <el-select v-model="config.historyCount" placeholder="选择历史条数" style="width: 100%" @change="saveConfig">
+                <el-option
+                  v-for="item in historyOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
                 />
               </el-select>
             </div>
@@ -705,18 +727,8 @@ async function sendImmediate() {
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow-x: auto;
-  white-space: nowrap;
+  flex-wrap: wrap; /* 允许换行 */
   padding-bottom: 2px;
-}
-
-.style-inline-row::-webkit-scrollbar {
-  height: 4px;
-}
-
-.style-inline-row::-webkit-scrollbar-thumb {
-  border-radius: 6px;
-  background: rgba(58, 130, 89, 0.2);
 }
 
 .style-item {
