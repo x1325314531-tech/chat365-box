@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post } from '@/utils/request';
@@ -273,7 +273,9 @@ async function handlePolish() {
       }
     }
   } catch (e) {
-    Notification.message({ message: `Al润色失败: ${e.message}`, type: 'error' });
+    if (!e.isHandled) {
+      Notification.message({ message: `Al润色失败: ${e.message}`, type: 'error' });
+    }
   } finally {
     isLoading.value = false;
   }
@@ -470,7 +472,7 @@ async function sendImmediate() {
               </el-select>
             </div>
 
-            <div class="setting-field" style="margin-top: 14px;">
+            <!-- <div class="setting-field"  style="margin-top: 14px;">
               <div class="field-label">对话上下文</div>
               <el-select v-model="config.historyCount" placeholder="选择历史条数" style="width: 100%" @change="saveConfig">
                 <el-option
@@ -480,7 +482,7 @@ async function sendImmediate() {
                   :value="item.value"
                 />
               </el-select>
-            </div>
+            </div> -->
           </template>
         </div>
       </el-tab-pane>

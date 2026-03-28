@@ -5,7 +5,8 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ipc } from '@/utils/ipcRenderer';
 import { post, put, get } from "@/utils/request";
 import { nanoid } from 'nanoid';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElNotification } from 'element-plus';
+import Notification from '@/utils/notification';
 import moment from 'moment-timezone';
 const props = defineProps({
   card: {
@@ -502,11 +503,11 @@ const fetchConfig = async () => {
         
         console.log('会话详情加载成功:', configForm);
       } else {
-        ElMessage.error(t('session.messages.fetchDetailFailed'));
+        Notification.message({ message: t('session.messages.fetchDetailFailed'), type: 'error' });
       }
     } catch (error) {
       console.error('获取会话详情出错:', error);
-      ElMessage.error(t('session.messages.fetchDetailError'));
+      Notification.message({ message: t('session.messages.fetchDetailError'), type: 'error' });
     }
   } else {
     // Reset form for new session
@@ -565,7 +566,7 @@ onMounted(() => {
 const generateFingerprint = () => {
     generateRandomUA();
     // Here we could add more randomization for other fingerprint items if needed
-    ElMessage.success(t('session.messages.newFingerprint'));
+    Notification.message({ message: t('session.messages.newFingerprint'), type: 'success' });
 };
 
 watch(() => props.card, () => {
@@ -687,7 +688,7 @@ const handleRefreshFonts = (silent = false) => {
   }
   configForm.fontCustom = selected.join(', ');
   if (!silent) {
-    ElMessage.success(t('session.messages.newFontFingerprint'));
+    Notification.message({ message: t('session.messages.newFontFingerprint'), type: 'success' });
   }
 };
 
@@ -718,7 +719,7 @@ const handleRefreshWebGlInfo = () => {
    const info = getWebGLInfo();
    configForm.webglVendor = info.vendor;
    configForm.webglRenderer = info.renderer;
-   ElMessage.success(t('session.messages.refreshWebGL'));
+   Notification.message({ message: t('session.messages.refreshWebGL'), type: 'success' });
 }
 
 watch(() => configForm.canvas, (val) => {
@@ -1038,7 +1039,7 @@ const confirmEditFont = () => {
 const handleRefreshResolution = () => {
   const randomRes = resolutionOptions.value[Math.floor(Math.random() * resolutionOptions.value.length)];
   currentResolution.value = randomRes;
-  ElMessage.success(t('session.messages.newResolution'));
+  Notification.message({ message: t('session.messages.newResolution'), type: 'success' });
 };
 const addLanguage = async () => {
   addLanguageVisible.value = true;
@@ -1080,9 +1081,9 @@ const handleLanguageCommand = (command, index) => {
     list.splice(index, 1);
   }
 };
-const confirmClick = async () => {
+async function confirmClick() {
   if (!configForm.name) {
-    ElMessage.warning(t('session.messages.nicknameRequired'));
+    Notification.message({ message: t('session.messages.nicknameRequired'), type: 'warning' });
     return;
   }
   const moreOptions = JSON.stringify(configForm);
@@ -1175,7 +1176,7 @@ const confirmClick = async () => {
         
         const addRes = await ipc.invoke(ipcApiRoute.addSession, addArgs);
         if (addRes && addRes.status === false) {
-           ElMessage.error(addRes.message || t('session.messages.saveFailed'));
+           Notification.message({ message: addRes.message || t('session.messages.saveFailed'), type: 'error' });
            return;
         }
       }
@@ -1183,19 +1184,19 @@ const confirmClick = async () => {
       // 无论新建还是编辑，都同步配置信息
       const configRes = await ipc.invoke(ipcApiRoute.addConfigInfo, argsConfig);
       if (configRes && configRes.status === false) {
-          ElMessage.error(configRes.message || t('session.messages.saveFailed'));
+          Notification.message({ message: configRes.message || t('session.messages.saveFailed'), type: 'error' });
           return;
       }
       
-      ElMessage.success(props.isEdit ? t('session.messages.updateSuccess') : t('session.messages.addSuccess'));
+      Notification.message({ message: props.isEdit ? t('session.messages.updateSuccess') : t('session.messages.addSuccess'), type: 'success' });
       // 触发 confirm 事件，父组件（如 WhatsApp.vue）会监听到并调用 getAllSessions() 刷新列表
       emit('confirm', { cardId: configForm.cardId, isNew: !props.isEdit });
     } else {
-      ElMessage.error(res.msg || t('session.messages.saveFailed'));
+      Notification.message({ message: res.msg || t('session.messages.saveFailed'), type: 'error' });
     }
   } catch (error) {
     console.error('保存会话失败:', error);
-    ElMessage.error(t('session.messages.saveCheckNetwork'));
+    Notification.message({ message: t('session.messages.saveCheckNetwork'), type: 'error' });
   }
 };
 

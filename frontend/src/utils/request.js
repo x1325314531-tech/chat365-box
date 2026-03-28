@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ElMessage } from 'element-plus';
+import Notification from '@/utils/notification';
 import router from '@/router';
 
 // 创建一个 axios 实例
@@ -26,7 +26,7 @@ service.interceptors.request.use(
     },
     (error) => {
         // 对请求错误做些什么
-        ElMessage.error('请求发送失败，请检查网络或重试');
+        Notification.message({ message: '请求发送失败，请检查网络或重试', type: 'error' });
         console.error('请求错误:', error);
         return Promise.reject(error);
     }
@@ -41,14 +41,14 @@ service.interceptors.response.use(
         if (res.code !== 200) {
             // Token 失效
             if (res.code === 401) {
-                ElMessage.error('登录状态已过期，请重新登录');
+                Notification.message({ message: '登录状态已过期，请重新登录', type: 'error' });
                 localStorage.removeItem('box-token');
                 localStorage.removeItem('userInfo');
                 router.push('/login');
                 return Promise.reject(new Error('Auth failed'));
             }
             const errorMsg = res.msg || '请求失败';
-            ElMessage.error(errorMsg); // 使用 Element Plus 显示错误信息
+            Notification.message({ message: errorMsg, type: 'error' }); // 使用 Notification 包装类显示错误信息
             console.error('请求失败:', errorMsg);
             const error = new Error(errorMsg);
             error.isHandled = true; // 标记已处理，避免外部再次处理
@@ -70,7 +70,7 @@ service.interceptors.response.use(
             // 根据响应状态码自定义错误提示
             const { status, data } = error.response;
             if (status === 401) {
-                ElMessage.error('登录状态已过期，请重新登录');
+                Notification.message({ message: '登录状态已过期，请重新登录', type: 'error' });
                 localStorage.removeItem('box-token');
                 localStorage.removeItem('userInfo');
                 router.push('/login');
@@ -78,11 +78,11 @@ service.interceptors.response.use(
             }
             // 支持 msg 或 message 字段
             const errorMessage = data.msg || data.message || `请求失败，状态码: ${status}`;
-            ElMessage.error(errorMessage);
+            Notification.message({ message: errorMessage, type: 'error' });
         } else {
             // 排除取消请求或已处理的错误
             if (error.code !== 'ERR_CANCELED') {
-                ElMessage.error('网络错误，请检查您的网络连接');
+                Notification.message({ message: '网络错误，请检查您的网络连接', type: 'error' });
             }
         }
         console.error('响应错误:', error);

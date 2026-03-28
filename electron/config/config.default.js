@@ -1,5 +1,6 @@
 'use strict';
 
+const { truncate } = require('fs/promises');
 const path = require('path');
 
 /**
@@ -35,7 +36,7 @@ module.exports = (appInfo) => {
       devTools: true,
       //preload: path.join(appInfo.baseDir, 'preload', 'bridge.js'),
     },
-    frame: true,
+    frame: false,
     show: false,
     icon: path.join(appInfo.home, 'public', 'images', 'chat365-logo-32.png'),
   };

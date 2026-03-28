@@ -376,9 +376,6 @@ const handleShrink=() => {
 }
 // 处理关闭按钮点击
 function handleClose(card) {
-  // 弹出确认框前先隐藏当前 WhatsApp 窗口，避免遮挡
-  ipc.invoke(ipcApiRoute.hideWindow);
-  
   Notification.confirm({
     message: t('aside.deleteConfirm'),
     title: t('aside.deleteSession'),
@@ -397,9 +394,6 @@ function handleClose(card) {
         }
       })
     });
-  }).catch(() => {
-    // 用户取消删除，恢复激活显示
-    setActiveStatus();
   });
 }
 // 会话置于顶部
@@ -525,7 +519,7 @@ function placedLeft() {
            </div>
            
            <div class="subtitle-phone" v-if="card.my_phone">{{ card.my_phone}}</div>
-           <div class="subtitle-desc" v-if="card.my_phone">Mali</div>
+           <div class="subtitle-desc" v-if="card.my_phone">{{ props.title }}</div>
         </div>
       </div>
     </div>

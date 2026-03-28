@@ -2533,7 +2533,7 @@ function injectAiToolbar() {
                 return `
                     <div class="ai-custom-select" id="${id}" style="cursor: default;">
                         <div class="ai-select-label">${label}</div>
-                        <div class="ai-select-trigger" style="cursor: default; padding-right: 8px; border: none; background: transparent; pointer-events: none;">
+                        <div class="ai-select-trigger" style="cursor: default;  border: none; background: transparent; pointer-events: none;">
                             <span class="select-value">${selectedItem.dictLabel || ''}</span>
                         </div>
                     </div>
@@ -2541,7 +2541,7 @@ function injectAiToolbar() {
             };
 
             area.innerHTML = `
-                <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px; border-radius:8px; padding:6px 12px;  border: 1px solid #eee;">
+                <div class="pdr-switch-container" style="flex-direction: row; margin-right: 8px; border-radius:8px; padding:4px 12px;  border: 1px solid #eee;">
                     <span style="font-size: 11px; opacity: 0.7;  font-weight: normal; color: #555;">独立AI配置</span>
                     <label class="pdr-switch" style="pointer-events: none; opacity: 0.7;">
                         <input
@@ -2557,9 +2557,9 @@ function injectAiToolbar() {
                     </label>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    ${makeCustomDropdown('local-tone-select', '语调', window._dictTone, window._local_ai_config.tone || globalAiConfig?.tone)}
-                    ${makeCustomDropdown('local-theme-select', '主题', window._dictTheme, window._local_ai_config.theme || globalAiConfig?.theme)}
-                    ${makeCustomDropdown('local-role-select', '角色', window._dictRole, window._local_ai_config.role || globalAiConfig?.role)}
+                    ${makeCustomDropdown('local-tone-select', '语调:', window._dictTone, window._local_ai_config.tone || globalAiConfig?.tone)}
+                    ${makeCustomDropdown('local-theme-select', '主题:', window._dictTheme, window._local_ai_config.theme || globalAiConfig?.theme)}
+                    ${makeCustomDropdown('local-role-select', '角色:', window._dictRole, window._local_ai_config.role || globalAiConfig?.role)}
                 </div>
             `;
         }
@@ -2643,15 +2643,15 @@ function injectAiToolbar() {
 
             .ai-custom-select {
                 position: relative; display: flex; align-items: center; border: 1px solid #dcdfe6;
-                border-radius: 4px; background: #fff; height: 26px; font-size: 11px; user-select: none;
+                border-radius:8px; background: #fff;  padding:6px 12px; font-size: 11px; user-select: none;
             }
             .ai-select-label {
-                background: #f5f7fa; padding: 0 6px; height: 100%; display: flex; align-items: center;
-                border-right: 1px solid #dcdfe6; color: #606266; white-space: nowrap;
+                background: #fff; padding: 0 4px; height: 100%; display: flex; align-items: center;
+                 color: #606266; white-space: nowrap;
             }
             .ai-select-trigger {
-                padding: 0 8px; display: flex; align-items: center; justify-content: space-between;
-                min-width: 50px; cursor: pointer; color: #303133; white-space: nowrap; height: 100%;
+                padding: 0px; display: flex; align-items: center; justify-content: space-between;
+                cursor: pointer; color: #303133; white-space: nowrap; height: 100%;
             }
             .ai-select-arrow { color: #c0c4cc; margin-left: 4px; transition: transform .3s; }
             .ai-custom-select.open .ai-select-arrow { transform: rotate(180deg); }

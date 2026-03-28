@@ -76,7 +76,7 @@
 import { ref, onMounted } from 'vue';
 import { ipcRoute, specialIpcRoute } from '@/api';
 import { ipc } from '@/utils/ipcRenderer';
-import { ElMessage } from 'element-plus';
+import Notification from '@/utils/notification';
 import { get } from '@/utils/request';
 import {toQueryString} from '@/utils/utils'
 import updateRocker from '@/assets/images/updateRocker.png'
@@ -143,10 +143,10 @@ function init() {
         totalSize.value = total || '0MB';
       } else if (status === 4) { // 下载完成
         showProgressDialog.value = false;
-        ElMessage.success("下载完成，正在准备安装...");
+        Notification.message({ message: "下载完成，正在准备安装...", type: 'success' });
       } else if (status === -1) { // 错误
         showProgressDialog.value = false;
-        ElMessage.error(error || "下载失败");
+        Notification.message({ message: error || "下载失败", type: 'error' });
       }
     } catch (e) {
       console.error('解析更新数据失败:', e);
@@ -175,12 +175,12 @@ async function checkForUpdate(showTips = false) {
         available.value = true;
         showUpdateDialog.value = true;
       } else if (showTips) {
-        ElMessage.info("已经是最新版本");
+        Notification.message({ message: "已经是最新版本", type: 'info' });
       }
     }
   } catch (err) {
     console.error('获取最新版本失败:', err);
-    if (showTips) ElMessage.error("检查更新失败");
+    if (showTips) Notification.message({ message: "检查更新失败", type: 'error' });
   }
 }
   const getVersionIntroduction = async() => { 

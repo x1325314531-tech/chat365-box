@@ -83,4 +83,22 @@ body {
   overflow: hidden;
   position: relative;
 }
+
+/* 全局提示语样式：强制定位在侧边栏上方，避开中间原生的 WebContentsView */
+.el-message.global-notification {
+  left: 20px !important;
+  right: auto !important;
+  top: 42px !important; /* 避开 TitleBar (32px) */
+  transform: none !important;
+  max-width: 240px !important; /* 限制宽度在侧边栏附近 */
+  z-index: 9999 !important;
+}
+
+/* 全局通知样式：定位在右上角（AI面板/右边栏上方） */
+.el-notification.global-notification {
+  right: 20px !important;
+  left: auto !important;
+  top: 42px !important;
+  z-index: 9999 !important;
+}
 </style>
