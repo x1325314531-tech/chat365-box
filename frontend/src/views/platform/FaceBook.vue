@@ -88,7 +88,7 @@ const receiveCardId = (card)=> {
 <style scoped>
 .container {
   display: flex; /* 使用 flex 布局 */
-  height: 100vh; /* 高度占满视口 */
+  height: 100%; /* 高度占满父容器 */
 }
 
 .container.is-placed-top {

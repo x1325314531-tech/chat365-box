@@ -608,21 +608,55 @@ class WindowService extends Service {
         }
     }
 
+    async handleMinimize() {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (mainWin) mainWin.minimize();
+    }
+
+    async handleMaximize() {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (mainWin) {
+            if (mainWin.isMaximized()) {
+                mainWin.unmaximize();
+            } else {
+                mainWin.maximize();
+            }
+        }
+    }
+
+    async handleClose() {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        if (mainWin) mainWin.close();
+    }
+
+    async getWindowStatus() {
+        const mainId = Addon.get('window').getMWCid();
+        const mainWin = BrowserWindow.fromId(mainId);
+        return {
+            isMaximized: mainWin ? mainWin.isMaximized() : false
+        };
+    }
+    
     _resizeView(mainWin, view) {
         if (mainWin && view) {
             const [width, height] = mainWin.getContentSize();
             const reservedRightWidth = this.rightOverlayWidth > 0 ? this.rightOverlayWidth : 70;
+            const titleBarHeight = 32; // 自定义顶部栏高度
             if (this.isPlacedTop) {
-                // 顶部模式：左侧导航栏(50) + 顶部栏高度(60)
+                // 顶部模式：左侧导航栏(50) + 顶部栏高度(60+32)
                 const xOffset = 51;
-                const yOffset = 80;
+                const yOffset = 80 + titleBarHeight;
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
                 view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
             } else {
-                // 侧边模式：左侧导航(50) + AsideCard(265/100) + border(1)
+                // 侧边模式：左侧导航(50) + AsideCard(265/100) + border(1) + 顶部栏高度(32)
                 const xOffset = this.isShrunk ? 151 : 316;
+                const yOffset = titleBarHeight;
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
-                view.setBounds({ x: xOffset, y: 0, width: viewWidth, height });
+                view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
             }
         }
     }

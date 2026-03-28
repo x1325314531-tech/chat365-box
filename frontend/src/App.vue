@@ -1,13 +1,22 @@
 <template>
-  <router-view/>
+  <div class="app-container">
+    <TitleBar />
+    <div class="main-content">
+      <router-view/>
+    </div>
+  </div>
 </template>
 
 <script>
 import { onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ipc } from '@/utils/ipcRenderer';
+import TitleBar from '@/views/components/TitleBar.vue';
 export default {
   name: 'App',
+  components: {
+    TitleBar
+  },
   setup() {
     document.getElementById('loadingPage').remove();
     
@@ -59,5 +68,19 @@ export default {
 <style lang="less">
 body {
   margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+.main-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 </style>

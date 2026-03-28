@@ -327,6 +327,22 @@ class WindowController extends Controller {
         }
     }
 
+    async handleMinimize(args, event) {
+        return await Services.get('window').handleMinimize();
+    }
+
+    async handleMaximize(args, event) {
+        return await Services.get('window').handleMaximize();
+    }
+
+    async handleClose(args, event) {
+        return await Services.get('window').handleClose();
+    }
+
+    async getWindowStatus(args, event) {
+        return await Services.get('window').getWindowStatus();
+    }
+
     _isValidString(input) {
         return typeof input === 'string' && input.trim() !== '';
     }

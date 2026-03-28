@@ -78,7 +78,7 @@ const receiveCardId = (card)=> {
   const args = {cardId:card.cardId,title:card.title,online:card.online,platform:'Telegram',activeStatus:true}
   //初始化机器码
   ipc.invoke(ipcApiRoute.addSession, args).then(res => {
-    // console.log('收到数据：',res)
+    // console.log('收到数据�?,res)
   })
 }
 
@@ -86,7 +86,7 @@ const receiveCardId = (card)=> {
 <style scoped>
 .container {
   display: flex; /* 使用 flex 布局 */
-  height: 100vh; /* 高度占满视口 */
+  height: 100%; /* 高度占满视口 */
 }
 
 .container.is-placed-top {
@@ -104,7 +104,7 @@ const receiveCardId = (card)=> {
 }
 
 .right-div {
-  height: 100vh;
+  height: 100%;
   flex-grow: 1; /* 占据剩余空间 */
   background-color: #f5f7fa;
   display: flex; /* 使用 flex 布局 */

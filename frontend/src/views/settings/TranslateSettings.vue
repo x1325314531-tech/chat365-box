@@ -20,7 +20,7 @@
         </div>
       </div>
 
-      <!-- 右侧内容区 -->
+      <!-- 右侧内容�?-->
       <div class="settings-main">
         <!-- 翻译配置 -->
         <TranslateConfig v-if="activeMenu === 'translate'" />
@@ -57,7 +57,7 @@ const activeMenu = ref(route.query.activeMenu || 'translate')
 
 <style scoped>
 .settings-page {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: #f5f7fa;

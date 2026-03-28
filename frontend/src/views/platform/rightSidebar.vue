@@ -23,9 +23,8 @@ const handleItemClick = () => {
       >
         <div class="icon-wrapper ai-icon-bg">
           <div class="ai-logo">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="white">
-              <path d="M21 15a2 2 0 0 1-2 2H7l4-4V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v10zM9 11l-4 4V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4H7a2 2 0 0 0-2 2v6l4-4z"/>
-              <text x="50%" y="65%" text-anchor="middle" font-size="8" font-weight="bold" fill="white">AI</text>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l2.4 7.2L22 12l-7.6 2.4L12 22l-2.4-7.2L2 12l7.6-2.4L12 2z"/>
             </svg>
           </div>
         </div>

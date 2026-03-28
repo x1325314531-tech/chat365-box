@@ -201,7 +201,7 @@ const receiveCardId = (card)=> {
 <style scoped>
 .whatsapp-layout {
   display: flex;
-  height: 100vh;
+  height: 100%;
   width: 100%;
 }
 

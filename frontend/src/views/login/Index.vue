@@ -75,7 +75,7 @@
                 <input type="checkbox" v-model="form.agree" class="agreement-checkbox" />
                 <span class="checkbox-custom"></span>
                 <span class="agreement-text">{{ t('login.agreeText') }}</span>
-                <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">【{{ t('login.agreementLink') }}】</a>
+                <a href="javascript:void(0)" class="agreement-link" @click="handleAgreementClick">{{ t('login.agreementLink') }}</a>
               </label>
             </div>
           </el-form-item>

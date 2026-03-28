@@ -24,10 +24,10 @@ module.exports = (appInfo) => {
    */
   config.windowsOption = {
     title: 'Chat365',
-    width: 1000,
-    height: 700,
-    minWidth: 1000,
-    minHeight: 700,
+    width: 1400,
+    height: 780,
+    minWidth: 1200,
+    minHeight: 780,
     webPreferences: {
       //webSecurity: false,
       contextIsolation: false, // false -> 可在渲染进程中使用electron的api，true->需要bridge.js(contextBridge)
@@ -35,7 +35,7 @@ module.exports = (appInfo) => {
       devTools: true,
       //preload: path.join(appInfo.baseDir, 'preload', 'bridge.js'),
     },
-    frame: true,
+    frame: false,
     show: false,
     icon: path.join(appInfo.home, 'public', 'images', 'chat365-logo-32.png'),
   };

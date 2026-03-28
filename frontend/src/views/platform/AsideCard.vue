@@ -615,7 +615,7 @@ function placedLeft() {
   overflow: hidden;
   transition: width 0.3s ease;
   position: relative;
-  height: 100vh;
+  height: 100%;
   background-color: #ebf3f9; /* 淡蓝色背景 */
   box-sizing: border-box;
 }
@@ -776,6 +776,7 @@ function placedLeft() {
   height: 42px;
   border-radius: 50%;
   position: relative;
+ background-color: transparent;
 }
 .avatar-img { 
   width: 100%;
