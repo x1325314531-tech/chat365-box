@@ -1,4 +1,10 @@
 <script setup>
+import { ipc } from '@/utils/ipcRenderer';
+import Notification from "@/utils/notification";
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
 const props = defineProps({
   aiVisible: {
     type: Boolean,
@@ -8,9 +14,26 @@ const props = defineProps({
 
 const emits = defineEmits(['open-drawer']);
 
-const handleItemClick = () => {
+const handleItemClick = async () => {
+  let aiConfig = await ipc.invoke('get-ai-config');
+  if (!aiConfig) {
+    const localAiConfig = localStorage.getItem('aiConfig');
+    if (localAiConfig) {
+      aiConfig = JSON.parse(localAiConfig);
+    }
+  }
+
+  if (aiConfig && aiConfig.whatsapp && aiConfig.whatsapp.aiReplyToggle === false) {
+    Notification.message({
+      message: t('settings.aiPolishNotEnabled'),
+      type: 'warning'
+    });
+    return;
+  }
+  
   emits('open-drawer', 'ai');
 };
+
 </script>
 
 <template>
@@ -28,11 +51,12 @@ const handleItemClick = () => {
             </svg>
           </div>
         </div>
-        <span class="label">AI润色</span>
+        <span class="label">{{ $t('quickItems.aiPolish') }}</span>
       </div>
     </div>
   </div>
 </template>
+
 
 <style scoped>
 .right-sidebar {

@@ -570,8 +570,8 @@ function placedLeft() {
           type="danger"
         >
           <div class="avatar-wrapper-horiz">
-            <el-avatar v-if="card.avatar_url" :size="36" :src="card.avatar_url" />
-            <el-avatar v-else :size="36">
+            <el-avatar v-if="card.avatar_url" :size="36" class="avatar-row" :src="card.avatar_url" />
+            <el-avatar v-else  class="avatar-row" :size="36">
                <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
             </el-avatar>
             <span class="online-status" :class="{'online-status-online': card.online_status==='true'}"></span>
@@ -580,9 +580,9 @@ function placedLeft() {
         <!-- 当没有未读提醒时 -->
         <template v-else>
           <div class="avatar-wrapper-horiz">
-            <el-avatar v-if="card.avatar_url" :size="36" :src="card.avatar_url" />
-            <el-avatar v-else :size="36">
-              <img class="avatar-img" :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
+            <el-avatar v-if="card.avatar_url" class="avatar-row" :size="36" :src="card.avatar_url" />
+            <el-avatar v-else class="avatar-row" :size="36">
+              <img class="avatar-img " :src="card.online_status === 'true' ? getplatformDefaultIcon(props.title) : defaultAvatar" />
             </el-avatar>
             <span class="online-status" :class="{'online-status-online': card.online_status === 'true'}"></span>
           </div>
@@ -983,7 +983,9 @@ function placedLeft() {
 .avatar-wrapper-horiz {
   position: relative;
 }
-
+.avatar-row { 
+  background-color: transparent !important;
+}
 :deep(.card-avatar-area .el-badge__content),
 :deep(.horizontal-card .el-badge__content) {
   top: 5px;

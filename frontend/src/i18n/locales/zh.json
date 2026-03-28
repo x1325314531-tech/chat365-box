@@ -20,6 +20,8 @@
     "translateDesc": "为新会话设置默认配置",
     "aiReply": "AI回复设置",
     "aiReplyDesc": "配置AI自动回复功能的全局设置",
+    "aiPolish": "AI润色",
+
     "material": "个人素材",
     "materialDesc": "自定义左侧显示的平台",
     "platform": "平台设置",
@@ -90,6 +92,8 @@
     "aiPlatform": "平台",
     "aiBasicSettings": "基础设置",
     "aiReplyToggle": "AI回复设置",
+    "aiPolishNotEnabled": "AI润色未开启",
+
     "selectModel": "选择模型",
     "modelPlaceholder": "请选择模型",
     "modelDesc": "用于生成回复的AI产品",

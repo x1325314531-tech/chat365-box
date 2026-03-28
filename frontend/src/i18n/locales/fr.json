@@ -20,6 +20,8 @@
     "translateDesc": "Configurer les paramètres par défaut pour les nouvelles sessions",
     "aiReply": "Paramètres de réponse IA",
     "aiReplyDesc": "Configurer les paramètres globaux de réponse automatique IA",
+    "aiPolish": "Polissage IA",
+
     "material": "Matériaux personnels",
     "materialDesc": "Personnaliser les plateformes affichées",
     "platform": "Paramètres de la plateforme",
@@ -90,6 +92,8 @@
     "aiPlatform": "Plateforme",
     "aiBasicSettings": "Param\u00e8tres de base",
     "aiReplyToggle": "Activation de la r\u00e9ponse IA",
+    "aiPolishNotEnabled": "Polissage IA non activ\u00e9",
+
     "selectModel": "S\u00e9lectionner le mod\u00e8le",
     "modelPlaceholder": "S\u00e9lectionner le mod\u00e8le",
     "modelDesc": "Produit IA utilis\u00e9 pour g\u00e9n\u00e9rer des r\u00e9ponses",

@@ -20,6 +20,8 @@
     "translateDesc": "Set default config for new sessions",
     "aiReply": "AI Reply Settings",
     "aiReplyDesc": "Configure global AI auto-reply settings",
+    "aiPolish": "AI Polish",
+
     "material": "Personal Materials",
     "materialDesc": "Customize displayed platforms",
     "platform": "Platform Settings",
@@ -90,6 +92,8 @@
     "aiPlatform": "Platform",
     "aiBasicSettings": "Basic Settings",
     "aiReplyToggle": "AI Reply Toggle",
+    "aiPolishNotEnabled": "AI Polish not enabled",
+
     "selectModel": "Select Model",
     "modelPlaceholder": "Select model",
     "modelDesc": "AI product used to generate replies",
