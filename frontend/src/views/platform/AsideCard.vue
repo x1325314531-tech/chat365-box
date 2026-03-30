@@ -555,8 +555,8 @@ function placedLeft() {
         <div class="card-content-area" v-if="!openSidebar">
            <div class="card-title-row">
              <span class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</span>
-             <div   @click="onCardContextMenu($event, card)" @click.stop class="more-options" >
-               <span class="more-dots" @click.stop>
+             <div @mousedown.stop.prevent="onCardContextMenu($event, card)" class="more-options">
+               <span class="more-dots">
                  <span class="dot"></span>
                  <span class="dot"></span>
                  <span class="dot"></span>
@@ -892,20 +892,40 @@ function placedLeft() {
 /* ...更多操作按钮 */
 .more-options {
   cursor: pointer;
-  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 4px;
 }
+
+.more-options:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.more-options:active {
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: scale(0.92);
+}
+
 .more-dots {
   display: flex;
   gap: 2px;
   align-items: center;
   justify-content: center;
   color: #b0c0ce;
+  pointer-events: none;
 }
 .dot {
   width: 4px;
   height: 4px;
   background-color: #b0c0ce;
   border-radius: 50%;
+  transition: background-color 0.3s ease;
 }
 .more-options:hover .dot {
   background-color: #6a7178;
