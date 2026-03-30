@@ -1,9 +1,9 @@
 <template>
   <el-container style="height: 100%;">
     <!-- 左侧导航栏 -->
-    <el-aside width="50px" class="aside-menu">
+    <el-aside width="75px" class="aside-menu">
       <div class="aside-logo">
-        <img src="@/assets/slide/slide-login.png"/>
+        <img class="aside-logo-img" src="@/assets/slide/slide-login.png"/>
       </div>
       <div class="nav-container">
         <div
@@ -95,6 +95,9 @@ const ipcApiRoute = {
   changeSidebarLayout: 'controller.window.changeSidebarLayout',
   getSidebarState: 'controller.window.getSidebarState',
 };
+
+// 支持的平台列表
+const platforms = ['WhatsApp', 'FaceBook', 'Zalo', 'Telegram', 'TelegramK'];
 
 // 菜单项配置
 const menuItems = ref([
@@ -286,11 +289,12 @@ async function confirmLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  img { 
+
+}
+.aside-logo-img { 
     width: 100%;
     height: 100%;
   }
-}
 .nav-container {
   width: 100%;
   overflow-y: auto; /* 当菜单项过多时启用滚动 */

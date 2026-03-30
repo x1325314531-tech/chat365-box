@@ -647,14 +647,14 @@ class WindowService extends Service {
             const reservedRightWidth = this.rightOverlayWidth > 0 ? this.rightOverlayWidth : 70;
             const titleBarHeight = 32; // 自定义顶部栏高度
             if (this.isPlacedTop) {
-                // 顶部模式：左侧导航栏(50) + 顶部栏高度(60+32)
-                const xOffset = 51;
+                // 顶部模式：左侧导航栏(75) + 顶部栏高度(60+32)
+                const xOffset = 76;
                 const yOffset = 80 + titleBarHeight;
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
                 view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
             } else {
-                // 侧边模式：左侧导航(50) + AsideCard(265/100) + border(1) + 顶部栏高度(32)
-                const xOffset = this.isShrunk ? 151 : 316;
+                // 侧边模式：左侧导航(75) + AsideCard(265/100) + border(1) + 顶部栏高度(32)
+                const xOffset = this.isShrunk ? 176 : 341;
                 const yOffset = titleBarHeight;
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
                 view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
