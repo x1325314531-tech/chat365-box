@@ -2487,17 +2487,36 @@ function injectAiToolbar() {
     const applyToolbarCollapsedState = (container) => {
         if (!container) return;
         const collapsed = !!window._chat365_state.aiToolbarCollapsed;
+        const expandPanel = container.querySelector('#ai-toolbar-expand-panel');
+        const autoPolishPanel = container.querySelector('#ai-btn-auto-polish')
         const configArea = container.querySelector('#ai-toolbar-config-area');
+        const moreBtn = container.querySelector('#ai-btn-expand-more');
         const toggleBtn = container.querySelector('#ai-btn-config-collapse');
+
+        if (expandPanel) {
+            expandPanel.style.display = collapsed ? 'none' : 'flex';
+        }
+        if(autoPolishPanel) { 
+            autoPolishPanel.style.display = collapsed ? 'none' : 'flex';
+        }
 
         if (configArea) {
             configArea.style.display = collapsed ? 'none' : 'flex';
-            configArea.style.marginLeft = collapsed ? '0' : '8px';
-            configArea.style.paddingLeft = collapsed ? '0' : '8px';
-            configArea.style.borderLeft = collapsed ? 'none' : '1px solid #eee';
+            configArea.style.marginLeft = '0';
+            configArea.style.paddingLeft = '8px';
+            configArea.style.borderLeft = '1px solid #eee';
+        }
+
+        if (moreBtn) {
+            moreBtn.classList.toggle('is-active', !collapsed);
+            moreBtn.title = collapsed ? '展开更多AI配置' : '更多AI配置已展开';
         }
 
         if (toggleBtn) {
+            toolbar.style.background  = collapsed ? 'transparent' : 'rgba(255, 255, 255, 0.92)';
+            toolbar.style.border  = collapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.1';
+            toolbar.style.padding  = collapsed ? '0' : '8px 12px';
+            toolbar.style.boxShadow  = collapsed ? 'none' : '0 8px 20px rgba(0, 0, 0, 0.12)';
             toggleBtn.classList.toggle('is-collapsed', collapsed);
             toggleBtn.title = collapsed ? '展开配置' : '收起配置';
             const iconNode = toggleBtn.querySelector('.toggle-icon');
@@ -2505,6 +2524,18 @@ function injectAiToolbar() {
             if (iconNode) iconNode.textContent = collapsed ? '>' : '<';
             if (textNode) textNode.textContent = collapsed ? '展开' : '收起';
         }
+    };
+
+    const syncToolbarExpandUi = (container) => {
+        if (!container) return;
+        const toggleBtn = container.querySelector('#ai-btn-config-collapse');
+        if (!toggleBtn) return;
+
+        toggleBtn.title = '收起配置';
+        const iconNode = toggleBtn.querySelector('.toggle-icon');
+        const textNode = toggleBtn.querySelector('.toggle-text');
+        if (iconNode) iconNode.textContent = '<';
+        if (textNode) textNode.textContent = '收起';
     };
 
     if (!toolbar) {
@@ -2530,6 +2561,27 @@ function injectAiToolbar() {
             </div>
             <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
                 <!-- 配置区域容器 -->
+            </div>
+        `;
+    }
+
+    if (isChatChanged || !toolbar.innerHTML.trim()) {
+        toolbar.innerHTML = `
+            <div class="ai-toolbar-btn ai-toolbar-more-btn" id="ai-btn-expand-more" title="展开更多AI配置">
+                <span class="more-icon">+</span>
+            </div>
+            <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+                AI润色
+            </div>
+            <div id="ai-toolbar-expand-panel" style="display: flex; align-items: center; gap: 8px;">
+                <div class="ai-toolbar-btn ai-toolbar-toggle-btn" id="ai-btn-config-collapse" title="收起配置">
+                    <span class="toggle-icon">&lt;</span>
+                    <span class="toggle-text">收起</span>
+                </div>
+                <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 0; border-left: 1px solid #eee; padding-left: 8px;">
+                    <!-- 配置区域容器 -->
+                </div>
             </div>
         `;
     }
@@ -2624,6 +2676,7 @@ function injectAiToolbar() {
         }
 
         applyToolbarCollapsedState(container);
+        syncToolbarExpandUi(container);
     };
 
     if (!document.getElementById('ai-toolbar-style')) {
@@ -2669,6 +2722,31 @@ function injectAiToolbar() {
                 box-shadow: 0 4px 10px rgba(46, 211, 106, 0.2);
             }
             .ai-toolbar-btn svg { color: #2ed36a; }
+            .ai-toolbar-more-btn {
+                width: 32px;
+                min-width: 32px;
+                justify-content: center;
+                padding: 6px 0;
+                border-radius:50%;
+            }
+            .ai-toolbar-more-btn .more-icon {
+                font-size: 18px;
+                line-height: 1;
+                font-weight: 700;
+                margin-top: -1px;
+            }
+            .ai-toolbar-more-btn.is-active {
+                background: #f0fff4;
+                border-color: #2ed36a;
+                color: #2ed36a;
+                box-shadow: 0 4px 10px rgba(46, 211, 106, 0.18);
+                border-radius:8px;
+            }
+            #ai-toolbar-expand-panel {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
             .ai-toolbar-toggle-btn {
                 min-width: 62px;
                 justify-content: center;
@@ -2724,15 +2802,27 @@ function injectAiToolbar() {
     // 渲染初始配置区 (使用已有的或全局的)
     renderToolbarConfig(toolbar);
 
+    const moreBtn = toolbar.querySelector('#ai-btn-expand-more');
+    if (moreBtn) {
+        moreBtn.onclick = () => {
+            if (window._chat365_state.aiToolbarCollapsed) {
+                setToolbarCollapsedState(false);
+                applyToolbarCollapsedState(toolbar);
+                syncToolbarExpandUi(toolbar);
+            }
+        };
+    }
+
     const collapseBtn = toolbar.querySelector('#ai-btn-config-collapse');
     if (collapseBtn) {
         collapseBtn.onclick = () => {
-            const nextCollapsed = !window._chat365_state.aiToolbarCollapsed;
-            setToolbarCollapsedState(nextCollapsed);
+            setToolbarCollapsedState(true);
             applyToolbarCollapsedState(toolbar);
+            syncToolbarExpandUi(toolbar);
         };
     }
     applyToolbarCollapsedState(toolbar);
+    syncToolbarExpandUi(toolbar);
     
     toolbar.querySelector('#ai-btn-auto-polish').onclick = () => {
         const text = getInputContent();

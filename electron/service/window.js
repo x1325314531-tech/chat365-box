@@ -666,7 +666,8 @@ class WindowService extends Service {
             if (this.isPlacedTop) {
                 // 顶部模式：左侧导航栏(75) + 顶部栏高度(60+32)
                 const xOffset = 76;
-                const yOffset = 80 + titleBarHeight;
+                const topSidebarHeight = 86;
+                const yOffset = topSidebarHeight + titleBarHeight;
                 const viewWidth = Math.max(0, width - xOffset - reservedRightWidth + 2);
                 view.setBounds({ x: xOffset, y: yOffset, width: viewWidth, height: height - yOffset });
             } else {

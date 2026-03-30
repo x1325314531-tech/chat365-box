@@ -36,6 +36,36 @@ const importPanelData = ref({})
 const openSidebar = ref(false)
 const conversationListRef = ref(null)
 const isPlacedTop = ref(false)
+
+// 右键菜单状态
+const contextMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  card: null
+})
+
+// 顶部横排卡片右键菜单
+function onCardContextMenu(e, card) {
+  e.preventDefault()
+  e.stopPropagation()
+  contextMenu.visible = true
+  contextMenu.x = e.clientX
+  contextMenu.y = e.clientY
+  contextMenu.card = card
+  // 临时隐藏 WebContentsView，防止遮挡右键菜单
+  ipc.invoke(ipcApiRoute.hideWindow)
+}
+function closeContextMenu() {
+  contextMenu.visible = false
+  contextMenu.card = null
+  // 恢复 WebContentsView 显示
+  setActiveStatus()
+}
+// 点击其他位置关闭右键菜单
+function onDocumentClick() {
+  if (contextMenu.visible) closeContextMenu()
+}
 // 接收父组件传入的标题
 const props = defineProps({
   title: {
@@ -66,6 +96,8 @@ const ipcApiRoute = {
 
 
 onMounted(async () => {
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('contextmenu', onDocumentClick)
   // 获取侧边栏初始状态
   ipc.invoke(ipcApiRoute.getSidebarState).then(res => {
     if (res) {
@@ -118,6 +150,8 @@ onMounted(async () => {
 onUnmounted(() => {
   ipc.removeAllListeners('online-notify');
   ipc.removeAllListeners('sidebar-state-change');
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('contextmenu', onDocumentClick)
 });
 // 监听 conversations 数组的变化
 watch(conversations, () => {
@@ -562,6 +596,7 @@ function placedLeft() {
         class="horizontal-card"
         :class="{ 'selected-card': card.active_status === 'true' }"
         @click="!card.loading && selectCard(index, card)"
+        @contextmenu="onCardContextMenu($event, card)"
       >
         <el-badge
           v-if="card.unread_count > 0 || card.show_badge === 'true'"
@@ -587,8 +622,33 @@ function placedLeft() {
             <span class="online-status" :class="{'online-status-online': card.online_status === 'true'}"></span>
           </div>
         </template>
+             <!-- 折叠下的名字 -->
+          <div class="shrunk-label">
+            {{ card.card_name || 'Master' }}
+          </div>
       </div>
     </div>
+
+    <!-- 顶部横排卡片右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.visible"
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+        @contextmenu.prevent
+      >
+        <div class="context-menu-item" @click="handleRefresh(contextMenu.card); closeContextMenu()">
+          <el-icon><Refresh /></el-icon><span>刷新</span>
+        </div>
+        <div class="context-menu-item" @click="handleSetting(contextMenu.card); closeContextMenu()">
+          <el-icon><Setting /></el-icon><span>设置</span>
+        </div>
+        <div class="context-menu-item context-menu-item--danger" @click="handleClose(contextMenu.card); closeContextMenu()">
+          <el-icon><Delete /></el-icon><span>删除</span>
+        </div>
+      </div>
+    </Teleport>
       <!-- rightactions stacked -->
     <div class="top-stacked-actions">
       <div class="top-outline-btn" @click="placedLeft">
@@ -676,6 +736,7 @@ function placedLeft() {
   background-color: #25d366 !important;
   color: white;
   padding: 12px !important;
+
 }
 .btn-new:hover {
   background-color: #20b858 !important;
@@ -684,6 +745,7 @@ function placedLeft() {
   background-color: #2b91ff !important;
   color: white;
   padding: 12px !important;
+  margin-left: 0 !important;
 }
 .btn-start:hover {
   background-color: #227be0 !important;
@@ -905,13 +967,15 @@ function placedLeft() {
 /* --- 顶部横排形态 (isPlacedTop) --- */
 .sidebar-top {
   width: 100%;
-  height: 64px;
-  background-color: #fff;
+  height: 85px;
+  background-color: #ebf3f9;
   border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
   padding: 0 16px;
   box-sizing: border-box;
+  position: relative;
+  z-index: 100;
 }
 
 /* 左侧两个叠加方块按钮 */
@@ -931,7 +995,7 @@ function placedLeft() {
   font-size: 11px;
   color: #666;
   cursor: pointer;
-  background: transparent;
+  background: #fff;
   width: 76px;
 }
 .top-outline-btn:hover {
@@ -942,8 +1006,9 @@ function placedLeft() {
 .top-main-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 5px;
   margin-right: 20px;
+  flex-direction: column;
 }
 .top-main-btn {
   border-radius: 6px;
@@ -978,7 +1043,11 @@ function placedLeft() {
   transition: all 0.2s;
 }
 .horizontal-card.selected-card {
-  border-color: #25d366;
+  /* border-color: #25d366; */
+    background-color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid transparent;
+   border-radius: 12px;
 }
 .avatar-wrapper-horiz {
   position: relative;
@@ -993,5 +1062,44 @@ function placedLeft() {
   left: 5px;
   transform: translateY(-50%) translateX(-50%);
   border: none;
+}
+
+</style>
+
+<style>
+/* 右键菜单样式（全局，因为 Teleport 到 body） */
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 120px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 6px 0;
+  animation: ctx-fade-in 0.15s ease;
+}
+@keyframes ctx-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.context-menu-item:hover {
+  background: #f5f7fa;
+}
+.context-menu-item--danger {
+  color: #f56c6c;
+}
+.context-menu-item--danger:hover {
+  background: #fef0f0;
 }
 </style>
