@@ -363,7 +363,6 @@ class WindowController extends Controller {
                             if (item.icon.startsWith('data:image')) {
                                 menuItem.icon = nativeImage.createFromDataURL(item.icon).resize({ width: 16, height: 16 });
                             } else {
-                                // 处理 Vite 开发环境路径
                                 let processedPath = item.icon;
                                 
                                 // 处理 @fs 前缀（Electron 常用）
@@ -371,31 +370,42 @@ class WindowController extends Controller {
                                     processedPath = processedPath.slice(5);
                                 }
                                 
-                                // 移除 URL 参数（如 ?t=123...）
+                                // 移除 URL 参数
                                 if (processedPath.includes('?')) {
                                     processedPath = processedPath.split('?')[0];
                                 }
 
-                                // 统一盘符格式 (Vite 可能会将 d: 变成 /d:)
+                                // 统一驱动器号格式 (Windows)
                                 if (process.platform === 'win32' && processedPath.startsWith('/') && processedPath[2] === ':') {
                                     processedPath = processedPath.slice(1);
                                 }
 
-                                // 尝试从路径加载
-                                let iconPath = path.isAbsolute(processedPath) 
-                                    ? processedPath 
-                                    : path.join(app.getAppPath(), processedPath);
-                                
-                                // 如果相对路径找不到，且是 /src/ 开头，尝试在 app 目录下寻找
-                                if (!fs.existsSync(iconPath) && processedPath.startsWith('/src/')) {
-                                    iconPath = path.join(app.getAppPath(), 'frontend', processedPath);
+                                // 逐层尝试路径
+                                let iconPath = '';
+                                const possiblePaths = [
+                                    path.isAbsolute(processedPath) ? processedPath : null,
+                                    path.join(app.getAppPath(), processedPath),
+                                    path.join(app.getAppPath(), 'public', 'dist', processedPath.startsWith('/') ? processedPath.slice(1) : processedPath),
+                                    path.join(app.getAppPath(), 'frontend', processedPath),
+                                    path.join(app.getAppPath(), 'public', 'images', path.basename(processedPath))
+                                ].filter(p => p !== null);
+
+                                for (const p of possiblePaths) {
+                                    if (fs.existsSync(p)) {
+                                        iconPath = p;
+                                        break;
+                                    }
                                 }
 
-                                if (fs.existsSync(iconPath)) {
+                                if (iconPath && fs.existsSync(iconPath)) {
                                     menuItem.icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
                                 } else {
-                                    // 最后尝试 DataURL
-                                    menuItem.icon = nativeImage.createFromDataURL(item.icon).resize({ width: 16, height: 16 });
+                                    // 兜底方案：如果是 Base64 但未带前缀，或者其他情况
+                                    try {
+                                        menuItem.icon = nativeImage.createFromDataURL(item.icon).resize({ width: 16, height: 16 });
+                                    } catch (e) {
+                                        // 忽略
+                                    }
                                 }
                             }
                         } catch (e) {

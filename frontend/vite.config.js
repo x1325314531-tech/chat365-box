@@ -50,7 +50,7 @@ export default defineConfig(({ command, mode }) => {
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
-      assetsInlineLimit: 4096,
+      assetsInlineLimit: 15360,
       cssCodeSplit: true,
       brotliSize: false,
       sourcemap: false,
