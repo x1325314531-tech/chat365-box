@@ -470,13 +470,30 @@ class WindowService extends Service {
 
     async setRightOverlayWidth(width = 0) {
         const normalizedWidth = Number.isFinite(Number(width)) ? Math.max(0, Number(width)) : 0;
+        const previousWidth = this.rightOverlayWidth || 0;
         this.rightOverlayWidth = normalizedWidth;
-        Log.info('rightOverlayWidth changed:', normalizedWidth);
+        Log.info('rightOverlayWidth changed:', previousWidth, '->', normalizedWidth);
 
         const mainId = Addon.get('window').getMWCid();
         const mainWin = BrowserWindow.fromId(mainId);
         if (!mainWin) {
             return { status: false, message: 'main window not found' };
+        }
+
+        // 非全屏/非最大化时，自动调整窗口宽度
+        if (!mainWin.isMaximized() && !mainWin.isFullScreen()) {
+            const delta = normalizedWidth - previousWidth;
+            if (delta !== 0) {
+                const bounds = mainWin.getBounds();
+                const newWidth = Math.max(bounds.width + delta, 800); // 最小宽度保护
+                mainWin.setBounds({
+                    x: bounds.x,
+                    y: bounds.y,
+                    width: newWidth,
+                    height: bounds.height
+                });
+                Log.info('Window resized by delta:', delta, '-> new width:', newWidth);
+            }
         }
 
         app.viewsMap.forEach((view) => {

@@ -113,14 +113,9 @@ onMounted(async () => {
 watch(
   () => props.initialText,
   (newVal) => {
-    originalText.value = newVal ?? '';
-    if (!newVal) {
-      polishedText.value = '';
-      translatedText.value = '';
-      isLoading.value = false;
-      return;
-    }
-    if (hasActiveConversation.value && newVal) {
+    // 允许空值赋值以支持重置，但在有值时强制更新
+    originalText.value = newVal || '';
+    if (newVal && hasActiveConversation.value) {
       handlePolish();
     }
   },
@@ -130,7 +125,8 @@ watch(
 watch(
   () => hasActiveConversation.value,
   (available) => {
-    if (!available) {
+    // 如果没有活跃会话，且原本就没内容，则才执行清空，防止在同步期间误伤
+    if (!available && !props.initialText) {
       originalText.value = '';
       polishedText.value = '';
       translatedText.value = '';

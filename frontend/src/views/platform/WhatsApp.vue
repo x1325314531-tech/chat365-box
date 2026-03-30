@@ -23,12 +23,21 @@
         </div>
       </div>
     </div>
- 
+
+    <div class="sidebar-div" :style="{ order: 2 }">
+      <rightSidebar
+        :ai-visible="aiDrawerVisible"
+        @open-drawer="handleOpenDrawer"
+      />
+    </div>
 
     <!-- AI polish drawer -->
+    <!-- 全屏/最大化时 order:1 → 在 sidebar 左边 -->
+    <!-- 非全屏/非最大化时 order:3 → 在 sidebar 右边 -->
     <div
       v-if="aiDrawerVisible"
       class="ai-polish-drawer"
+      :style="{ order: isMaximized ? 1 : 3 }"
     >
       <aiPolishing
         v-if="currentCardId"
@@ -37,12 +46,6 @@
         :conversation-id="currentConversationId"
         :initial-text="polishText"
         @close="aiDrawerVisible = false"
-      />
-  </div>
-    <div class="sidebar-div">
-      <rightSidebar
-        :ai-visible="aiDrawerVisible"
-        @open-drawer="handleOpenDrawer"
       />
     </div>
   </div>
@@ -71,6 +74,9 @@ const currentConversationId = ref('');
 const polishText = ref('');
 const RIGHT_SIDEBAR_WIDTH = 70;
 const AI_DRAWER_WIDTH = 330;
+
+// 窗口最大化状态追踪
+const isMaximized = ref(false);
 
 const syncActiveChatId = async () => {
   try {
@@ -104,11 +110,30 @@ const handleOpenDrawer = async (id) => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  // 初始查询窗口最大化状态
+  try {
+    const status = await ipc.invoke('controller.window.getWindowStatus');
+    isMaximized.value = !!status?.isMaximized;
+  } catch (e) {
+    console.warn('failed to get initial window status:', e);
+  }
+
+  // 监听窗口最大化/还原事件
+  ipc.on('window-maximize-change', (event, data) => {
+    isMaximized.value = !!data?.isMaximized;
+  });
+
   // Listen for open requests from WhatsApp.js
   ipc.on('open-ai-polish-drawer', (event, data) => {
-    currentCardId.value = data?.cardId || currentCardId.value;
-    currentConversationId.value = data?.conversationId || data?.chatId || currentConversationId.value;
+    console.log('📥 [IPC] 收到打开 AI 润色面板请求:', data);
+    // 立即同步会话 ID，防止后续 chat-id-change 触发清空
+    const nextCardId = data?.cardId || currentCardId.value;
+    const nextConversationId = data?.conversationId || data?.chatId || currentConversationId.value;
+    
+    currentCardId.value = nextCardId;
+    currentConversationId.value = nextConversationId;
+    
     polishText.value = data?.text || data?.originalText || '';
     aiDrawerVisible.value = true;
   });
@@ -149,6 +174,7 @@ onUnmounted(() => {
   ipc.invoke('controller.window.setRightOverlayWidth', { width: 0 }).catch(() => {});
   ipc.removeAllListeners('open-ai-polish-drawer');
   ipc.removeAllListeners('chat-id-change');
+  ipc.removeAllListeners('window-maximize-change');
 });
 
 const handleLayoutChange = (val) => {
@@ -213,6 +239,7 @@ const receiveCardId = (card)=> {
   display: flex;
   height: 100%;
   overflow: hidden;
+  order: 0;
 }
 
 .main-content.is-placed-top {
@@ -255,7 +282,6 @@ const receiveCardId = (card)=> {
   z-index: 3;
 }
 
-
 .ai-polish-drawer {
   width: 330px;
   height: 100%;
@@ -267,4 +293,3 @@ const receiveCardId = (card)=> {
   z-index: 2;
 }
 </style>
-

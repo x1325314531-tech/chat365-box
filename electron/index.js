@@ -336,6 +336,24 @@ class Index extends Application {
         win.show();
       })
     }
+
+    // 转发窗口最大化/还原事件给渲染进程
+    const mainWin = this.electron.mainWindow;
+    if (mainWin) {
+      mainWin.on('maximize', () => {
+        mainWin.webContents.send('window-maximize-change', { isMaximized: true });
+      });
+      mainWin.on('unmaximize', () => {
+        mainWin.webContents.send('window-maximize-change', { isMaximized: false });
+      });
+      mainWin.on('enter-full-screen', () => {
+        mainWin.webContents.send('window-maximize-change', { isMaximized: true });
+      });
+      mainWin.on('leave-full-screen', () => {
+        mainWin.webContents.send('window-maximize-change', { isMaximized: false });
+      });
+    }
+
     //设置所有平台账号登录状态为false
     app.sdb.update('cards',{online_status:'false',avatar_url:'',show_badge:'false'},{})
     ipcMain.handle('language-list', async (event) => {

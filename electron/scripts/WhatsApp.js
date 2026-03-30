@@ -1,4 +1,4 @@
-﻿// whatsapp-content.js
+// whatsapp-content.js
 // 版本：2026-01-30 v2 - 添加 IndexedDB 存储发送消息原文
 console.log('🚀 [Chat365] WhatsApp.js 正在载入...');
 console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)');
@@ -918,6 +918,7 @@ function notify() {
 
 monitorMainNode()
 initTenantConfig()
+syncGlobalConfig() // 立即执行一次，确保开关状态和 AI 配置已同步
 
 
 // 初始化语言列表
@@ -1486,6 +1487,16 @@ async function handleKeyDown(event) {
             return;
         }
 
+        // ========== 场景0: AI 润色模式 (最高优先级，Enter键触发) ==========
+        if (globalAiConfig?.aiReplyToggle && inputText !== lastPolishedText) {
+            console.log('✨ Enter 键触发 AI 润色模式 - 唤起 PDR 面板');
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            showPdrPanel(inputText);  
+            return;
+        }
+
         // ========== 场景1: 发送自动翻译开启 - 翻译后发送 ==========
         if (globalConfig?.sendAutoTranslate) {
             console.log('🔄 场景1: 发送自动翻译开启,翻译后发送');
@@ -1555,17 +1566,7 @@ async function handleKeyDown(event) {
             }, 500);
             return;
         }
-
-        // ========== 场景3: AI 润色模式 (Enter键触发) ==========
-        if (globalAiConfig?.aiReplyToggle && inputText !== lastPolishedText) {
-            console.log('✨ Enter 键触发 AI 润色模式 - 唤起 PDR 面板');
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-             showPdrPanel(inputText);  
-            return;
-        }
-
+           
         // ========== 场景3: 两个开关都关闭 - 直接发送,不做任何处理 ==========
         console.log('➡️ 场景3: 直接发送原文,不翻译');
         // 不需要额外代码,让消息正常发送即可
@@ -2152,7 +2153,48 @@ async function callAgentChatAPI(content, type = 'polish') {
 
 // [REMOVED] showPdrPanel + renderPdrContent functions
 // PDR UI has been migrated to aiPolishing/index.vue drawer
+/**
+ * 获取当前活跃会话的 ID
+ */
+function getCurrentChatId() {
+    // 1. 优先从全局状态读取
+    if (window._chat365_state && window._chat365_state.currentChatId) {
+        return window._chat365_state.currentChatId;
+    }
 
+    // 2. 从被选中的聊天项 DOM 读取 (data-id)
+    const activeChat = document.querySelector('div[aria-selected="true"]');
+    if (activeChat) {
+        const dataId = activeChat.getAttribute('data-id');
+        if (dataId) return dataId;
+    }
+
+    // 3. 兜底法：从消息容器寻找背景 ID (部分版本适用)
+    const mainMsgPanel = document.getElementById('main');
+    if (mainMsgPanel) {
+        // 某些注入点可能带有 ID
+    }
+
+    return '';
+}
+
+/**
+ * 唤起 AI 润色面板并传递文本
+ */
+function showPdrPanel(text) {
+    if (!text || !text.trim()) return;
+    
+    console.log('✨ [AI Polish] 准备唤起面板，原文:', text.substring(0, 30));
+    
+    // 确保有有效的 chatId
+    const chatId = getCurrentChatId();
+    
+    window.electronAPI.ipcRenderer.send('open-ai-drawer', {
+        text: text,
+        originalText: text,
+        chatId: chatId || 'default'
+    }); 
+}
 /**
  * 监听来自抽屉的消息
  */
