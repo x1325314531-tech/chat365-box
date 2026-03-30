@@ -3,7 +3,7 @@
 const { Controller } = require('ee-core');
 const Log = require('ee-core/log');
 const Addon = require('ee-core/addon');
-const { app, BrowserWindow, WebContentsView, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, dialog, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const Services = require('ee-core/services');
@@ -341,6 +341,80 @@ class WindowController extends Controller {
 
     async getWindowStatus(args, event) {
         return await Services.get('window').getWindowStatus();
+    }
+
+    async showContextMenu(args, event) {
+        const { items } = args; // items: [{ label, action, icon, type? }]
+        try {
+            const win = BrowserWindow.getFocusedWindow();
+            if (!win) return { status: false, action: null };
+            
+            return await new Promise((resolve) => {
+                const template = items.map(item => {
+                    if (item.type === 'separator') return { type: 'separator' };
+                    
+                    const menuItem = {
+                        label: item.label,
+                        click: () => resolve({ status: true, action: item.action })
+                    };
+
+                    if (item.icon) {
+                        try {
+                            if (item.icon.startsWith('data:image')) {
+                                menuItem.icon = nativeImage.createFromDataURL(item.icon).resize({ width: 16, height: 16 });
+                            } else {
+                                // 处理 Vite 开发环境路径
+                                let processedPath = item.icon;
+                                
+                                // 处理 @fs 前缀（Electron 常用）
+                                if (processedPath.startsWith('/@fs/')) {
+                                    processedPath = processedPath.slice(5);
+                                }
+                                
+                                // 移除 URL 参数（如 ?t=123...）
+                                if (processedPath.includes('?')) {
+                                    processedPath = processedPath.split('?')[0];
+                                }
+
+                                // 统一盘符格式 (Vite 可能会将 d: 变成 /d:)
+                                if (process.platform === 'win32' && processedPath.startsWith('/') && processedPath[2] === ':') {
+                                    processedPath = processedPath.slice(1);
+                                }
+
+                                // 尝试从路径加载
+                                let iconPath = path.isAbsolute(processedPath) 
+                                    ? processedPath 
+                                    : path.join(app.getAppPath(), processedPath);
+                                
+                                // 如果相对路径找不到，且是 /src/ 开头，尝试在 app 目录下寻找
+                                if (!fs.existsSync(iconPath) && processedPath.startsWith('/src/')) {
+                                    iconPath = path.join(app.getAppPath(), 'frontend', processedPath);
+                                }
+
+                                if (fs.existsSync(iconPath)) {
+                                    menuItem.icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+                                } else {
+                                    // 最后尝试 DataURL
+                                    menuItem.icon = nativeImage.createFromDataURL(item.icon).resize({ width: 16, height: 16 });
+                                }
+                            }
+                        } catch (e) {
+                            Log.error('加载菜单图标失败:', e);
+                        }
+                    }
+
+                    return menuItem;
+                });
+                const menu = Menu.buildFromTemplate(template);
+                menu.popup({
+                    window: win,
+                    callback: () => resolve({ status: false, action: null })
+                });
+            });
+        } catch (error) {
+            Log.error('showContextMenu error:', error);
+            return { status: false, action: null };
+        }
     }
 
     _isValidString(input) {

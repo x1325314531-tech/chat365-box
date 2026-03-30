@@ -8,6 +8,9 @@ import userportrait from '@/assets/svgs/userportrait.svg';
 import whatsappDefaultIcon from '@/assets/svgs/whatsapp.svg';
 import facebookDefaultIcon from '@/assets/svgs/facebook.svg'
 import defaultAvatar from '@/assets/svgs/defaultAvatar.svg'
+import refreshIcon from '@/assets/slide/refresh.png'
+import settingIcon from '@/assets/slide/setting.png'
+import deleteIcon from '@/assets/slide/delete.png'
 import { nanoid } from 'nanoid'; // 用于生成唯一 ID
 import { ipc } from '@/utils/ipcRenderer';
 import ContactImporter from '../components/ContactImporter.vue';
@@ -37,35 +40,53 @@ const openSidebar = ref(false)
 const conversationListRef = ref(null)
 const isPlacedTop = ref(false)
 
-// 右键菜单状态
-const contextMenu = reactive({
-  visible: false,
-  x: 0,
-  y: 0,
-  card: null
-})
-
 // 顶部横排卡片右键菜单
 function onCardContextMenu(e, card) {
   e.preventDefault()
   e.stopPropagation()
-  contextMenu.visible = true
-  contextMenu.x = e.clientX
-  contextMenu.y = e.clientY
-  contextMenu.card = card
-  // 临时隐藏 WebContentsView，防止遮挡右键菜单
-  ipc.invoke(ipcApiRoute.hideWindow)
-}
-function closeContextMenu() {
-  contextMenu.visible = false
-  contextMenu.card = null
-  // 恢复 WebContentsView 显示
-  setActiveStatus()
+   if (card.active_status === 'false') {
+     return
+   }
+  const menuItems = [
+    { 
+      label: '刷新', 
+      action: 'refresh', 
+      icon: !isPlacedTop.value ? refreshIcon : null 
+    },
+    { 
+      label: '设置', 
+      action: 'setting', 
+      icon: !isPlacedTop.value ? settingIcon: null 
+    },
+    { type: 'separator' },
+    { 
+      label: '删除', 
+      action: 'delete', 
+      icon: !isPlacedTop.value ? deleteIcon : null 
+    },
+  ];
+
+  ipc.invoke(ipcApiRoute.showContextMenu, { items: menuItems }).then(res => {
+    if (res && res.status && res.action) {
+      switch (res.action) {
+        case 'refresh':
+          handleRefresh(card);
+          break;
+        case 'setting':
+          handleSetting(card);
+          break;
+        case 'delete':
+          handleClose(card);
+          break;
+      }
+    }
+  });
 }
 // 点击其他位置关闭右键菜单
 function onDocumentClick() {
-  if (contextMenu.visible) closeContextMenu()
+  // 原有的 hideWindow 逻辑已移除，原生菜单会自动处理点击外部关闭
 }
+
 // 接收父组件传入的标题
 const props = defineProps({
   title: {
@@ -89,6 +110,7 @@ const ipcApiRoute = {
   getConfigInfo: 'controller.window.getConfigInfo',
   executeJavaScript: 'controller.window.executeJavaScript',
   hideWindow: 'controller.window.hideWindow',
+  showContextMenu: 'controller.window.showContextMenu',
   changeSidebarWidth: 'controller.window.changeSidebarWidth',
   changeSidebarLayout: 'controller.window.changeSidebarLayout',
   getSidebarState: 'controller.window.getSidebarState',
@@ -497,6 +519,7 @@ function placedLeft() {
           class="conversation-card"
           v-loading="card.loading ?? false"
           @click="!card.loading && selectCard(index, card)"
+          @contextmenu="onCardContextMenu($event, card)"
       >
         <div class="card-avatar-area">
           <el-badge
@@ -532,24 +555,14 @@ function placedLeft() {
         <div class="card-content-area" v-if="!openSidebar">
            <div class="card-title-row">
              <span class="title">{{ card.card_name || card.card_name === '' ? card.card_name : props.title }}</span>
-             <el-dropdown trigger="click" @click.stop class="more-options" placement="bottom-end">
+             <div   @click="onCardContextMenu($event, card)" @click.stop class="more-options" >
                <span class="more-dots" @click.stop>
-                 <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                 <span class="dot"></span>
+                 <span class="dot"></span>
+                 <span class="dot"></span>
                </span>
-               <template #dropdown>
-                 <el-dropdown-menu>
-                   <el-dropdown-item @click="handleRefresh(card)">
-                     <el-icon><Refresh /></el-icon>刷新
-                   </el-dropdown-item>
-                   <el-dropdown-item @click="handleSetting(card)">
-                     <el-icon><Setting /></el-icon>设置
-                   </el-dropdown-item>
-                   <el-dropdown-item @click="handleClose(card)" style="color: #f56c6c;">
-                     <el-icon><Delete /></el-icon>删除
-                   </el-dropdown-item>
-                 </el-dropdown-menu>
-               </template>
-             </el-dropdown>
+               <!---->
+              </div>
            </div>
            
            <div class="subtitle-phone" v-if="card.my_phone">{{ card.my_phone}}</div>
@@ -629,26 +642,7 @@ function placedLeft() {
       </div>
     </div>
 
-    <!-- 顶部横排卡片右键菜单 -->
-    <Teleport to="body">
-      <div
-        v-if="contextMenu.visible"
-        class="context-menu"
-        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
-        @click.stop
-        @contextmenu.prevent
-      >
-        <div class="context-menu-item" @click="handleRefresh(contextMenu.card); closeContextMenu()">
-          <el-icon><Refresh /></el-icon><span>刷新</span>
-        </div>
-        <div class="context-menu-item" @click="handleSetting(contextMenu.card); closeContextMenu()">
-          <el-icon><Setting /></el-icon><span>设置</span>
-        </div>
-        <div class="context-menu-item context-menu-item--danger" @click="handleClose(contextMenu.card); closeContextMenu()">
-          <el-icon><Delete /></el-icon><span>删除</span>
-        </div>
-      </div>
-    </Teleport>
+
       <!-- rightactions stacked -->
     <div class="top-stacked-actions">
       <div class="top-outline-btn" @click="placedLeft">
@@ -982,17 +976,17 @@ function placedLeft() {
 .top-stacked-actions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-right: 16px;
+  gap: 5px;
+  margin-right: 0;
 }
 .top-outline-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 6px;
+  padding: 8px 6px;
   border: 1px solid #e1e4e8;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 14px;
   color: #666;
   cursor: pointer;
   background: #fff;
@@ -1066,40 +1060,4 @@ function placedLeft() {
 
 </style>
 
-<style>
-/* 右键菜单样式（全局，因为 Teleport 到 body） */
-.context-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 120px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  padding: 6px 0;
-  animation: ctx-fade-in 0.15s ease;
-}
-@keyframes ctx-fade-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
-}
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: #333;
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-.context-menu-item:hover {
-  background: #f5f7fa;
-}
-.context-menu-item--danger {
-  color: #f56c6c;
-}
-.context-menu-item--danger:hover {
-  background: #fef0f0;
-}
-</style>
+

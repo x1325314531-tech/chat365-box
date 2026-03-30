@@ -2568,7 +2568,7 @@ function injectAiToolbar() {
     if (isChatChanged || !toolbar.innerHTML.trim()) {
         toolbar.innerHTML = `
             <div class="ai-toolbar-btn ai-toolbar-more-btn" id="ai-btn-expand-more" title="展开更多AI配置">
-                <span class="more-icon">+</span>
+                <span class="more-icon">AI</span>
             </div>
             <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
@@ -2805,11 +2805,10 @@ function injectAiToolbar() {
     const moreBtn = toolbar.querySelector('#ai-btn-expand-more');
     if (moreBtn) {
         moreBtn.onclick = () => {
-            if (window._chat365_state.aiToolbarCollapsed) {
-                setToolbarCollapsedState(false);
-                applyToolbarCollapsedState(toolbar);
-                syncToolbarExpandUi(toolbar);
-            }
+            const collapsed = window._chat365_state.aiToolbarCollapsed;
+            setToolbarCollapsedState(!collapsed);
+            applyToolbarCollapsedState(toolbar);
+            syncToolbarExpandUi(toolbar);
         };
     }
 
