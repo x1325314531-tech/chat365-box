@@ -294,23 +294,50 @@ function getUnreadCount() {
         }
 
         // 2. 累加消息列表中的徽标 (反映未读消息数)
-        // 必须限定在 #pane-side 内，以排除顶部功能区域（如：未读过滤器）产生的误报
-        const paneSide = document.getElementById('pane-side');
-        if (paneSide) {
-            // 查找带有数字且 aria-label 包含“unread”或“未读”的徽标 span
-            const badges = paneSide.querySelectorAll('span[aria-label*="unread"], span[aria-label*="未读"]');
-            badges.forEach(badge => {
-                const val = parseInt(badge.textContent || '', 10);
-                if (!isNaN(val)) {
+        const chatList = document.querySelector('[data-testid="chat-list"], [aria-label="聊天列表"], [aria-label="Chat list"]');
+        const sidePanel = chatList || document.querySelector('[data-testid="side-panel"], #pane-side');
+        
+        if (sidePanel) {
+            let badges = sidePanel.querySelectorAll('[data-testid="unread-count"]');
+            if (badges.length === 0) {
+                badges = sidePanel.querySelectorAll('[aria-label*="unread"] span, [aria-label*="未读"] span, span[aria-label*="unread message"], span[aria-label*="未读"]');
+            }
+            
+            // 将 NodeList 转为数组
+            const badgeArray = Array.from(badges);
+            // 核心修复：过滤掉所有被其他匹配节点嵌套的“子节点”
+            // 如果节点 A 包含节点 B，则只保留 A，避免对同一个视觉数字重复计数
+            const filteredBadges = badgeArray.filter(b => !badgeArray.some(other => other !== b && other.contains(b)));
+
+            filteredBadges.forEach(badge => {
+                let val = parseInt(badge.textContent || '', 10);
+                
+                // 兜底：如果 textContent 为空，尝试从属性中提取数字
+                if (isNaN(val) || val <= 0) {
+                    const ariaLabel = badge.getAttribute('aria-label') || '';
+                    const match = ariaLabel.match(/(\d+)/);
+                    if (match) val = parseInt(match[1], 10);
+                }
+
+                if (!isNaN(val) && val > 0) {
                     domCount += val;
                 }
             });
+            
+            // 3. 最终兜底：针对旧版类名
+            if (domCount === 0) {
+                const possibleBadges = sidePanel.querySelectorAll('._V_4r, ._1V8W7, .unread-count');
+                possibleBadges.forEach(badge => {
+                    const val = parseInt(badge.textContent || '', 10);
+                    if (!isNaN(val) && val > 0) domCount += val;
+                });
+            }
         }
     } catch (e) {
         // console.error('获取未读数失败:', e);
     }
     
-    // 取二者中的较大值，确保单个会话内有多条消息或滚动时依然准确
+    // 取二者中的较大值。
     return Math.max(titleCount, domCount);
 }
 
@@ -913,7 +940,8 @@ async function initTenantConfig() {
 }
 
 function notify() {
-    window.electronAPI.newMsgNotify({platform:'WhatsApp'})
+    const unreadCount = getUnreadCount();
+    window.electronAPI.newMsgNotify({platform:'WhatsApp', unreadCount: unreadCount})
 }
 
 monitorMainNode()
@@ -6406,9 +6434,30 @@ function initPageAttributeObserver() {
             attributeFilter: ['lang', 'dir'] // 同时监控 dir，因为有些翻译会影响布局方向
         });
         console.log('✅ [Observer] 页面属性监控已成功绑定到 html 节点');
+
+        // 新增：标题监控，通过标题变化实时触发通知
+        initTitleObserver();
     } catch (e) {
         console.error('❌ [Observer] 启动语言监控失败:', e);
     }
+}
+
+/**
+ * 监控标题变化，实现未读数实时通知
+ */
+function initTitleObserver() {
+    const titleElement = document.querySelector('title');
+    if (!titleElement) return;
+
+    const observer = new MutationObserver(() => {
+        const count = getUnreadCount();
+        console.log('🔔 [TitleObserver] 标题变更，检测到未读数:', count);
+        // 如果有未读或者是从有到无的变化，触发通知
+        notify();
+    });
+
+    observer.observe(titleElement, { childList: true });
+    console.log('✅ [TitleObserver] 标题监控已启动');
 }
 
 /**

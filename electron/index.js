@@ -708,18 +708,33 @@ class Index extends Application {
         Log.info('号码过滤消息推送成功：')
       }
     });
-    ipcMain.handle('new-message-notify', (event, data) => {
-      const {platform} = data;
+    ipcMain.handle('new-message-notify', async (event, data) => {
+      const {platform, unreadCount} = data;
       // 获取发送消息的渲染进程的 webContents 对象
       const senderWebContents = event.sender;
       const processId = senderWebContents.id;
-      const card = app.sdb.selectOne('cards',{window_id:processId,platform:platform})
+      // 优先匹配当前活跃的卡片，防止数据库中 stale 的 window_id 导致匹配到错误的旧记录
+      let card = await app.sdb.selectOne('cards', { window_id: processId, platform: platform, active_status: 'true' });
+      if (!card) {
+          card = await app.sdb.selectOne('cards', { window_id: processId, platform: platform });
+          Log.info('从非活跃卡片中找到匹配：', card?.card_id);
+      }
+
       // 处理接收到的数据
-      Log.info("收到新消息:", platform,processId);
+      Log.info("收到新消息:", platform, processId, "未读数:", unreadCount);
       if (!card) return;
-      Log.info('获取到对应卡片数据：',card)
-      //修改数据库字段并发送通知给主进程
-      app.sdb.update('cards',{show_badge:'true'},{card_id:card.card_id,active_status:"false"});
+      Log.info('获取到对应卡片数据：', card)
+
+      // 修改数据库字段并发送通知给主进程
+      const updateData = { unread_count: unreadCount || 0 };
+      // 仅在非活跃状态下标记 show_badge 为 true，保持 UI 逻辑一致（活跃卡片不显红点）
+      if (card.active_status === 'false') {
+          updateData.show_badge = 'true';
+      }
+      
+      // 更新该卡片的未读数（即便是活跃卡片也更新数据库，以便切换时保留数字）
+      await app.sdb.update('cards', updateData, { card_id: card.card_id });
+      
       const mainId = Addon.get('window').getMWCid();
       const mainWin = BrowserWindow.fromId(mainId);
       if (mainWin && mainWin.webContents) {

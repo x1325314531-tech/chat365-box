@@ -247,7 +247,7 @@ async function handlePolish() {
       chatId: String(props.chatId || '').trim(),
       count: resolvedHistoryCount
     });
-
+    console.log('historyRes', historyRes)
     const history = Array.isArray(historyRes?.data)
       ? historyRes.data
       : (Array.isArray(historyRes) ? historyRes : []);
@@ -258,17 +258,17 @@ async function handlePolish() {
       tone: resolvedTone,
       theme: resolvedTheme,
       role: resolvedRole,
-      targetLanguage: translateConfig.value.sendTargetLang || 'zh',
+      targetLanguage: translateConfig.value.sendTargetLang || 'en',
       modelName: globalConfig.value.model || 'Gemini'
     };
-
-    const res = await post('/app/agentChat', params);
-    if (res && res.code === 200) {
-      polishedText.value = res.data || '';
-      if (isTranslationEnabled.value) {
-        handleTranslate();
-      }
-    }
+console.log('params', params)
+    // const res = await post('/app/agentChat', params);
+    // if (res && res.code === 200) {
+    //   polishedText.value = res.data || '';
+    //   if (isTranslationEnabled.value) {
+    //     handleTranslate();
+    //   }
+    // }
   } catch (e) {
     if (!e.isHandled) {
       Notification.message({ message: `${t('aiPolish.polishFailed')}: ${e.message}`, type: 'error' });
