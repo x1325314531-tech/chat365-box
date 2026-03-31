@@ -386,33 +386,75 @@ class WindowService extends Service {
             return [];
         }
 
-        const view = app.viewsMap.get(chatId);
+        Log.info(`[getChatHistory] Attempting lookup for identifier: ${chatId}`);
+        let targetId = chatId;
+        let view = app.viewsMap.get(targetId);
+
+        // Fallback 1: Check if chatId matches a row but viewsMap is keyed differently
+        if (!view) {
+            Log.info(`[getChatHistory] Direct lookup failed for ${chatId}, checking DB for correct service id...`);
+            const card = await app.sdb.selectOne('cards', { card_id: chatId });
+            if (card && card.card_id && app.viewsMap.has(card.card_id)) {
+                targetId = card.card_id;
+                view = app.viewsMap.get(targetId);
+                Log.info(`[getChatHistory] Found view via DB resolution: ${targetId}`);
+            }
+        }
+
+        // Fallback 2: Try ANY active card if still not found (as last resort)
+        if (!view) {
+            Log.info(`[getChatHistory] DB resolution failed, trying last resort (active card)...`);
+            const activeCard = await app.sdb.selectOne('cards', { active_status: 'true' });
+            if (activeCard && activeCard.card_id && app.viewsMap.has(activeCard.card_id)) {
+                targetId = activeCard.card_id;
+                view = app.viewsMap.get(targetId);
+                Log.info(`[getChatHistory] Found view via active card fallback: ${targetId}`);
+            }
+        }
+
         if (!view || !view.webContents || view.webContents.isDestroyed()) {
-            Log.warn(`[getChatHistory] view not found for chatId: ${chatId}`);
+            const availableKeys = Array.from(app.viewsMap.keys());
+            Log.warn(`[getChatHistory] View not found for targetId: ${targetId}. Available keys in viewsMap:`, availableKeys);
             return [];
         }
 
         const script = `
           (() => {
             const limit = ${count};
-            const messages = Array.from(document.querySelectorAll('.message-in, .message-out'));
+            // 1. 获取消息容器（兼容新旧版本）
+            const selector = '.message-in, .message-out, [data-testid="msg-container"]';
+            const messages = Array.from(document.querySelectorAll(selector));
+            
             return messages.slice(-limit).map((msg) => {
-              const isOut = msg.classList.contains('message-out');
-              const span = msg.querySelector('span[dir="ltr"], span[dir="rtl"]');
+              // 2. 判定发送方 (assistant) 还是接收方 (user)
+              const isOut = msg.classList.contains('message-out') || 
+                            msg.getAttribute('data-testid') === 'msg-container' && msg.querySelector('.message-out') ||
+                            !!msg.closest('.message-out');
+              
+              // 3. 提取文本内容
+              // 优先寻找专门的文本容器
+              const textNode = msg.querySelector('[data-testid="selectable-text"], [data-testid="copyable-text"], .copyable-text, span[dir]');
+              
               let content = '';
-              if (span) {
-                const clone = span.cloneNode(true);
-                const excludeSelectors = ['.translation-result', '.original-text-result', 'br', 'hr', 'div', '[data-testid="msg-meta"]'];
+              if (textNode) {
+                const clone = textNode.cloneNode(true);
+                // 仅移除明确干扰项：翻译结果、消息元数据（时间/送达状态等）
+                const excludeSelectors = ['.translation-result', '.original-text-result', '[data-testid="msg-meta"]', 'style', 'script'];
                 excludeSelectors.forEach((sel) => {
                   try {
                     clone.querySelectorAll(sel).forEach((n) => n.remove());
                   } catch (e) {}
                 });
-                content = (clone.textContent || '').replace(/\\s+/g, ' ').trim();
+                
+                // 处理换行：将 <br> 替换为换行符
+                clone.querySelectorAll('br').forEach(br => br.replaceWith('\\n'));
+                
+                content = (clone.innerText || clone.textContent || '').trim();
               }
+              
               return {
                 type: isOut ? 'assistant' : 'user',
-                content
+                content: content
               };
             }).filter((item) => item.content);
           })();

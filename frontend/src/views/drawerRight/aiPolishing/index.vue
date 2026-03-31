@@ -242,7 +242,7 @@ async function handlePolish() {
     const resolvedHistoryCount = config.value.enabled 
       ? (Number(config.value.historyCount) || 3) 
       : (Number(globalConfig.value.historyCount) || 3);
-
+     console.log(' props.chatId',  props.chatId)
     const historyRes = await ipc.invoke('controller.window.getChatHistory', {
       chatId: String(props.chatId || '').trim(),
       count: resolvedHistoryCount
@@ -258,17 +258,17 @@ async function handlePolish() {
       tone: resolvedTone,
       theme: resolvedTheme,
       role: resolvedRole,
-      targetLanguage: translateConfig.value.sendTargetLang || 'en',
+      targetLanguage: 'en',
       modelName: globalConfig.value.model || 'Gemini'
     };
 console.log('params', params)
-    // const res = await post('/app/agentChat', params);
-    // if (res && res.code === 200) {
-    //   polishedText.value = res.data || '';
-    //   if (isTranslationEnabled.value) {
-    //     handleTranslate();
-    //   }
-    // }
+    const res = await post('/app/agentChat', params);
+    if (res && res.code === 200) {
+      polishedText.value = res.data || '';
+      if (isTranslationEnabled.value) {
+        handleTranslate();
+      }
+    }
   } catch (e) {
     if (!e.isHandled) {
       Notification.message({ message: `${t('aiPolish.polishFailed')}: ${e.message}`, type: 'error' });

@@ -1,6 +1,7 @@
 <script setup>
 import {onMounted, onUnmounted, reactive, ref, watch, nextTick} from 'vue';
 import { useI18n } from 'vue-i18n';
+import { debounce } from 'lodash';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Close,Delete,Setting ,Plus,User, Edit, SwitchButton,Select, VideoPlay, Moon} from '@element-plus/icons-vue';
 import importSvg from '@/assets/svgs/import.svg';
@@ -51,18 +52,18 @@ function onCardContextMenu(e, card) {
     { 
       label: '刷新', 
       action: 'refresh', 
-      icon: !isPlacedTop.value ? refreshIcon : null 
+      icon: !isPlacedTop.value ? refreshIcon : refreshIcon
     },
     { 
       label: '设置', 
       action: 'setting', 
-      icon: !isPlacedTop.value ? settingIcon: null 
+      icon: !isPlacedTop.value ? settingIcon: settingIcon
     },
     { type: 'separator' },
     { 
       label: '删除', 
       action: 'delete', 
-      icon: !isPlacedTop.value ? deleteIcon : null 
+      icon: !isPlacedTop.value ? deleteIcon :deleteIcon
     },
   ];
 
@@ -140,18 +141,28 @@ onMounted(async () => {
   });
   // 页面加载时获取所有会话
   await getAllSessions();
-  // 移除可能存在的旧的 'online-notify' 监听器，避免重复添加
+  // 延时加载一次后端数据同步（非阻塞，不影响本地展示）
+  setTimeout(syncSessionIdsFromBackend, 2000);
+
+  // 移除可能存在的旧监听器，避免重复添加
   ipc.removeAllListeners('online-notify');
+  ipc.removeAllListeners('new-message-notify');
+  
+  // 使用防抖处理高频事件，避免接口风暴
+  const debouncedRefresh = debounce(() => {
+    console.log('🔄 [AsideCard] 执行防抖后的会话刷新');
+    getAllSessions();
+  }, 500);
+
   // 监听进程消息
   ipc.on('online-notify', (event, args) => {
-    const { onlineStatus, cardId ,avatarUrl} = args;
+    const { onlineStatus, cardId, avatarUrl } = args;
     console.log('登录通知：', args);
-    getAllSessions();
+    debouncedRefresh();
   });
-  ipc.removeAllListeners('new-message-notify');
-  // 添加新的监听器
+
   ipc.on('new-message-notify', (event, data) => {
-    getAllSessions();
+    debouncedRefresh();
   });
   
   // 处理翻译设置返回后的刷新逻辑
@@ -197,14 +208,13 @@ watch([importPanel, userPortraitPanel], ([newImport, newUserPortrait]) => {
     setActiveStatus();
   }
 });
-// 获取所有会话数据
+// 获取所有会话数据 (本地库同步)
 async function getAllSessions() {
   try {
     const res = await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title, accountId: accountId });
     if (res && res.data) {
-      console.log('获取所有会话成功', res.data);
+      console.log('获取本地会话列表成功:', res.data.length);
       const sessionList = res.data.map(item => {
-        // 统一字段名为 active_status，且值为字符串 'true' 或 'false'
         let activeStatus = 'false';
         if (item.activeStatus === 1 || item.active_status === 'true' || item.active_status === true) {
           activeStatus = 'true';
@@ -212,7 +222,7 @@ async function getAllSessions() {
         
         return {
           ...item,
-          cardId: item.card_id || item.cardId, // 确保 cardId 和 card_id 都存在
+          cardId: item.card_id || item.cardId,
           card_id: item.card_id || item.cardId,
           sessionId: item.session_id || item.sessionId,
           active_status: activeStatus,
@@ -222,16 +232,17 @@ async function getAllSessions() {
         };
       });
       
-      // 使用 splice 清空并更新数组，确保 Vue 响应性
       conversations.splice(0, conversations.length, ...sessionList);
-      
-      setActiveStatus(); // 检查并设置激活状态
+      setActiveStatus();
     }
   } catch (error) {
     console.error('获取所有会话出错:', error);
   }
-  
-  // 异步获取后端数据，仅用于同步 sessionId 等后端特定字段
+}
+
+// 异步从后端同步 sessionId 等扩展字段 (低频调用)
+async function syncSessionIdsFromBackend() {
+  console.log('🚀 [AsideCard] 开始从后端同步会话完整数据...');
   get('/app/session/list', {
     params: {
       pageSize: 1000,
@@ -239,8 +250,7 @@ async function getAllSessions() {
     }
   }).then(res => {
     if (res && res.data) {
-      console.log('从后端获取会话列表成功');
-      // 将后端返回的 sessionId 等同步到现有的 conversations 中
+      console.log('✅ 从后端同步会话成功:', res.data.length);
       res.data.forEach(backendCard => {
         const localCard = conversations.find(c => c.card_id === backendCard.cardId);
         if (localCard) {
@@ -249,7 +259,7 @@ async function getAllSessions() {
       });
     }
   }).catch(err => {
-    console.error('从后端获取会话列表失败:', err);
+    console.error('❌ 从后端获取会话列表失败:', err);
   });
 }
 //根据平台获取默认头像

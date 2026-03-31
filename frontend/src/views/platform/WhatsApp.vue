@@ -129,10 +129,10 @@ onMounted(async () => {
     console.log('📥 [IPC] 收到打开 AI 润色面板请求:', data);
     // 立即同步会话 ID，防止后续 chat-id-change 触发清空
     const nextCardId = data?.cardId || currentCardId.value;
-    const nextConversationId = data?.conversationId || data?.chatId || currentConversationId.value;
+    const nextConversationId = data?.conversationId || currentConversationId.value;
     
-    currentCardId.value = nextCardId;
-    currentConversationId.value = nextConversationId;
+    currentCardId.value = String(nextCardId || '');
+    currentConversationId.value = String(nextConversationId || '');
     
     polishText.value = data?.text || data?.originalText || '';
     aiDrawerVisible.value = true;
@@ -141,13 +141,13 @@ onMounted(async () => {
   // Listen for conversation switch and sync chat id
   ipc.on('chat-id-change', (event, data) => {
     const nextCardId = data?.cardId || currentCardId.value;
-    const nextConversationId = data?.conversationId || data?.chatId || '';
+    const nextConversationId = data?.conversationId || '';
     const hasConversationChanged =
       String(nextCardId || '') !== String(currentCardId.value || '') ||
       String(nextConversationId || '') !== String(currentConversationId.value || '');
 
-    currentCardId.value = nextCardId;
-    currentConversationId.value = nextConversationId;
+    currentCardId.value = String(nextCardId || '');
+    currentConversationId.value = String(nextConversationId || '');
 
     // Reset polish content when conversation changes to avoid stale text.
     if (hasConversationChanged) {

@@ -596,14 +596,15 @@ class Index extends Application {
         let card = processId ? await app.sdb.selectOne('cards', { window_id: processId }) : null;
         if (!card) {
           card = await app.sdb.selectOne('cards', { active_status: 'true', platform: 'WhatsApp' });
+          Log.info('[open-ai-drawer] Find card via active_status fallback');
         }
-        const resolvedCardId = String(card?.card_id || '');
         const conversationId = String(data.chatId || data.conversationId || '');
+        const resolvedCardId = String(card?.card_id || '');
+        Log.info(`[open-ai-drawer] Resolved cardId: ${resolvedCardId} for processId: ${processId}, conversationId: ${conversationId}`);
         const rawText = data.originalText ?? data.text ?? '';
         const text = typeof rawText === 'string' ? rawText : String(rawText || '');
 
         mainWin.webContents.send('open-ai-polish-drawer', {
-          chatId: conversationId,
           conversationId,
           cardId: resolvedCardId,
           text,
@@ -612,7 +613,6 @@ class Index extends Application {
 
         if (resolvedCardId || conversationId) {
           mainWin.webContents.send('chat-id-change', {
-            chatId: conversationId,
             conversationId,
             cardId: resolvedCardId,
           });
