@@ -277,6 +277,7 @@ class Index extends Application {
         const configStorage = Storage.connection('config.json');
         const config = configStorage.getItem('aiConfig');
         // 同步到内存中
+         Log.info('取AI配置到 config.json:', config);
         if (config) app.aiConfig = config;
         return config;
       } catch (err) {

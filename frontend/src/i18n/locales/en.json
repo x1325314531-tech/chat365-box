@@ -13,7 +13,21 @@
     "renewPlan": "Renew Plan",
     "planRemaining": "Plan Remaining",
     "sessionPorts": "Session Ports",
-    "developing": "Coming Soon"
+    "developing": "Coming Soon",
+    "logout": "Logout",
+    "logoutDialogTitle": "Logout",
+    "charList": "Character List",
+    "translateChannel": "Channel",
+    "todayUsed": "Today's Usage",
+    "used": "Used",
+    "available": "Available",
+    "planPromo": "Continue enjoying discounts\nConstant privileges",
+    "goToRecharge": "Go to Recharge",
+    "confirmLogoutText": "Confirm logout of current user?",
+    "runningSessions": "Current {count} sessions are running",
+    "clearCacheSuccess": "Clear cache success",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
   },
   "quickItems": {
     "translate": "Translation Settings",
@@ -348,6 +362,23 @@
     "applySuccess": "Successfully retrieved data",
     "applyFailed": "Modification failed",
     "sendSuccess": "Sent",
-    "sendFailed": "Send failed"
+    "sendFailed": "Send failed",
+    "suggestionNum": "Suggestion {n}"
+  },
+  "update": {
+    "currentVersion": "Current Version:",
+    "newVersion": "New version available:",
+    "checkUpdate": "Check for Update",
+    "newVersionFound": "New Version Found",
+    "later": "Later",
+    "updateNow": "Update Now",
+    "autoUpdate": "Auto Update",
+    "downloading": "Downloading update...",
+    "speed": "Speed",
+    "downloadComplete": "Download complete, preparing to install...",
+    "downloadFailed": "Download failed",
+    "isLatest": "Already the latest version",
+    "checkFailed": "Check for update failed",
+    "speedUnit": "MB/s"
   }
 }

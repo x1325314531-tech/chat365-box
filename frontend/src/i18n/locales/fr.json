@@ -13,7 +13,21 @@
     "renewPlan": "Renouveler l'abonnement",
     "planRemaining": "Forfait restant",
     "sessionPorts": "Ports de session",
-    "developing": "En développement"
+    "developing": "En développement",
+    "logout": "Se déconnecter",
+    "logoutDialogTitle": "Se déconnecter",
+    "charList": "Liste des caractères",
+    "translateChannel": "Canal de traduction",
+    "todayUsed": "Utilisé aujourd'hui",
+    "used": "Utilisé",
+    "available": "Disponible",
+    "planPromo": "Continuez à profiter des réductions\nPrivilèges constants",
+    "goToRecharge": "Aller à la recharge",
+    "confirmLogoutText": "Confirmer la déconnexion de l'utilisateur actuel ?",
+    "runningSessions": "{count} sessions sont en cours d'exécution",
+    "clearCacheSuccess": "Cache vidé avec succès",
+    "cancel": "Annuler",
+    "confirm": "Confirmer"
   },
   "quickItems": {
     "translate": "Paramètres de traduction",
@@ -347,6 +361,23 @@
     "applySuccess": "Données récupérées avec succès",
     "applyFailed": "Échec de la modification",
     "sendSuccess": "Envoyé",
-    "sendFailed": "Échec de l'envoi"
+    "sendFailed": "Échec de l'envoi",
+    "suggestionNum": "Suggestion {n}"
+  },
+  "update": {
+    "currentVersion": "Version actuelle :",
+    "newVersion": "Nouvelle version disponible :",
+    "checkUpdate": "Vérifier les mises à jour",
+    "newVersionFound": "Nouvelle version trouvée",
+    "later": "Plus tard",
+    "updateNow": "Mettre à jour maintenant",
+    "autoUpdate": "Mise à jour automatique",
+    "downloading": "Téléchargement de la mise à jour...",
+    "speed": "Vitesse",
+    "downloadComplete": "Téléchargement terminé, préparation de l'installation...",
+    "downloadFailed": "Échec du téléchargement",
+    "isLatest": "Déjà la dernière version",
+    "checkFailed": "Échec de la vérification des mises à jour",
+    "speedUnit": "Mo/s"
   }
 }

@@ -210,7 +210,7 @@ class WindowService extends Service {
 
     async getCardConfig(args, event) {
         const { cardId } = args;
-        // 查找数据库中对应的平台和 cardId 的记录
+        // 查找数据库中对应的平台 and cardId 的记录
         const data = await app.sdb.selectOne('card_config',{card_id:cardId})
         if (data) {
             return data;
@@ -412,6 +412,14 @@ class WindowService extends Service {
             }
         }
 
+        // Fallback 3: If only ONE view exists in viewsMap, use it as the absolute last resort
+        if (!view && app.viewsMap.size === 1) {
+            const onlyKey = Array.from(app.viewsMap.keys())[0];
+            targetId = String(onlyKey);
+            view = app.viewsMap.get(targetId);
+            Log.info(`[getChatHistory] Only one active view found in runtime, using it as last resort: ${targetId}`);
+        }
+
         if (!view || !view.webContents || view.webContents.isDestroyed()) {
             const availableKeys = Array.from(app.viewsMap.keys());
             Log.warn(`[getChatHistory] View not found for targetId: ${targetId}. Available keys in viewsMap:`, availableKeys);
@@ -421,48 +429,100 @@ class WindowService extends Service {
         const script = `
           (() => {
             const limit = ${count};
-            // 1. 获取消息容器（兼容新旧版本）
-            const selector = '.message-in, .message-out, [data-testid="msg-container"]';
-            const messages = Array.from(document.querySelectorAll(selector));
             
-            return messages.slice(-limit).map((msg) => {
-              // 2. 判定发送方 (assistant) 还是接收方 (user)
-              const isOut = msg.classList.contains('message-out') || 
-                            msg.getAttribute('data-testid') === 'msg-container' && msg.querySelector('.message-out') ||
-                            !!msg.closest('.message-out');
-              
-              // 3. 提取文本内容
-              // 优先寻找专门的文本容器
-              const textNode = msg.querySelector('[data-testid="selectable-text"], [data-testid="copyable-text"], .copyable-text, span[dir]');
-              
-              let content = '';
-              if (textNode) {
-                const clone = textNode.cloneNode(true);
-                // 仅移除明确干扰项：翻译结果、消息元数据（时间/送达状态等）
-                const excludeSelectors = ['.translation-result', '.original-text-result', '[data-testid="msg-meta"]', 'style', 'script'];
-                excludeSelectors.forEach((sel) => {
-                  try {
-                    clone.querySelectorAll(sel).forEach((n) => n.remove());
-                  } catch (e) {}
+            // === 诊断探测：找出 WhatsApp 实际使用的消息容器选择器 ===
+            const probes = {
+              '.message-in': document.querySelectorAll('.message-in').length,
+              '.message-out': document.querySelectorAll('.message-out').length,
+              '[data-testid="msg-container"]': document.querySelectorAll('[data-testid="msg-container"]').length,
+              '[role="row"]': document.querySelectorAll('[role="row"]').length,
+              '[data-testid="selectable-text"]': document.querySelectorAll('[data-testid="selectable-text"]').length,
+              '[data-testid="copyable-text"]': document.querySelectorAll('[data-testid="copyable-text"]').length,
+              '.copyable-text': document.querySelectorAll('.copyable-text').length,
+              '[data-testid="conversation-panel-messages"]': document.querySelectorAll('[data-testid="conversation-panel-messages"]').length,
+              '[data-testid="msg-text"]': document.querySelectorAll('[data-testid="msg-text"]').length,
+              '[class*="message"]': document.querySelectorAll('[class*="message"]').length,
+            };
+            
+            // 找到聊天面板，抓取前5个子元素的信息
+            const panel = document.querySelector('[data-testid="conversation-panel-messages"]') || 
+                          document.querySelector('[role="application"]');
+            let panelChildInfo = [];
+            if (panel) {
+              const children = panel.children;
+              for (let i = 0; i < Math.min(children.length, 8); i++) {
+                const c = children[i];
+                panelChildInfo.push({
+                  tag: c.tagName,
+                  classes: c.className ? c.className.substring(0, 100) : '',
+                  testid: c.getAttribute('data-testid') || '',
+                  role: c.getAttribute('role') || '',
+                  childCount: c.children.length
                 });
-                
-                // 处理换行：将 <br> 替换为换行符
-                clone.querySelectorAll('br').forEach(br => br.replaceWith('\\n'));
-                
-                content = (clone.innerText || clone.textContent || '').trim();
               }
+            }
+            
+            // === 正常抓取逻辑（使用多组选择器逐级尝试） ===
+            let messages = [];
+            const selectorGroups = [
+              '.message-in, .message-out',
+              '[data-testid="msg-container"]',
+              '[role="row"]',
+              '.copyable-text'
+            ];
+            for (const sel of selectorGroups) {
+              messages = Array.from(document.querySelectorAll(sel));
+              if (messages.length > 0) break;
+            }
+            
+            messages = messages.filter(m => m.innerText && m.innerText.length > 3);
+
+            const results = messages.slice(-limit).map((msg) => {
+              const isOut = msg.classList.contains('message-out') || 
+                            !!msg.closest('.message-out') ||
+                            msg.querySelector('.message-out') !== null;
+              
+              // 直接获取 selectable-text 的 innerText（无任何清洗）
+              const selText = msg.querySelector('[data-testid="selectable-text"]');
+              const rawSelText = selText ? selText.innerText : null;
+              
+              // 直接获取 copyable-text 的 innerText
+              const copyText = msg.querySelector('.copyable-text');
+              const rawCopyText = copyText ? copyText.innerText : null;
+              
+              // 直接获取整个消息的 innerText 的前100字符
+              const rawMsgText = (msg.innerText || '').substring(0, 100);
+              
+              // 使用最简单的方式提取
+              let content = rawSelText || rawCopyText || rawMsgText || '';
+              content = content.trim();
               
               return {
                 type: isOut ? 'assistant' : 'user',
-                content: content
+                content: content,
+                // _debug: {
+                //   hasSelText: !!selText,
+                //   rawSelText: rawSelText ? rawSelText.substring(0, 80) : null,
+                //   hasCopyText: !!copyText,
+                //   rawCopyText: rawCopyText ? rawCopyText.substring(0, 80) : null,
+                //   rawMsgText: rawMsgText.substring(0, 80),
+                //   msgClasses: msg.className ? msg.className.substring(0, 100) : '',
+                //   msgTag: msg.tagName
+                // }
               };
-            }).filter((item) => item.content);
+            }).filter(item => item.content && item.content.length > 0);
+            
+            return { probes, panelChildInfo, results };
           })();
         `;
 
         try {
-            const history = await view.webContents.executeJavaScript(script, true);
-            Log.error(` history ${chatId}:`,  history);
+            const raw = await view.webContents.executeJavaScript(script, true);
+            // 输出诊断信息
+            Log.error(`[getChatHistory] DOM probes for ${chatId}:`, raw?.probes);
+            Log.error(`[getChatHistory] Panel children:`, raw?.panelChildInfo);
+            Log.error(`[getChatHistory] Results:`, raw?.results);
+            const history = raw?.results || [];
             return Array.isArray(history) ? history : [];
         } catch (error) {
             Log.error(`[getChatHistory] execute script failed for ${chatId}:`, error);

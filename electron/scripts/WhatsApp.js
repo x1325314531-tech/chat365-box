@@ -152,6 +152,7 @@ if (typeof window._chat365_state === 'undefined') {
         contactPersonList:[],                       //whatsAPP的联系人
         currentChatId: '',                     // 当前选中的会话 ID
         lastToolbarChatId: '',                 // 上次注入工具栏的会话 ID
+        lastSendTime: 0,                       // 上次发送/回车的时间戳 (防抖用)
         _local_ai_configs: {}                  // 独立AI配置集 (chatId -> config)
     };
 }
@@ -1210,6 +1211,17 @@ function startMonitor() {
                 // 如果是程序内部调用 sendMsg()，直接放行，不拦截
                 if (_isSendingProgrammatically) return;
 
+                // --- 发送防抖 (Anti-Shake) ---
+                const now = Date.now();
+                if (window._chat365_state.lastSendTime && (now - window._chat365_state.lastSendTime < 1000)) {
+                    console.log('⚡ [Anti-Shake] 点击太快,已拦截重复发送');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    return;
+                }
+                window._chat365_state.lastSendTime = now;
+
                 const inputText = getInputContent();
                 if (!inputText || !inputText.trim()) return; // 空内容，放行
 
@@ -1495,6 +1507,17 @@ function cleanParagraph(text) {
 // 分离事件处理函数，便于管理
 async function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.ctrlKey) {
+        // --- 发送防抖 (Anti-Shake) ---
+        const now = Date.now();
+        if (window._chat365_state.lastSendTime && (now - window._chat365_state.lastSendTime < 1000)) {
+            console.log('⚡ [Anti-Shake] 回车太快,已拦截重复处理');
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            return;
+        }
+        window._chat365_state.lastSendTime = now;
+
         console.log('⏺️ Enter键按下,开始处理翻译');
 
         // 获取输入框内容

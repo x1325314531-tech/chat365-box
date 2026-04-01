@@ -213,7 +213,7 @@ async function getAllSessions() {
   try {
     const res = await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title, accountId: accountId });
     if (res && res.data) {
-      console.log('获取本地会话列表成功:', res.data.length);
+      console.log('获取本地会话列表成功:', res, res.data.length);
       const sessionList = res.data.map(item => {
         let activeStatus = 'false';
         if (item.activeStatus === 1 || item.active_status === 'true' || item.active_status === true) {

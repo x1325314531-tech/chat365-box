@@ -13,7 +13,21 @@
     "renewPlan": "续费套餐",
     "planRemaining": "套餐剩余",
     "sessionPorts": "会话端口",
-    "developing": "开发中"
+    "developing": "开发中",
+    "logout": "退出登录",
+    "logoutDialogTitle": "退出登录",
+    "charList": "字符列表",
+    "translateChannel": "翻译通道",
+    "todayUsed": "今日已用",
+    "used": "已用",
+    "available": "可用",
+    "planPromo": "续享套餐优惠 特权不断",
+    "goToRecharge": "前往充值",
+    "confirmLogoutText": "确认退出当前用户？",
+    "runningSessions": "当前 {count} 个会话正在运行",
+    "clearCacheSuccess": "清除缓存成功",
+    "cancel": "取消",
+    "confirm": "确定"
   },
   "quickItems": {
     "translate": "翻译设置",
@@ -348,6 +362,23 @@
     "applySuccess": "成功获取到数据",
     "applyFailed": "修改失败",
     "sendSuccess": "已发送",
-    "sendFailed": "发送失败"
+    "sendFailed": "发送失败",
+    "suggestionNum": "建议 {n}"
+  },
+  "update": {
+    "currentVersion": "当前版本:",
+    "newVersion": "有新版本:",
+    "checkUpdate": "检查更新",
+    "newVersionFound": "发现新版本",
+    "later": "暂不更新",
+    "updateNow": "立即更新",
+    "autoUpdate": "自动更新",
+    "downloading": "正在下载更新...",
+    "speed": "速度",
+    "downloadComplete": "下载完成，正在准备安装...",
+    "downloadFailed": "下载失败",
+    "isLatest": "已经是最新版本",
+    "checkFailed": "检查更新失败",
+    "speedUnit": "MB/秒"
   }
 }

@@ -29,6 +29,10 @@ const translatedText = ref('');
 const isLoading = ref(false);
 const isTranslationEnabled = ref(false);
 
+// AI 润色推荐列表状态
+const suggestions = ref([]);
+const selectedIndex = ref(-1);
+
 const dictTone = ref([]);
 const dictTheme = ref([]);
 const dictRole = ref([]);
@@ -41,7 +45,7 @@ const defaultLocalConfig = {
   toneName: t('aiPolish.default'),
   themeName: t('aiPolish.default'),
   roleName: t('aiPolish.default'),
-  historyCount: 3
+  // historyCount: 3
 };
 
 const historyOptions = computed(() => [
@@ -165,6 +169,7 @@ async function loadSessionConfig() {
 async function loadGlobalAiConfig() {
   try {
     const res = await ipc.invoke('get-ai-config');
+    console.log('AICONFIG', res)
     const whatsappConfig = res?.whatsapp || res;
     if (whatsappConfig && typeof whatsappConfig === 'object') {
       globalConfig.value = {
@@ -239,10 +244,11 @@ async function handlePolish() {
       ? (config.value.role || globalConfig.value.role)
       : globalConfig.value.role;
 
-    const resolvedHistoryCount = config.value.enabled 
-      ? (Number(config.value.historyCount) || 3) 
+    const resolvedHistoryCount = config.value.enabled && globalConfig.value.aiReplyToggle? (Number(config.value.historyCount)):globalConfig.value.historyCount
+      ? globalConfig.value.aiReplyToggle?  globalConfig.value.historyCount: (Number(config.value.historyCount) || 3) 
       : (Number(globalConfig.value.historyCount) || 3);
-     console.log(' props.chatId',  props.chatId)
+      console.log('配置文件', config.value, globalConfig.value)
+     console.log(' props.chatId',resolvedHistoryCount,  props.chatId)
     const historyRes = await ipc.invoke('controller.window.getChatHistory', {
       chatId: String(props.chatId || '').trim(),
       count: resolvedHistoryCount
@@ -259,13 +265,23 @@ async function handlePolish() {
       theme: resolvedTheme,
       role: resolvedRole,
       targetLanguage: 'en',
-      modelName: globalConfig.value.model || 'Gemini'
+      modelName: globalConfig.value.model || 'Gemini',
+      // suggestionCount:resolvedHistoryCount
     };
 console.log('params', params)
     const res = await post('/app/agentChat', params);
     if (res && res.code === 200) {
-      polishedText.value = res.data || '';
-      if (isTranslationEnabled.value) {
+      if (Array.isArray(res.data.suggestions) && res.data.suggestions.length > 0) {
+        suggestions.value = res.data.suggestions;
+        selectedIndex.value = 0;
+        polishedText.value = suggestions.value[0] || '';
+      } else {
+        suggestions.value = [];
+        selectedIndex.value = -1;
+        polishedText.value = res.data || '';
+      }
+
+      if (isTranslationEnabled.value && polishedText.value) {
         handleTranslate();
       }
     }
@@ -275,6 +291,16 @@ console.log('params', params)
     }
   } finally {
     isLoading.value = false;
+  }
+}
+
+function selectSuggestion(index) {
+  if (index === selectedIndex.value) return;
+  selectedIndex.value = index;
+  polishedText.value = suggestions.value[index] || '';
+  
+  if (isTranslationEnabled.value && polishedText.value) {
+    handleTranslate();
   }
 }
 
@@ -333,7 +359,10 @@ async function sendImmediate() {
     type: result?.status ? 'success' : 'error'
   });
   originalText.value= '';
-  polishedText.value = ''
+  polishedText.value = '';
+  suggestions.value = [];
+  selectedIndex.value = -1
+
 }
 </script>
 
@@ -394,7 +423,27 @@ async function sendImmediate() {
             </div>
           </div>
         </div>
+       <!--AI润色推荐列表-->
+       <div class="ai-polish-recommend-body" v-if="suggestions.length > 0">
+        <div class="ai-polist-recommend--title"> AI润色推荐</div>
+       <div v-if="suggestions.length > 1" class="ai-polish-list">
+          <div 
+            v-for="(s, index) in suggestions" 
+            :key="index"
+            class="ai-polish-item"
+            :class="{ active: selectedIndex === index }"
+            @click="selectSuggestion(index)"
+          >
+            <div class="item-head">
+              <span class="star">✦</span>
+              <span class="item-index">{{ $t('aiPolish.suggestionNum', { n: index + 1 }) }}</span>
+            </div>
+            <div class="item-preview">{{ s }}</div>
+          </div>
+       </div>
 
+       </div>
+      
         <div class="style-panel">
           <div class="style-title">{{ $t('aiPolish.replyStyle') }}</div>
 
@@ -469,7 +518,7 @@ async function sendImmediate() {
               </el-select>
             </div>
 
-            <!-- <div class="setting-field"  style="margin-top: 14px;">
+            <div class="setting-field"  style="margin-top: 14px;">
               <div class="field-label">对话上下文</div>
               <el-select v-model="config.historyCount" placeholder="选择历史条数" style="width: 100%" @change="saveConfig">
                 <el-option
@@ -479,7 +528,7 @@ async function sendImmediate() {
                   :value="item.value"
                 />
               </el-select>
-            </div> -->
+            </div> 
           </template>
         </div>
       </el-tab-pane>
@@ -833,5 +882,98 @@ async function sendImmediate() {
   justify-content: center;
   align-items: center;
   height: 100%;
+}
+
+/* AI 润色推荐列表样式 */
+.ai-polist-recommend--title { 
+    font-size: 15px;
+  color: #2b302d;
+  font-weight: 600;
+  margin-top: 8px;
+  text-align: left;
+}
+.ai-polish-list {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-y: auto;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 4px 2px 10px;
+  flex-direction: column;
+  max-height: 240px;
+}
+
+/* 隐藏滚动条 */
+.ai-polish-list::-webkit-scrollbar {
+  height: 4px;
+}
+.ai-polish-list::-webkit-scrollbar-thumb {
+  width: 10px;
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.ai-polish-item {
+  flex: 0 0 0px;
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ai-polish-item:hover {
+  border-color: #22C55E;
+  background: #f0fdf4;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.12);
+}
+
+.ai-polish-item.active {
+  border-color: #22C55E;
+  background: #f0fdf4;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15), 0 4px 15px rgba(34, 197, 94, 0.1);
+}
+
+.ai-polish-item.active::after {
+  content: "L";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: #22C55E;
+  font-weight: bold;
+  transform: rotate(45deg) scaleX(-1); /* 简单的勾选标记 */
+  opacity: 0.8;
+}
+
+.ai-polish-item .item-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #22C55E;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.ai-polish-item .item-preview {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ai-polish-item.active .item-preview {
+  color: #166534;
 }
 </style>

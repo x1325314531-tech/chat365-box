@@ -3,13 +3,13 @@
     <div class="update-version-row">
     <div class="one-block-1">
       <span>
-        当前版本: {{ appVersion }} 
-        <el-tag v-if="available"  type="success" size="small" effect="plain" class="ml-10 tag-version">有新版本: v{{ latestVersion }}</el-tag>
+        {{ $t('update.currentVersion') }} {{ appVersion }} 
+        <el-tag v-if="available"  type="success" size="small" effect="plain" class="ml-10 tag-version">{{ $t('update.newVersion') }} v{{ latestVersion }}</el-tag>
       </span>
     </div>
     <div class="one-block-2">
       <el-space>
-        <el-button type="primary" plain @click="checkForUpdate(true)">检查更新</el-button>
+        <el-button type="primary" plain @click="checkForUpdate(true)">{{ $t('update.checkUpdate') }}</el-button>
         <!-- <el-button v-if="available" type="success" @click="showUpdateDialog = true">立即更新</el-button> -->
       </el-space>
     </div>
@@ -24,7 +24,7 @@
       <div class="update-card-content">
         <div class="update-header">
           <div class="header-main">
-            <span class="title">发现新版本</span>
+            <span class="title">{{ $t('update.newVersionFound') }}</span>
             <span class="version-badge">v{{ latestVersion }}</span>
           </div>
           <div class="header-illustration">
@@ -42,8 +42,8 @@
         </div>
         
         <div class="update-footer">
-          <el-button class="btn-later" @click="showUpdateDialog = false">暂不更新</el-button>
-          <el-button type="primary" class="btn-now" @click="handleStartUpdate">立即更新</el-button>
+          <el-button class="btn-later" @click="showUpdateDialog = false">{{ $t('update.later') }}</el-button>
+          <el-button type="primary" class="btn-now" @click="handleStartUpdate">{{ $t('update.updateNow') }}</el-button>
         </div>
       </div>
     </el-dialog>
@@ -51,20 +51,20 @@
     <!-- 下载进度弹窗 (Screenshot 2 Style) -->
     <el-dialog
       v-model="showProgressDialog"
-      title="自动更新"
+      :title="$t('update.autoUpdate')"
       :show-close="false"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
       class="progress-dialog-custom"
     >
       <div class="progress-content">
-        <div class="status-text">正在下载更新...</div>
+        <div class="status-text">{{ $t('update.downloading') }}</div>
         <div class="progress-bar-wrapper">
           <el-progress :percentage="downloadPercent" :show-text="false" :stroke-width="8" color="#48c78e" />
           <span class="percentage-label">{{ downloadPercent }}%</span>
         </div>
         <div class="progress-info">
-          <span class="speed">速度: {{ downloadSpeed }}</span>
+          <span class="speed">{{ $t('update.speed') }}: {{ downloadSpeed }}</span>
           <span class="size">{{ transferredSize }} / {{ totalSize }}</span>
         </div>
       </div>
@@ -74,12 +74,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ipcRoute, specialIpcRoute } from '@/api';
 import { ipc } from '@/utils/ipcRenderer';
 import Notification from '@/utils/notification';
 import { get } from '@/utils/request';
 import {toQueryString} from '@/utils/utils'
 import updateRocker from '@/assets/images/updateRocker.png'
+const { t } = useI18n();
 const appVersion = ref('');
 const latestVersion = ref('');
 const available = ref(false);
@@ -87,7 +89,7 @@ const showUpdateDialog = ref(false);
 const showProgressDialog = ref(false);
 const installationPackageAddress = ref('')
 const downloadPercent = ref(0);
-const downloadSpeed = ref('0.0MB/秒');
+const downloadSpeed = ref('0.0' + t('update.speedUnit'));
 const transferredSize = ref('0MB');
 const totalSize = ref('0MB');
 
@@ -138,15 +140,15 @@ function init() {
         showProgressDialog.value = true;
         showUpdateDialog.value = false;
         downloadPercent.value = parseInt(percent) || 0;
-        downloadSpeed.value = speed || '0.0MB/秒';
+        downloadSpeed.value = speed || ('0.0' + t('update.speedUnit'));
         transferredSize.value = trans || '0MB';
         totalSize.value = total || '0MB';
       } else if (status === 4) { // 下载完成
         showProgressDialog.value = false;
-        Notification.message({ message: "下载完成，正在准备安装...", type: 'success' });
+        Notification.message({ message: t('update.downloadComplete'), type: 'success' });
       } else if (status === -1) { // 错误
         showProgressDialog.value = false;
-        Notification.message({ message: error || "下载失败", type: 'error' });
+        Notification.message({ message: error || t('update.downloadFailed'), type: 'error' });
       }
     } catch (e) {
       console.error('解析更新数据失败:', e);
@@ -175,12 +177,12 @@ async function checkForUpdate(showTips = false) {
         available.value = true;
         showUpdateDialog.value = true;
       } else if (showTips) {
-        Notification.message({ message: "已经是最新版本", type: 'info' });
+        Notification.message({ message: t('update.isLatest'), type: 'info' });
       }
     }
   } catch (err) {
     console.error('获取最新版本失败:', err);
-    if (showTips) Notification.message({ message: "检查更新失败", type: 'error' });
+    if (showTips) Notification.message({ message: t('update.checkFailed'), type: 'error' });
   }
 }
   const getVersionIntroduction = async() => { 

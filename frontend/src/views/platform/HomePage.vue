@@ -64,15 +64,15 @@
                   </template>
                   <div class="popover-content">
                     <div class="popover-header">
-                      <span class="popover-title">字符列表</span>
+                      <span class="popover-title">{{ $t('home.charList') }}</span>
                       <el-icon class="refresh-icon" @click="getCurrentCharUsage"><Refresh /></el-icon>
                     </div>
                     <div class="char-table">
                       <div class="char-table-header">
-                        <div class="col">翻译通道</div>
-                        <div class="col">今日已用</div>
-                        <div class="col">已用</div>
-                        <div class="col">可用</div>
+                        <div class="col">{{ $t('home.translateChannel') }}</div>
+                        <div class="col">{{ $t('home.todayUsed') }}</div>
+                        <div class="col">{{ $t('home.used') }}</div>
+                        <div class="col">{{ $t('home.available') }}</div>
                       </div>
                       <div class="char-table-row">
                         <div class="col">free</div>
@@ -90,7 +90,7 @@
           <div class="metric-item">
             <img :src="portQuotaIcon" class="metric-icon" />
             <div class="metric-text-box">
-              <div class="metric-label">{{ $t('home.availablePorts') }}（已用/总数）</div>
+              <div class="metric-label">{{ $t('home.availablePorts') }}</div>
               <div class="metric-value">{{charInfo.usedPortCount}}/{{ charInfo.totalPortCount }}</div>
             </div>
           </div>
@@ -99,9 +99,9 @@
 
       <div class="recharge-card">
         <div class="recharge-text">
-          <div class="recharge-title">套餐续费</div>
-          <div class="recharge-subtitle">续享套餐优惠<br/>特权不断</div>
-          <el-button type="success" color="#2cd67a" class="recharge-btn">前往充值</el-button>
+          <div class="recharge-title">{{ $t('home.renewPlan') }}</div>
+          <div class="recharge-subtitle">{{ $t('home.planPromo') }}</div>
+          <el-button type="success" color="#2cd67a" class="recharge-btn">{{ $t('home.goToRecharge') }}</el-button>
         </div>
         <div class="recharge-illustration">
           <img :src="planRenewalIcon" />
@@ -129,20 +129,20 @@
     <!-- 退出登录确认弹窗 -->
     <el-dialog
         v-model="logoutDialogVisible"
-        title="退出登录"
+        :title="$t('home.logoutDialogTitle')"
         width="400px"
         :show-close="true"
         class="custom-logout-dialog"
         align-center
     >
       <div class="dialog-content">
-        <p class="sessions-info">当前 {{ runningSessionsCount }} 个会话正在运行</p>
-        <p class="confirm-text">确认退出当前用户？</p>
+        <p class="sessions-info">{{ $t('home.runningSessions', { count: runningSessionsCount }) }}</p>
+        <p class="confirm-text">{{ $t('home.confirmLogoutText') }}</p>
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="cancelLogout" class="cancel-btn">取消</el-button>
-          <el-button type="primary" @click="confirmLogout" class="confirm-btn">确定</el-button>
+          <el-button @click="cancelLogout" class="cancel-btn">{{ $t('home.cancel') }}</el-button>
+          <el-button type="primary" @click="confirmLogout" class="confirm-btn">{{ $t('home.confirm') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -181,6 +181,7 @@ const currentLangLabel = computed(() => {
 const handleLangChange = (lang) => {
   locale.value = lang
   localStorage.setItem('app-locale', lang)
+  // 有些提示语如果不在 template 中，可能需要手动翻译
 }
 
 // 当前时间
@@ -240,7 +241,7 @@ const updateTime = () => {
 
 const handleClearCache = async () => {
    try {
-     Notification.success('清除缓存成功', 'Success')
+     Notification.success(t('home.clearCacheSuccess'), 'Success')
    } catch(e) {}
 }
 
@@ -551,6 +552,7 @@ const handleQuickAccess = (item) => {
   font-weight: 600;
   color: #333;
   margin-bottom: 8px;
+  text-align: left;
 }
 
 .recharge-subtitle {
