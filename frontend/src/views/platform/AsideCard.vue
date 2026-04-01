@@ -141,8 +141,8 @@ onMounted(async () => {
   });
   // 页面加载时获取所有会话
   await getAllSessions();
-  // 延时加载一次后端数据同步（非阻塞，不影响本地展示）
-  setTimeout(syncSessionIdsFromBackend, 2000);
+  // 加载一次后端数据同步（非阻塞，不影响本地展示）
+  setTimeout(syncSessionIdsFromBackend, 500);
 
   // 移除可能存在的旧监听器，避免重复添加
   ipc.removeAllListeners('online-notify');
@@ -211,6 +211,14 @@ watch([importPanel, userPortraitPanel], ([newImport, newUserPortrait]) => {
 // 获取所有会话数据 (本地库同步)
 async function getAllSessions() {
   try {
+    // 1. 记录当前已有的 sessionId，防止刷新时丢失后端同步的数据
+    const sessionIdMap = new Map();
+    conversations.forEach(c => {
+      if (c.card_id && c.sessionId) {
+        sessionIdMap.set(c.card_id, c.sessionId);
+      }
+    });
+
     const res = await ipc.invoke(ipcApiRoute.getSessions, { platform: props.title, accountId: accountId });
     if (res && res.data) {
       console.log('获取本地会话列表成功:', res, res.data.length);
@@ -220,11 +228,13 @@ async function getAllSessions() {
           activeStatus = 'true';
         }
         
+        const card_id = item.card_id || item.cardId;
         return {
           ...item,
-          cardId: item.card_id || item.cardId,
-          card_id: item.card_id || item.cardId,
-          sessionId: item.session_id || item.sessionId,
+          cardId: card_id,
+          card_id: card_id,
+          // 2. 优先从内存 Map 中恢复已同步的 sessionId，其次使用本地库中的值
+          sessionId: sessionIdMap.get(card_id) || item.session_id || item.sessionId,
           active_status: activeStatus,
           online_status: String(item.online_status || item.onlineStatus || 'false') === 'true' || String(item.online_status || item.onlineStatus) === '1' ? 'true' : 'false',
           show_badge: String(item.show_badge || 'false'),
@@ -243,23 +253,35 @@ async function getAllSessions() {
 // 异步从后端同步 sessionId 等扩展字段 (低频调用)
 async function syncSessionIdsFromBackend() {
   console.log('🚀 [AsideCard] 开始从后端同步会话完整数据...');
-  get('/app/session/list', {
+  return get('/app/session/list', {
     params: {
       pageSize: 1000,
       page: 1,
     }
   }).then(res => {
-    if (res && res.data) {
-      console.log('✅ 从后端同步会话成功:', res.data.length);
-      res.data.forEach(backendCard => {
-        const localCard = conversations.find(c => c.card_id === backendCard.cardId);
+    // 兼容后端不同响应结构 (res.data 直接是数组，或 res.data.list 是数组)
+    const backendSessions = Array.isArray(res.data) ? res.data : (res.data && Array.isArray(res.data.list) ? res.data.list : []);
+    
+    if (backendSessions.length > 0) {
+      console.log('✅ 从后端同步会话成功，数量:', backendSessions.length);
+      backendSessions.forEach(backendCard => {
+        // 尝试通过 cardId 或 card_id 匹配
+        const bCardId = backendCard.cardId || backendCard.card_id;
+        const localCard = conversations.find(c => String(c.card_id) === String(bCardId));
         if (localCard) {
           localCard.sessionId = backendCard.id || backendCard.sessionId;
+          console.log(`🔗 [AsideCard] 已成功为本地卡片 ${bCardId} 关联后端 sessionId: ${localCard.sessionId}`);
+        } else {
+          console.warn(`⚠️ [AsideCard] 未在本地列表中找到匹配的后端卡片 ID: ${bCardId}`);
         }
       });
+    } else {
+      console.warn('⚠️ [AsideCard] 后端返回会话列表为空');
     }
+    return backendSessions;
   }).catch(err => {
     console.error('❌ 从后端获取会话列表失败:', err);
+    throw err;
   });
 }
 //根据平台获取默认头像
@@ -403,7 +425,19 @@ defineExpose({
   selectAndRefreshCard
 });
 // 处理设置按钮点击
-function handleSetting(card) {
+async function handleSetting(card) {
+    console.log('处理设置按钮点击', card);
+    
+    // 如果 sessionId 为空，尝试紧急同步一次
+    if (!card.sessionId) {
+      console.warn('⚠️ [AsideCard] handleSetting sessionId 为空，尝试紧急同步...');
+      try {
+        await syncSessionIdsFromBackend();
+      } catch (e) {
+        console.error('紧急同步失败:', e);
+      }
+    }
+    
   emits('open-settings', { isEdit: true, card: card });
 }
 
@@ -442,16 +476,36 @@ const handleShrink=() => {
 }
 // 处理关闭按钮点击
 function handleClose(card) {
+  console.log('删除', card)
   Notification.confirm({
     message: t('aside.deleteConfirm'),
     title: t('aside.deleteSession'),
     type: 'warning'
-  }).then(() => {
+  }).then(async () => {
     card.loading = true;
+    
+    // 如果 sessionId 为空，尝试紧急同步一次
+    if (!card.sessionId) {
+      console.warn('⚠️ [AsideCard] sessionId 为空，尝试删除前同步...');
+      try {
+        await syncSessionIdsFromBackend();
+      } catch (e) {
+        console.error('紧急同步失败:', e);
+      }
+    }
+
     ipc.invoke(ipcApiRoute.deleteSession, { platform: props.title, cardId: card.cardId, accountId: accountId }).then((res) => {
       if (res.status) {
         card.loading = false;
       }
+      
+      // 再次确认 sessionId 是否已获取
+      if (!card.sessionId) {
+        console.error('❌ [AsideCard] 同步后 sessionId 仍为空，无法调用后端删除接口');
+        Notification.message({ message: '无法获取后端会话ID，请稍后重试', type: 'error' });
+        return;
+      }
+
       del(`/app/session/${card.sessionId}`).then(res=> { 
         if(res.code==200) { 
              Notification.message({ message: t('aside.deleteSuccess'), type: 'success' });

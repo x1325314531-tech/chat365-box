@@ -183,6 +183,8 @@ const handleLayoutChange = (val) => {
 
 
 const handleOpenSettings = (data) => {
+  console.log('设置', data);
+  
   if (data) {
     isEditSettings.value = data.isEdit;
     currentSettingCard.value = data.card || null;

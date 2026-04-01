@@ -266,7 +266,7 @@ async function handlePolish() {
       role: resolvedRole,
       targetLanguage: 'en',
       modelName: globalConfig.value.model || 'Gemini',
-      // suggestionCount:resolvedHistoryCount
+      suggestionCount:resolvedHistoryCount
     };
 console.log('params', params)
     const res = await post('/app/agentChat', params);
@@ -278,7 +278,7 @@ console.log('params', params)
       } else {
         suggestions.value = [];
         selectedIndex.value = -1;
-        polishedText.value = res.data || '';
+        polishedText.value = res.data.content || '';
       }
 
       if (isTranslationEnabled.value && polishedText.value) {
@@ -423,25 +423,28 @@ async function sendImmediate() {
             </div>
           </div>
         </div>
-       <!--AI润色推荐列表-->
-       <div class="ai-polish-recommend-body" v-if="suggestions.length > 0">
+       <div class="ai-polish-recommend-body">
         <div class="ai-polist-recommend--title"> AI润色推荐</div>
-       <div v-if="suggestions.length > 1" class="ai-polish-list">
-          <div 
-            v-for="(s, index) in suggestions" 
-            :key="index"
-            class="ai-polish-item"
-            :class="{ active: selectedIndex === index }"
-            @click="selectSuggestion(index)"
-          >
-            <div class="item-head">
-              <span class="star">✦</span>
-              <span class="item-index">{{ $t('aiPolish.suggestionNum', { n: index + 1 }) }}</span>
+       <div class="ai-polish-list" v-loading="isLoading" element-loading-background="rgba(238, 240, 239, 0.8)">
+          <template v-if="suggestions.length > 0">
+            <div 
+              v-for="(s, index) in suggestions" 
+              :key="index"
+              class="ai-polish-item"
+              :class="{ active: selectedIndex === index }"
+              @click="selectSuggestion(index)"
+            >
+              <div class="item-head">
+                <span class="star">✦</span>
+                <span class="item-index">{{ $t('aiPolish.suggestionNum', { n: index + 1 }) }}</span>
+              </div>
+              <div class="item-preview">{{ s }}</div>
             </div>
-            <div class="item-preview">{{ s }}</div>
+          </template>
+          <div v-else-if="!isLoading" class="no-suggestions-text">
+            暂无AI润色推荐建议
           </div>
        </div>
-
        </div>
       
         <div class="style-panel">
@@ -897,20 +900,37 @@ async function sendImmediate() {
   flex-wrap: nowrap;
   overflow-y: auto;
   gap: 12px;
-  margin: 16px 0;
-  padding: 4px 2px 10px;
+  margin: 12px 0 16px;
+  padding: 4px 6px 10px;
   flex-direction: column;
   max-height: 240px;
+  min-height: 100px; /* 增加最小高度，使加载状态更美观 */
+  position: relative;
 }
 
-/* 隐藏滚动条 */
+/* 美化滚动条 */
 .ai-polish-list::-webkit-scrollbar {
-  height: 4px;
+  width: 6px;
 }
 .ai-polish-list::-webkit-scrollbar-thumb {
-  width: 10px;
-  background: #d1d5db;
-  border-radius: 4px;
+  background: #c1cdd1;
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+.ai-polish-list::-webkit-scrollbar-thumb:hover {
+  background: #aab6ba;
+}
+.ai-polish-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
+
+/* 消除加载框可能的蓝色边框/阴影 */
+.ai-polish-list :deep(.el-loading-mask) {
+  border-radius: 12px;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .ai-polish-item {
@@ -975,5 +995,15 @@ async function sendImmediate() {
 
 .ai-polish-item.active .item-preview {
   color: #166534;
+}
+
+.no-suggestions-text {
+  padding: 20px;
+  text-align: center;
+  color: #909399;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  border: 1px dashed #dcdfe6;
 }
 </style>

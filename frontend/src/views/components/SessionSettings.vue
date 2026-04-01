@@ -94,7 +94,8 @@ const configForm = reactive({
   username: '',
   password: ''
 });
-
+const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+const accountId = userInfo.accountId;
 const timezoneList = ref([]);
 const addLanguageVisible = ref(false);
 const languageSearchQuery = ref('');
@@ -1098,6 +1099,7 @@ async function confirmClick() {
     cardId: configForm.cardId,
     activeStatus: 0,
     onlineStatus:1,
+    accountId:accountId
   };
   console.log('data会话参数',data);
   
@@ -1160,6 +1162,8 @@ async function confirmClick() {
 
       // 如果是新建会话，先通过 IPC 添加
       if (!props.isEdit) {
+        console.log('data', res.data);
+        
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const accountId = userInfo.accountId;
         const addArgs = {
