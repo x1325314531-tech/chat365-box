@@ -239,6 +239,8 @@ async function saveSessionIndependentAiConfig(chatId, config) {
 
 function printElementEvery5Seconds() {
     console.info('✅ 进入 WhatsApp.js 脚本');
+    
+    let hasEmittedReset = false;
 
     setInterval(() => {
         // 稳健的选择器列表：
@@ -270,11 +272,21 @@ function printElementEvery5Seconds() {
             window.electronAPI.sendMsg({platform:'WhatsApp', online: true, avatarUrl: url, myPhone: myPhone, unreadCount: unreadCount}).then(res => {
                 console.log('🚀 [Chat365] 状态上报（已登录）：', {online: true, myPhone, unreadCount, res});
             });
+            hasEmittedReset = false;
         } else {
             console.log('🔍 [Chat365] 未检测到登录标志:', {hasPaneSide, hasSidePanel, hasMain, hasIntro});
             window.electronAPI.sendMsg({platform:'WhatsApp', online: false, avatarUrl: '', myPhone: '', unreadCount: 0}).then(res => {
                 console.log('🚀 [Chat365] 状态上报（离线）：', res);
             });
+            
+            // 清空选中的会话 ID，让右侧边栏切换回空状态（仅触发一次防止死循环轰炸 IPC）
+            if (!hasEmittedReset) {
+                hasEmittedReset = true;
+                window._chat365_state.currentChatId = '';
+                if (window.electronAPI && window.electronAPI.ipcRenderer) {
+                    window.electronAPI.ipcRenderer.send('chat-id-change', { chatId: '' });
+                }
+            }
         }
     }, 5000);
 }
@@ -6897,10 +6909,13 @@ const applyNicknameToDOM = (phone, nickname) => {
         if (!el.hasAttribute('data-original-title')) {
             el.setAttribute('data-original-title', elTitle || elText || '');
         }
+
+        const originalTitle = el.getAttribute('data-original-title') || '';
+        if (!originalTitle) return;
         
-        // 检查 title 属性
-        if (elTitle && String(elTitle).replace(/\D/g, '') === pureTargetPhone) {
-            const originalPhone = getOriginalPhoneFormatted(elTitle);
+        // 检查原本有 title 属性的情况
+        if (el.hasAttribute('title') && String(originalTitle).replace(/\D/g, '') === pureTargetPhone) {
+            const originalPhone = getOriginalPhoneFormatted(originalTitle);
             const newText = isHeader ? `${nickname} ${originalPhone}` : nickname;
             if (elText !== newText || el.getAttribute('title') !== newText) {
                 el.innerText = newText;
@@ -6909,13 +6924,15 @@ const applyNicknameToDOM = (phone, nickname) => {
             return;
         }
 
-        // 检查内容 (且元素不能包含子标签，或者是只包了一个文本节点的标签)
-        if (el.children.length === 0 && elText.trim().replace(/\D/g, '') === pureTargetPhone) {
-            const originalPhone = getOriginalPhoneFormatted(elText);
+        // 检查本身只包含文本的情况 (没有子节点的情况)
+        if (el.children.length === 0 && String(originalTitle).replace(/\D/g, '') === pureTargetPhone) {
+            const originalPhone = getOriginalPhoneFormatted(originalTitle);
             const newText = isHeader ? `${nickname} ${originalPhone}` : nickname;
             if (elText !== newText || el.getAttribute('title') !== newText) {
                 el.innerText = newText;
-                el.setAttribute('title', newText);
+                if (el.hasAttribute('title')) {
+                    el.setAttribute('title', newText);
+                }
             }
         }
     };
@@ -6931,12 +6948,62 @@ const applyNicknameToDOM = (phone, nickname) => {
     });
 };
 
-// 后台定时器扫描恢复被刷新的 DOM
-setInterval(() => {
+// ---------------- IndexedDB 持久化存储 ----------------
+const PERSONA_DB_NAME = 'WhatsAppUserPersonaCacheDB';
+const PERSONA_STORE_NAME = 'nicknames';
+let personaDbInstance = null;
+
+function openPersonaDB() {
+    if (personaDbInstance) return Promise.resolve(personaDbInstance);
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(PERSONA_DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(PERSONA_STORE_NAME)) {
+                db.createObjectStore(PERSONA_STORE_NAME, { keyPath: 'phone' });
+            }
+        };
+        req.onsuccess = (e) => {
+            personaDbInstance = e.target.result;
+            resolve(personaDbInstance);
+        };
+        req.onerror = () => reject('open db failed');
+    });
+}
+
+async function savePersonaNickname(phone, nickname) {
+    if (!phone || !nickname) return;
     try {
-        const savedNicknames = JSON.parse(localStorage.getItem('chat365_nicknames') || '{}');
-        Object.keys(savedNicknames).forEach(phone => {
-            applyNicknameToDOM(phone, savedNicknames[phone]);
+        const db = await openPersonaDB();
+        const tx = db.transaction([PERSONA_STORE_NAME], 'readwrite');
+        const store = tx.objectStore(PERSONA_STORE_NAME);
+        store.put({ phone, nickname });
+    } catch (e) {
+        console.error('savePersonaNickname failed', e);
+    }
+}
+
+async function getAllPersonaNicknames() {
+    try {
+        const db = await openPersonaDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction([PERSONA_STORE_NAME], 'readonly');
+            const store = tx.objectStore(PERSONA_STORE_NAME);
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => resolve([]);
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
+// 后台定时器扫描恢复被刷新的 DOM
+setInterval(async () => {
+    try {
+        const savedNicknames = await getAllPersonaNicknames();
+        savedNicknames.forEach(record => {
+            applyNicknameToDOM(record.phone, record.nickname);
         });
     } catch (e) {
         console.error('Failed to apply cached nicknames', e);
@@ -6950,12 +7017,8 @@ if (window.electronAPI && window.electronAPI.ipcRenderer) {
 
         console.log(`🔄 [Chat365] 收到昵称更新请求: ${phone} -> ${nickname}`);
         
-        try {
-            const savedNicknames = JSON.parse(localStorage.getItem('chat365_nicknames') || '{}');
-            savedNicknames[phone] = nickname;
-            localStorage.setItem('chat365_nicknames', JSON.stringify(savedNicknames));
-        } catch (e) { }
-
+        savePersonaNickname(phone, nickname);
         applyNicknameToDOM(phone, nickname);
     });
 }
+

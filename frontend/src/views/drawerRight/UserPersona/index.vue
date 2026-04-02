@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch, nextTick } from 'vue';
 import { User, Calendar, Plus, Delete, QuestionFilled, CopyDocument } from '@element-plus/icons-vue'
 import { ipc } from "@/utils/ipcRenderer";
 import Notification from "@/utils/notification";
@@ -26,6 +26,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const isEditProfile = ref(false);
+const isLoading = ref(false);
 
 const formData = ref({
   phone_number: '',
@@ -50,6 +51,9 @@ const sexOptions= ref([])
 const followUpRecords = ref([]);
 const newFollowUpContent = ref('');
 const showAddRecord = ref(false);
+const isAddTag = ref(false);
+const inputValue = ref('');
+const tagInputRef = ref(null);
 
 const ipcApiRoute = {
   addFollowRecord: 'controller.user.addFollowRecord',
@@ -88,6 +92,8 @@ const getUserPortraitData = () => {
    console.log('获取平台列表失败:', targetPhone)
   if (!targetPhone) return;
 
+  isLoading.value = true;
+
   // First fetch local IPC records if needed, then fetch from API
   const args = { 
     card_id: props.chatId, 
@@ -103,7 +109,17 @@ const getUserPortraitData = () => {
   }).catch(e => console.error(e));
 
   // Query via REST API
-  post(`/app/profiles/getByAppId`,{appId:targetPhone}).then(res => {
+  const requestPromise = post(`/app/profiles/getByAppId`,{appId:targetPhone});
+  
+  // 保证至少 300ms 的加载动画延时，防止本地加载过快导致肉眼无法察觉而误以为失效
+  Promise.all([
+    requestPromise,
+    new Promise(res => setTimeout(res, 300))
+  ]).finally(() => {
+    isLoading.value = false;
+  });
+
+  requestPromise.then(res => {
     if (res.code === 200 && res.data) {
       isEditProfile.value = true;
       const data = res.data;
@@ -128,6 +144,7 @@ const getUserPortraitData = () => {
       // Reset form on new profile, keep phone number
       formData.value = {
         phone_number: targetPhone,
+        profileId: '',
         platform: '',
         card_id: '',
         nickname: '',
@@ -165,22 +182,63 @@ watch(() => [props.chatId, props.conversationId], ([newChatId, newConvId]) => {
   if (newConvId) {
     const rawId = String(newConvId).split('@')[0];
     formData.value.phone_number = rawId;
+  } else {
+    // 收到空 ID（代表退出登录或离开会话），强制清空本机缓存特征码，回归空状态
+    formData.value.phone_number = '';
   }
   getUserPortraitData();
 });
 
 const handleCopy = () => {
-  const text = `
-账号ID: ${formData.value.phone_number || ''}
-昵称: ${formData.value.nickname || ''}
-性别: ${formData.value.gender || ''}
-地址: ${formData.value.address || ''}
-备注: ${formData.value.notes || ''}
-  `.trim();
+  const sourceOption = platformOptions.value.find(item => item.dictValue === formData.value.source);
+  const sourceLabel = sourceOption ? sourceOption.dictLabel : '';
+  const sexOption = sexOptions.value.find(item => item.dictValue === formData.value.gender);
+  const sexLabel = sexOption ? sexOption.dictLabel : '';
+  let bdText = '';
+  if (formData.value.birthday) {
+      const d = new Date(formData.value.birthday);
+      bdText = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
   
-  navigator.clipboard.writeText(text).then(() => {
-    Notification.message({ message: '已复制到剪贴板', type: 'success' });
-  });
+  const lines = [];
+  if (formData.value.phone_number) lines.push(`账号ID: ${formData.value.phone_number}`);
+  if (formData.value.nickname) lines.push(`昵称备注: ${formData.value.nickname}`);
+  if (formData.value.gender) lines.push(`性别: ${sexLabel}`);
+  if (bdText) lines.push(`生日: ${bdText}`);
+  if (formData.value.address) lines.push(`地址: ${formData.value.address}`);
+  if (formData.value.email) lines.push(`邮箱: ${formData.value.email}`);
+  if (formData.value.occupation) lines.push(`职业: ${formData.value.occupation}`);
+  if (formData.value.income) lines.push(`收入: ${formData.value.income}`);
+  if (sourceLabel) lines.push(`客户来源: ${sourceLabel}`);
+  
+  const tagsText = Array.isArray(formData.value.tags) ? formData.value.tags.join(', ') : '';
+  if (tagsText) lines.push(`用户标签: ${tagsText}`);
+
+  const text = lines.join('\n');
+  if (!text) {
+    Notification.message({ message: '暂无有效数据可复制', type: 'warning' });
+    return;
+  }
+  
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      Notification.message({ message: '已复制到剪贴板', type: 'success' });
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      Notification.message({ message: '复制失败，请重试', type: 'error' });
+    });
+  } else {
+      // 降级处理
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+          document.execCommand('copy');
+          Notification.message({ message: '已复制到剪贴板', type: 'success' });
+      } catch (err) {}
+      document.body.removeChild(textArea);
+  }
 };
 
 const addFollowUp = () => {
@@ -212,8 +270,30 @@ const deleteRecord = (index) => {
   // Optional: ipc call to delete from DB
 };
 
+const handleCloseTag = (tag) => {
+  if (Array.isArray(formData.value.tags)) {
+    formData.value.tags.splice(formData.value.tags.indexOf(tag), 1);
+  }
+};
+
 const handleAddTag = () => {
-  // Logic to add a tag
+  isAddTag.value = true;
+  nextTick(() => {
+    tagInputRef.value?.focus();
+  });
+};
+
+const handleInputConfirm = () => {
+  if (inputValue.value) {
+    if (!Array.isArray(formData.value.tags)) {
+      formData.value.tags = [];
+    }
+    if (!formData.value.tags.includes(inputValue.value)) {
+      formData.value.tags.push(inputValue.value);
+    }
+  }
+  isAddTag.value = false;
+  inputValue.value = '';
 };
 
 const formatDate = (date) => {
@@ -284,9 +364,9 @@ const confirmClick = () => {
       </div>
       <button class="close-btn" @click="emit('close')">×</button>
     </div>
-
-    <el-scrollbar class="persona-scroll">
-      <div class="persona-content">
+    <template v-if="formData.phone_number && formData.phone_number !== 'default'">
+      <el-scrollbar class="persona-scroll">
+        <div class="persona-content" v-loading="isLoading" element-loading-text="加载数据中...">
         <!-- 用户信息 Section -->
         <div class="section-block">
           <div class="section-top-bar">
@@ -313,7 +393,7 @@ const confirmClick = () => {
             </div>
             <div class="form-row">
               <span class="label">性别</span>
-              <el-radio-group v-model="formData.gender" class="gender-radio-group">
+              <el-radio-group v-model="formData.gender" text-color="#fff" fill="#2db85f" class="gender-radio-group">
                 <el-radio-button v-for="item in  sexOptions"  :key="item.dictValue" :label="item.dictLabel" :value="item.dictValue"></el-radio-button>
               </el-radio-group>
             </div>
@@ -351,8 +431,17 @@ const confirmClick = () => {
             <div class="form-row align-top">
               <span class="label">用户标签</span>
               <div class="tags-container">
-                <el-tag v-for="tag in formData.tags" :key="tag" closable class="custom-tag">{{ tag }}</el-tag>
-                <div class="add-tag-box">
+                <el-tag v-for="tag in formData.tags" :key="tag" closable class="custom-tag" @close="handleCloseTag(tag)">{{ tag }}</el-tag>
+                <el-input
+                  v-if="isAddTag"
+                  ref="tagInputRef"
+                  v-model="inputValue"
+                  class="add-tag-input"
+                  size="small"
+                  @keyup.enter="handleInputConfirm"
+                  @blur="handleInputConfirm"
+                />
+                <div v-else class="add-tag-box" @click="handleAddTag">
                   <el-icon><Plus /></el-icon>
                 </div>
               </div>
@@ -400,7 +489,14 @@ const confirmClick = () => {
           </div>
         </div>
       </div>
-    </el-scrollbar>
+      </el-scrollbar>
+    </template>
+    
+    <template v-else>
+      <div class="empty-state-wrapper">
+        <el-empty description="请选择一个会话" />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -466,7 +562,11 @@ const confirmClick = () => {
 }
 
 .persona-content {
-  padding: 20px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
 }
 
 .section-block {
@@ -580,6 +680,14 @@ const confirmClick = () => {
   cursor: pointer;
 }
 
+.add-tag-input {
+  width: 80px;
+  height: 24px;
+}
+.add-tag-input :deep(.el-input__wrapper) {
+  padding: 0 8px;
+}
+
 /* Timeline Styles */
 .records-timeline {
   margin-top: 10px;
@@ -637,5 +745,13 @@ const confirmClick = () => {
 :deep(.el-timeline-item__timestamp) {
   margin-bottom: 6px;
   color: #999;
+}
+
+.empty-state-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 </style>
