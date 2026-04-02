@@ -6887,7 +6887,7 @@ function renderHeavyFansTags() {
 
 // ==================== UI 同步：更新联系人昵称 ====================
 // 将所有的昵称保存到 localStorage 防止刷新页面后丢失
-const applyNicknameToDOM = (phone, nickname) => {
+const applyNicknameToDOM = (phone, nickname, sex, occupation, tags) => {
     if (!phone || !nickname) return;
     
     // 提取纯数字用于对比
@@ -6912,11 +6912,28 @@ const applyNicknameToDOM = (phone, nickname) => {
 
         const originalTitle = el.getAttribute('data-original-title') || '';
         if (!originalTitle) return;
+
+        // 构建附加的标签文本
+        let extraInfo = '';
+        if (isHeader) {
+            const parts = [];
+            if (sex && sex !== '未知' && sex !== 'null' && sex !== 'undefined') parts.push(`[${sex}]`);
+            if (occupation && occupation !== 'null' && occupation !== 'undefined') parts.push(`[${occupation}]`);
+            if (tags) {
+                let tagsStr = '';
+                if (Array.isArray(tags)) tagsStr = tags.join(', ');
+                else if (typeof tags === 'string') tagsStr = tags;
+                if (tagsStr && tagsStr !== 'null' && tagsStr !== 'undefined') parts.push(`[${tagsStr}]`);
+            }
+            if (parts.length > 0) {
+                extraInfo = `  ${parts.join(' ')}`;
+            }
+        }
         
         // 检查原本有 title 属性的情况
         if (el.hasAttribute('title') && String(originalTitle).replace(/\D/g, '') === pureTargetPhone) {
             const originalPhone = getOriginalPhoneFormatted(originalTitle);
-            const newText = isHeader ? `${nickname} ${originalPhone}` : nickname;
+            const newText = isHeader ? `${nickname} ${originalPhone}${extraInfo}` : nickname;
             if (elText !== newText || el.getAttribute('title') !== newText) {
                 el.innerText = newText;
                 el.setAttribute('title', newText);
@@ -6927,7 +6944,7 @@ const applyNicknameToDOM = (phone, nickname) => {
         // 检查本身只包含文本的情况 (没有子节点的情况)
         if (el.children.length === 0 && String(originalTitle).replace(/\D/g, '') === pureTargetPhone) {
             const originalPhone = getOriginalPhoneFormatted(originalTitle);
-            const newText = isHeader ? `${nickname} ${originalPhone}` : nickname;
+            const newText = isHeader ? `${nickname} ${originalPhone}${extraInfo}` : nickname;
             if (elText !== newText || el.getAttribute('title') !== newText) {
                 el.innerText = newText;
                 if (el.hasAttribute('title')) {
@@ -6971,13 +6988,13 @@ function openPersonaDB() {
     });
 }
 
-async function savePersonaNickname(phone, nickname) {
+async function savePersonaNickname(phone, nickname, sex, occupation, tag) {
     if (!phone || !nickname) return;
     try {
         const db = await openPersonaDB();
         const tx = db.transaction([PERSONA_STORE_NAME], 'readwrite');
         const store = tx.objectStore(PERSONA_STORE_NAME);
-        store.put({ phone, nickname });
+        store.put({ phone, nickname, sex, occupation, tag });
     } catch (e) {
         console.error('savePersonaNickname failed', e);
     }
@@ -7003,7 +7020,7 @@ setInterval(async () => {
     try {
         const savedNicknames = await getAllPersonaNicknames();
         savedNicknames.forEach(record => {
-            applyNicknameToDOM(record.phone, record.nickname);
+            applyNicknameToDOM(record.phone, record.nickname, record.sex, record.occupation, record.tag);
         });
     } catch (e) {
         console.error('Failed to apply cached nicknames', e);
@@ -7012,13 +7029,13 @@ setInterval(async () => {
 
 if (window.electronAPI && window.electronAPI.ipcRenderer) {
     window.electronAPI.ipcRenderer.on('update-contact-nickname', (event, data) => {
-        const { phone, nickname } = data || {};
+        const { phone, nickname, sex, occupation, tag } = data || {};
         if (!phone || !nickname) return;
 
         console.log(`🔄 [Chat365] 收到昵称更新请求: ${phone} -> ${nickname}`);
         
-        savePersonaNickname(phone, nickname);
-        applyNicknameToDOM(phone, nickname);
+        savePersonaNickname(phone, nickname, sex, occupation, tag);
+        applyNicknameToDOM(phone, nickname, sex, occupation, tag);
     });
 }
 

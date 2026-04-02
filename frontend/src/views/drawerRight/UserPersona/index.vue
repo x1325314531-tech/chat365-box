@@ -334,14 +334,21 @@ const confirmClick = () => {
       
       // Notify WhatsApp WebView to update nickname in UI
       if (formData.value.phone_number && formData.value.nickname) {
-        ipc.invoke('controller.window.sendToWv', {
+        const sexOption = sexOptions.value.find(item => item.dictValue === formData.value.gender);
+        const sexLabel = sexOption ? sexOption.dictLabel : formData.value.gender;
+
+        const payload = {
           chatId: props.chatId,
           channel: 'update-contact-nickname',
           args: [{
             phone: formData.value.phone_number,
-            nickname: formData.value.nickname
+            nickname: formData.value.nickname,
+            sex: sexLabel,
+            occupation: formData.value.occupation,
+            tag: formData.value.tags
           }]
-        });
+        };
+        ipc.invoke('controller.window.sendToWv', JSON.parse(JSON.stringify(payload)));
       }
     }
   }).catch(err => {
