@@ -27,7 +27,24 @@
     <div class="sidebar-div" :style="{ order: 2 }">
       <rightSidebar
         :ai-visible="aiDrawerVisible"
+        :persona-visible="personaDrawerVisible"
         @open-drawer="handleOpenDrawer"
+      />
+    </div>
+
+    <!-- User Persona drawer -->
+    <!-- 全屏/最大化时 order:1 → 在 sidebar 左边 -->
+    <!-- 非全屏/非最大化时 order:3 → 在 sidebar 右边 -->
+    <div
+      v-if="personaDrawerVisible"
+      class="persona-drawer-container"
+      :style="{ order: isMaximized ? 1 : 3 }"
+    >
+      <UserPersona
+        v-if="currentCardId"
+        :chat-id="currentCardId"
+        :conversation-id="currentConversationId"
+        @close="personaDrawerVisible = false"
       />
     </div>
 
@@ -36,7 +53,7 @@
     <!-- 非全屏/非最大化时 order:3 → 在 sidebar 右边 -->
     <div
       v-if="aiDrawerVisible"
-      class="ai-polish-drawer"
+      class="ai-polish-drawer-container"
       :style="{ order: isMaximized ? 1 : 3 }"
     >
       <aiPolishing
@@ -57,6 +74,7 @@ import AsideCard from "@/views/platform/AsideCard.vue";
 import SessionSettings from "@/views/components/SessionSettings.vue";
 import rightSidebar from "@/views/platform/rightSidebar.vue";
 import aiPolishing from "@/views/drawerRight/aiPolishing/index.vue";
+import UserPersona from "@/views/drawerRight/UserPersona/index.vue";
 import { ipc } from '@/utils/ipcRenderer';
 
 const { t } = useI18n();
@@ -69,11 +87,12 @@ const isPlacedTop = ref(false);
 
 // AI drawer state
 const aiDrawerVisible = ref(false);
+const personaDrawerVisible = ref(false);
 const currentCardId = ref('');
 const currentConversationId = ref('');
 const polishText = ref('');
 const RIGHT_SIDEBAR_WIDTH = 70;
-const AI_DRAWER_WIDTH = 330;
+const DRAWER_WIDTH = 330;
 
 // 窗口最大化状态追踪
 const isMaximized = ref(false);
@@ -100,13 +119,19 @@ const syncActiveChatId = async () => {
 const handleOpenDrawer = async (id) => {
   if (id === 'ai') {
     const nextVisible = !aiDrawerVisible.value;
-
     if (nextVisible) {
       await syncActiveChatId();
-      polishText.value = ''; // Clear manual input when opening from sidebar
+      polishText.value = ''; 
+      personaDrawerVisible.value = false; // Mutually exclusive
     }
-
     aiDrawerVisible.value = nextVisible;
+  } else if (id === 'persona') {
+    const nextVisible = !personaDrawerVisible.value;
+    if (nextVisible) {
+      await syncActiveChatId();
+      aiDrawerVisible.value = false; // Mutually exclusive
+    }
+    personaDrawerVisible.value = nextVisible;
   }
 };
 
@@ -158,9 +183,10 @@ onMounted(async () => {
   syncActiveChatId();
 });
 
-watch(aiDrawerVisible, (visible) => {
-  const reservedWidth = visible
-    ? AI_DRAWER_WIDTH + RIGHT_SIDEBAR_WIDTH
+watch([aiDrawerVisible, personaDrawerVisible], ([aiVis, personaVis]) => {
+  const isAnyDrawerOpen = aiVis || personaVis;
+  const reservedWidth = isAnyDrawerOpen
+    ? DRAWER_WIDTH + RIGHT_SIDEBAR_WIDTH
     : RIGHT_SIDEBAR_WIDTH;
 
   ipc.invoke('controller.window.setRightOverlayWidth', {
@@ -284,14 +310,20 @@ const receiveCardId = (card)=> {
   z-index: 3;
 }
 
-.ai-polish-drawer {
+.persona-drawer-container,
+.ai-polish-drawer-container {
   width: 330px;
   height: 100%;
   flex-shrink: 0;
-  background: #eef0ef;
-  border-left: 1px solid #dfe3df;
+  background: #fff;
+  border-left: 1px solid #eee;
   overflow: hidden;
   position: relative;
   z-index: 2;
+}
+
+.ai-polish-drawer-container {
+  background: #eef0ef;
+  border-left: 1px solid #dfe3df;
 }
 </style>

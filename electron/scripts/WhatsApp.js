@@ -3383,7 +3383,7 @@ function monitorMainNode() {
                 // 尝试从 title 属性获取名字作为 ID (最简单可靠)
                 const titleSpan = selectedChat.querySelector('span[title]');
                 if (titleSpan) {
-                    return titleSpan.getAttribute('title');
+                    return titleSpan.getAttribute('data-original-title') || titleSpan.getAttribute('title');
                 }
             }
         } catch (e) {
@@ -6870,5 +6870,92 @@ function renderHeavyFansTags() {
                 existingTag.remove();
             }
         }
+    });
+}
+
+// ==================== UI 同步：更新联系人昵称 ====================
+// 将所有的昵称保存到 localStorage 防止刷新页面后丢失
+const applyNicknameToDOM = (phone, nickname) => {
+    if (!phone || !nickname) return;
+    
+    // 提取纯数字用于对比
+    const pureTargetPhone = String(phone).replace(/\D/g, '');
+    if (!pureTargetPhone) return;
+
+    const getOriginalPhoneFormatted = (str) => {
+        const match = str.match(/[\+\d][\d\s\-\(\)]*\d/);
+        return match ? match[0].trim() : `+${pureTargetPhone}`;
+    };
+
+    const checkAndReplace = (el) => {
+        const elTitle = el.getAttribute('title') || '';
+        const elText = el.innerText || '';
+        
+        const isHeader = el.closest('header') !== null;
+        
+        // 保存原始的 title 以便 getCurrentChatId 持久化追踪原始号码
+        if (!el.hasAttribute('data-original-title')) {
+            el.setAttribute('data-original-title', elTitle || elText || '');
+        }
+        
+        // 检查 title 属性
+        if (elTitle && String(elTitle).replace(/\D/g, '') === pureTargetPhone) {
+            const originalPhone = getOriginalPhoneFormatted(elTitle);
+            const newText = isHeader ? `${nickname} ${originalPhone}` : nickname;
+            if (elText !== newText || el.getAttribute('title') !== newText) {
+                el.innerText = newText;
+                el.setAttribute('title', newText);
+            }
+            return;
+        }
+
+        // 检查内容 (且元素不能包含子标签，或者是只包了一个文本节点的标签)
+        if (el.children.length === 0 && elText.trim().replace(/\D/g, '') === pureTargetPhone) {
+            const originalPhone = getOriginalPhoneFormatted(elText);
+            const newText = isHeader ? `${nickname} ${originalPhone}` : nickname;
+            if (elText !== newText || el.getAttribute('title') !== newText) {
+                el.innerText = newText;
+                el.setAttribute('title', newText);
+            }
+        }
+    };
+
+    // 尝试搜索面板和顶部 Header 可能存在的标签
+    document.querySelectorAll('span, div[role="button"] div, h2').forEach(el => {
+        checkAndReplace(el);
+    });
+    
+    // 还可能是特定 testid 的文本
+    document.querySelectorAll('[data-testid="cell-frame-title"] span, span[dir="auto"]').forEach(el => {
+        checkAndReplace(el);
+    });
+};
+
+// 后台定时器扫描恢复被刷新的 DOM
+setInterval(() => {
+    try {
+        const savedNicknames = JSON.parse(localStorage.getItem('chat365_nicknames') || '{}');
+        Object.keys(savedNicknames).forEach(phone => {
+            applyNicknameToDOM(phone, savedNicknames[phone]);
+        });
+    } catch (e) {
+        console.error('Failed to apply cached nicknames', e);
+    }
+}, 3000);
+
+if (window.electronAPI && window.electronAPI.ipcRenderer) {
+    window.electronAPI.ipcRenderer.on('update-contact-nickname', (event, data) => {
+        const { phone, nickname } = data || {};
+        if (!phone || !nickname) return;
+
+        console.log(`🔄 [Chat365] 收到昵称更新请求: ${phone} -> ${nickname}`);
+        
+        try {
+            const savedNicknames = JSON.parse(localStorage.getItem('chat365_nicknames') || '{}');
+            savedNicknames[phone] = nickname;
+            localStorage.setItem('chat365_nicknames', JSON.stringify(savedNicknames));
+        } catch (e) { }
+
+        applyNicknameToDOM(phone, nickname);
     });
 }
