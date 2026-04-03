@@ -16,7 +16,7 @@ console.log('🔧 WhatsApp.js 脚本版本: 2026-01-30 v2 (含原文持久化)')
         window._wp_last_user_touch = Date.now(); 
         if (e && e.type === 'mousedown' && typeof getCanonicalVoiceContainer === 'function') {
             const playIcon = e.target && e.target.closest ? e.target.closest('span[data-icon="audio-play"], div[role="button"], .html-button[aria-label="Play voice message"],.html-button[aria-label="Pause voice message"], .html-button[aria-label="播放语音消息"]' ) : null;
-            console.log('playIcon', playIcon);
+            // [性能优化] 移除热路径 log（每次 mousedown 都触发）
             
             if (playIcon) {
                 const key = getCanonicalVoiceContainer(playIcon);
@@ -153,10 +153,32 @@ if (typeof window._chat365_state === 'undefined') {
         currentChatId: '',                     // 当前选中的会话 ID
         lastToolbarChatId: '',                 // 上次注入工具栏的会话 ID
         lastSendTime: 0,                       // 上次发送/回车的时间戳 (防抖用)
-        _local_ai_configs: {}                  // 独立AI配置集 (chatId -> config)
+        _local_ai_configs: {},                 // 独立AI配置集 (chatId -> config)
+        _timers: {}                            // 【性能】全局定时器注册表(key->id)，防堆积
     };
 }
 // ==========================================================
+
+/**
+ * 【性能优化】安全定时器 - 同一个 key 只允许运行一个实例
+ * 防止用户反复登出/登入导致 setInterval 指数级叠加
+ */
+function setSafeInterval(key, fn, ms) {
+    const state = window._chat365_state;
+    if (!state._timers) state._timers = {};
+    if (state._timers[key]) return state._timers[key]; // 已有实例，跳过
+    const id = setInterval(fn, ms);
+    state._timers[key] = id;
+    return id;
+}
+
+function clearSafeInterval(key) {
+    const state = window._chat365_state;
+    if (state && state._timers && state._timers[key]) {
+        clearInterval(state._timers[key]);
+        delete state._timers[key];
+    }
+}
 
 const SESSION_INDEPENDENT_AI_DB_NAME = 'WhatsAppSssionIndependentAIConfigCacheDB';
 const SESSION_INDEPENDENT_AI_STORE_NAME = 'sessionConfig';
@@ -427,11 +449,9 @@ function getCanonicalVoiceContainer(element) {
 
     // 1. 优先寻找带有 data-id 的消息根容器 (最稳定)
     const messageNode = element.closest('[data-id]');
-     console.log('🎯 [ID] 成功从 data-id 提取 messageNode:', messageNode);
     if (messageNode) {
         const id = messageNode.getAttribute('data-id');
         if (id) {
-            console.log('🎯 [ID] 成功从 data-id 提取 ID:', id);
             return id; 
         }
     }
@@ -3358,23 +3378,22 @@ function monitorMainNode() {
                     observePaneSide(mainNode);
                     getLanguageList();
                     syncGlobalConfig(); // 初始同步
-                    setInterval(syncGlobalConfig, 10000); // 每10秒同步一次
-                    setInterval(() => {
+                    // 【性能优化】用 setSafeInterval 替代裸 setInterval，防止用户退出再登录时定时器叠加
+                    setSafeInterval('syncGlobalConfig', syncGlobalConfig, 10000); // 每10秒同步一次
+                    setSafeInterval('mainLoop', () => {
                         processMessageList();
-                        processImageMessageList(); 
-                        processVoiceMessageList(); // 添加语音消息处理
-                        initSidebarResize(); // 初始化侧边栏拉伸
-                        // injectAiToolbar(); // 注入 AI 工具栏
-                        // injectHeaderAiButton(); // 注入顶部 AI 按钮
-                    }, 500);
-                    setInterval(() => injectAiToolbar(),3000);
+                        processImageMessageList();
+                        processVoiceMessageList(); // 已包含语音，startVoiceMessageMonitor 不再重复
+                        initSidebarResize();
+                    }, 2000); // 【性能优化】500ms → 2000ms，大幅减少 CPU 占用
+                    setSafeInterval('injectAiToolbar', () => injectAiToolbar(), 5000); // 【性能优化】3000ms → 5000ms
                     startMediaPreviewMonitor();
                     startVoiceMessageMonitor(); // 启动语音消息监控
                     // 登录成功后延迟读取 WhatsApp 联系人 (等待 IndexedDB 同步完成)
                     setTimeout(() => fetchWhatsAppContacts(), 5000);
                     // 初始拉取重粉信息及设置定时更新
                     setTimeout(() => fetchHeavyFansData(), 5000);
-                    setInterval(fetchHeavyFansData, 60000); // 1 分钟拉取一次重粉名单
+                    setSafeInterval('fetchHeavyFansData', fetchHeavyFansData, 60000); // 1 分钟拉取一次重粉名单
                     // setInterval(() => {
                     //     monitorNewContactPanel();
                     //     monitorMyProfile(); // 监控个人信息抓取自己号码
@@ -5512,10 +5531,9 @@ function processVoiceMessageList() {
 
 // 启动语音消息监控
 function startVoiceMessageMonitor() {
-    console.log('🎤 启动语音消息监控');
-    
-    // 定时扫描列表添加按钮
-    setInterval(processVoiceMessageList, 3000);
+    console.log('🎤 语音消息监控已启动（由 mainLoop 统一调度，不再单独定时）');
+    // 【性能优化】processVoiceMessageList 已由 setSafeInterval('mainLoop') 每2秒调用一次
+    // 不再重复启动独立的 3000ms 定时器，避免语音扫描每轮被触发两次
 }
 
 // 开始录制音频 (使用浏览器原生 MediaRecorder 并转换为 WAV)
@@ -6728,12 +6746,12 @@ async function fetchWhatsAppContacts(isAutoSync = false) {
 // 1. 启动在线状态 & 手机号上报 (每 5 秒一次)
 printElementEvery5Seconds();
 
-// 2. 启动新联系人与个人信息监控 (每 2 秒一次)
+// 2. 启动新联系人与个人信息监控 (【性能优化】2000ms → 5000ms)
 setInterval(() => {
     monitorMyProfile();
     monitorNewContactPanel();
     renderHeavyFansTags(); // 轮询渲染侧边栏重粉标签
-}, 2000);
+}, 5000);
 
 // 3. 启动高效页面监控 (MutationObserver)
 initPageAttributeObserver();
@@ -6795,7 +6813,7 @@ function renderHeavyFansTags() {
         const titleSpan = item.querySelector('span[title][dir="auto"], span[title]');
         if (!titleSpan) return;
         
-        const title = titleSpan.getAttribute('title');
+        const title = titleSpan.getAttribute('data-original-title') || titleSpan.getAttribute('title');
         if (!title) return;
         // 尝试从 title 中提取手机号（如果没存联系人）
         let phoneMatch = getNameToPhone(title)|| title.replace(/[^\d]/g, '')  ;
@@ -7016,7 +7034,11 @@ async function getAllPersonaNicknames() {
 }
 
 // 后台定时器扫描恢复被刷新的 DOM
+// 【性能优化】添加并发锁防止重叠执行；频率 3000ms → 5000ms
+let _nicknameRestoreRunning = false;
 setInterval(async () => {
+    if (_nicknameRestoreRunning) return; // 防止 async 重叠执行
+    _nicknameRestoreRunning = true;
     try {
         const savedNicknames = await getAllPersonaNicknames();
         savedNicknames.forEach(record => {
@@ -7024,8 +7046,10 @@ setInterval(async () => {
         });
     } catch (e) {
         console.error('Failed to apply cached nicknames', e);
+    } finally {
+        _nicknameRestoreRunning = false;
     }
-}, 3000);
+}, 5000);
 
 if (window.electronAPI && window.electronAPI.ipcRenderer) {
     window.electronAPI.ipcRenderer.on('update-contact-nickname', (event, data) => {

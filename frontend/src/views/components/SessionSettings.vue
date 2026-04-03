@@ -231,6 +231,7 @@ const ipcApiRoute = {
   addConfigInfo: 'controller.window.addConfigInfo',
   getIPInfo: 'get-ip-info-backend',
   runFetchIpGeoByService: 'controller.window.runFetchIpGeoByService',
+  detectFingerprint: 'controller.window.detectFingerprint',
 };
 
 function invalidateProbeSession() {
@@ -737,6 +738,31 @@ const generateFingerprint = () => {
     Notification.message({ message: t('session.messages.newFingerprint'), type: 'success' });
 };
 
+const detectFingerprint = async () => {
+  if (!configForm.sessionId && !props.card?.sessionId) {
+    Notification.message({ message: '请先保存或选择一个会话后再执行检测', type: 'warning' });
+    return;
+  }
+  
+  try {
+    const cardId = configForm.cardId || props.card?.cardId;
+    if (!cardId) {
+      Notification.message({ message: '会话 ID 缺失，请先选择或保存会话', type: 'warning' });
+      return;
+    }
+
+    const res = await ipc.invoke(ipcApiRoute.detectFingerprint, { cardId });
+    if (res && res.status) {
+      Notification.message({ message: res.message, type: 'success' });
+    } else {
+      Notification.message({ message: res.message || '打开检测窗口失败', type: 'error' });
+    }
+  } catch (error) {
+    console.error('检测指纹失败:', error);
+    Notification.message({ message: `调用接口失败: ${error.message || '未知错误'}`, type: 'error' });
+  }
+};
+
 watch(() => props.card, () => {
   invalidateProbeSession();
   networkCheckResultText.value = '';
@@ -1111,6 +1137,9 @@ const getBluetoothFingerprint = async () => {
       hash = hash & hash;
     }
     const fingerprintHash = Math.abs(hash).toString(16).substring(0, 8);
+    
+    // 获取支持的特性数量
+    const supportedFeatures = Object.values(fingerprintData.features).filter(Boolean).length;
 
     // 构建详细的指纹信息文本
     return t('session.config.bluetoothDescReal', { available: t('session.options.on'), paired: fingerprintData.devices.length, features: supportedFeatures, hash: fingerprintHash });
@@ -1301,6 +1330,7 @@ async function confirmClick() {
         webgpu: configForm.webgpu,
         webgl_image: configForm.webglImage,
         webrtc: configForm.webrtc,
+        webrtc_custom: configForm.webrtcCustom,
         timezone: configForm.timezone,
         geolocation: configForm.geolocation,
         geolocation_custom: String(configForm.geolocationCustom),
@@ -1320,7 +1350,9 @@ async function confirmClick() {
         memory: configForm.memory,
         memory_custom: configForm.memoryCustom,
         do_not_track: String(configForm.doNotTrack),
+        do_not_track_custom: configForm.doNotTrackCustom,
         screen: configForm.screen,
+        screen_custom: configForm.screenCustom,
         bluetooth: configForm.Bluetooth,
         battery: configForm.battery,
         battery_custom: configForm.batteryCustom,
@@ -1328,7 +1360,16 @@ async function confirmClick() {
         port_scan_protection_custom: configForm.portScanProtectionCustom,
         geolocation_latitude: String(configForm.geolocationLatitude || ''),
         geolocation_longitude: String(configForm.geolocationLongitude || ''),
-        geolocation_accuracy: String(configForm.geolocationAccuracy || '1000')
+        geolocation_accuracy: String(configForm.geolocationAccuracy || '1000'),
+        canvas_custom: configForm.canvasCustom,
+        audio_context_custom: configForm.audioContextCustom,
+        media_devices_custom: configForm.mediaDevicesCustom,
+        client_rects_custom: configForm.clientRectsCustom,
+        speech_voices_custom: configForm.speechVoicesCustom,
+        webgl_image_custom: configForm.webglImageCustom,
+        webgpu_custom: configForm.webgpuCustom,
+        timezone_custom: configForm.timezoneCustom,
+        bluetooth_custom: configForm.BluetoothCustom
       };
 
       // 如果是新建会话，先通过 IPC 添加
@@ -1874,10 +1915,16 @@ const cancelClick = () => {
       <div class="overview-section">
         <div class="overview-header">
            <span class="overview-title">{{ $t('session.config.overviewTitle') }}</span>
-           <el-button type="success" class="generate-btn" @click="generateFingerprint" size="small" round> 
-            <i class="iconfont icon-fingerprint" style="margin-right: 15px;"></i>
-            <span>{{ $t('session.config.generateBtn') }}</span>
-            </el-button>
+           <div class="header-actions">
+             <el-button type="primary" class="detect-btn" @click="detectFingerprint" size="small" round>
+              <i class="iconfont icon-search" style="margin-right: 8px;"></i>
+              <span>{{ $t('session.config.detectBtn') }}</span>
+             </el-button>
+             <el-button type="success" class="generate-btn" @click="generateFingerprint" size="small" round> 
+              <i class="iconfont icon-fingerprint" style="margin-right: 15px;"></i>
+              <span>{{ $t('session.config.generateBtn') }}</span>
+              </el-button>
+           </div>
         </div>
         <div class="overview-list">
           <div class="overview-item">
@@ -2478,6 +2525,12 @@ const cancelClick = () => {
   margin-bottom: 20px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .overview-title {
   background-color: #e8f3ee;
   color: #2ba471;
@@ -2490,6 +2543,10 @@ const cancelClick = () => {
   padding: 18 !important ;
   border-radius: 8px;
   background-color: #2ed36a;
+}
+.detect-btn {
+  border-radius: 8px;
+  background-color: #409EFF;
 }
 .overview-list {
   overflow-y: auto;

@@ -148,6 +148,8 @@
       "vendorPlaceholder": "请输入 WebGL Vendor",
       "renderer": "渲染器",
       "rendererPlaceholder": "请输入 WebGL Renderer",
+      "webglVendor": "WebGL 厂商",
+      "webglRenderer": "WebGL 渲染器",
       "webgpu": "WebGPU",
       "webgpuDescWebGL": "通过 WebGL 来模拟 WebGPU",
       "webgpuDescReal": "将使用当前电脑真实的 WebGPU",
@@ -261,6 +263,7 @@
       "replace": "替换",
       "overviewTitle": "指纹概览",
       "generateBtn": "生成新指纹",
+      "detectBtn": "检测",
       "browserCore": "内核"
     },
     "options": {

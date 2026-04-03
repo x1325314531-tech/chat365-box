@@ -3,7 +3,7 @@
   "appId": "fusion.fluent.com",
   "copyright": "© 202$4 fluent Technology Co., Ltd.",
   "directories": {
-    "output": "out1"
+    "output": "out"
   },
   "asar": true,
   "files": [

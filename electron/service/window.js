@@ -19,6 +19,7 @@ const platforms = [
 ];
 const { Service, Services } = require('ee-core');
 const { fetchIpGeo: runFetchIpGeo } = require('../utils/NetGetIpGeo');
+const FingerprintProfile = require('../utils/buildFingerprintProfile');
 /**
  * 示例服务（service层为单例）
  * @class
@@ -218,6 +219,55 @@ class WindowService extends Service {
         }else {
             return {}
         }
+    }
+
+    async detectFingerprint(args, event) {
+        Log.info('[Service] detectFingerprint starting for cardId:', args.cardId);
+        const { cardId } = args;
+        const dbConfig = await app.sdb.selectOne('card_config', { card_id: cardId });
+        if (!dbConfig) {
+            return { status: false, message: '未找到配置信息' };
+        }
+
+        const config = FingerprintProfile.mapConfig(dbConfig);
+        const injectionScript = FingerprintProfile.generateInjectionScript({ ...config, fingerprintSwitch: true }); // 检测时强制开启指纹
+
+        // 创建独立检测窗口
+        const detectWin = new BrowserWindow({
+            width: 1200,
+            height: 800,
+            title: '指纹检测 - Chat365',
+            webPreferences: {
+                partition: `persist:detect_${cardId}_${Date.now()}`, // 使用独立临时分区
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: true
+            }
+        });
+
+        // 应用 User-Agent
+        if (config.userAgent) {
+            detectWin.webContents.setUserAgent(config.userAgent);
+        }
+
+        // 应用代理设置
+        if (config.proxyStatus === 'true' && config.proxyType && config.host && config.port) {
+            await this._applyProxySettings(detectWin.webContents, config);
+        }
+
+        // 注入脚本
+        if (injectionScript) {
+            // 在文档开始加载前注入（尽可能早）
+            // 改进：使用 executeJavaScript 会在页面加载过程中运行
+            detectWin.webContents.on('dom-ready', () => {
+                detectWin.webContents.executeJavaScript(injectionScript);
+            });
+        }
+
+        detectWin.loadURL('https://amiunique.org/fingerprint');
+        detectWin.show();
+
+        return { status: true, message: '检测窗口已打开' };
     }
 
     async getIPInfo(args, event) {
@@ -995,7 +1045,16 @@ class WindowService extends Service {
             portScanProtection: dbConfig.port_scan_protection === 'true',
             geolocationLatitude: dbConfig.geolocation_latitude || '',
             geolocationLongitude: dbConfig.geolocation_longitude || '',
-            geolocationAccuracy: dbConfig.geolocation_accuracy || '1000'
+            geolocationAccuracy: dbConfig.geolocation_accuracy || '1000',
+            canvasCustom: dbConfig.canvas_custom || null,
+            audioContextCustom: dbConfig.audio_context_custom || null,
+            mediaDevicesCustom: dbConfig.media_devices_custom || null,
+            clientRectsCustom: dbConfig.client_rects_custom || null,
+            speechVoicesCustom: dbConfig.speech_voices_custom || null,
+            webglImageCustom: dbConfig.webgl_image_custom || null,
+            webgpuCustom: dbConfig.webgpu_custom || null,
+            timezoneCustom: dbConfig.timezone_custom || null,
+            bluetoothCustom: dbConfig.bluetooth_custom || null
         };
 
         // 设置 User-Agent

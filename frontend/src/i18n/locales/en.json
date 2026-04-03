@@ -148,6 +148,8 @@
       "vendorPlaceholder": "Enter WebGL Vendor",
       "renderer": "Renderer",
       "rendererPlaceholder": "Enter WebGL Renderer",
+      "webglVendor": "WebGL Vendor",
+      "webglRenderer": "WebGL Renderer",
       "webgpu": "WebGPU",
       "webgpuDescWebGL": "Emulate WebGPU via WebGL",
       "webgpuDescReal": "Uses real WebGPU from current device",
@@ -261,6 +263,7 @@
       "replace": "Replace",
       "overviewTitle": "Fingerprint Overview",
       "generateBtn": "Generate New",
+      "detectBtn": "Detect",
       "browserCore": "Core"
     },
     "options": {

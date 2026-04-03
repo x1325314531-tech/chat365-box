@@ -131,6 +131,20 @@ class WindowController extends Controller {
         }
     }
 
+    async detectFingerprint(args, event) {
+        Log.info('[Controller] detectFingerprint received:', args);
+        const { cardId } = args;
+        if (cardId === undefined || cardId === '') {
+            return { status: false, message: '参数不能为空' };
+        }
+        try {
+            return await Services.get('window').detectFingerprint(args);
+        } catch (error) {
+            Log.error('检测指纹时出错:', error);
+            return { status: false, message: '检测指纹时出现异常' };
+        }
+    }
+
     async getDictData(args, event) {
         const dictType = typeof args === 'string' ? args : args?.dictType;
         if (!dictType) {

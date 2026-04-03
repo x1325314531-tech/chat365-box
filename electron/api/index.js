@@ -422,6 +422,7 @@ async function getHeavyFans(data) {
             pageSize: params.pageSize,
             pageNum: params.pageNum
         }).toString();
+         Log.info('🚀 params:', params);
         const response = await request.post(`/app/fansStore/pageRecord?${queryString}`, params);
         Log.info('🚀 获取重粉响应总量:', response.total);
         return response;
