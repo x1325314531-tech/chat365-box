@@ -84,21 +84,22 @@ body {
   position: relative;
 }
 
-/* 全局提示语样式：强制定位在侧边栏上方，避开中间原生的 WebContentsView */
+/* 全局提示语样式：居中显示，解决 WebContentsView 遮挡问题 */
 .el-message.global-notification {
-  left: 20px !important;
+  left: 50% !important;
   right: auto !important;
-  top: 42px !important; /* 避开 TitleBar (32px) */
-  transform: none !important;
-  max-width: 240px !important; /* 限制宽度在侧边栏附近 */
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-width: 480px !important;
   z-index: 9999 !important;
 }
 
-/* 全局通知样式：定位在右上角（AI面板/右边栏上方） */
+/* 全局通知样式：居中显示，解决 WebContentsView 遮挡问题 */
 .el-notification.global-notification {
-  right: 20px !important;
-  left: auto !important;
-  top: 42px !important;
+  left: 50% !important;
+  right: auto !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
   z-index: 9999 !important;
 }
 </style>

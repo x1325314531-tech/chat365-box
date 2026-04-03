@@ -1,4 +1,4 @@
-const Renderer = (window.require && window.require('electron')) || window.electron || {};
+const Renderer = (window.require && window.require('electron')) || window.electron || window.electronAPI || {};
 
 /**
  * ipc

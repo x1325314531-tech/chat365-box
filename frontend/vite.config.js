@@ -32,7 +32,7 @@ export default defineConfig(({ command, mode }) => {
           // target:'http://18.143.17.49:38080/box', //生产环境
           // target:'https://chat365.cc/api/box',
           changeOrigin: true,
-          ws:true,
+          wss:true,
           rewrite: (path) => path.replace(/^\/box/, '')
         }
       }

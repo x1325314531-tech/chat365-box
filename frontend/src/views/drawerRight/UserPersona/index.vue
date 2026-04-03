@@ -5,7 +5,9 @@ import { ipc } from "@/utils/ipcRenderer";
 import Notification from "@/utils/notification";
 import { post, get, put } from "@/utils/request";
 import { useI18n } from 'vue-i18n';
+import MessageTip from '@/views/components/MessageTip.vue';
 
+const messageTipRef = ref(null);
 const { t } = useI18n();
 
 const props = defineProps({
@@ -65,7 +67,7 @@ const ipcApiRoute = {
 const getplatformList = async () => { 
   try {
     const dictType='box_platform'
-    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
+    const res = await get(`/app/dict/listData?dictType=${dictType}`, { showError: false })  
     if (res && res.code === 200) {
       platformOptions.value = res.data || []
     }
@@ -77,12 +79,12 @@ const getplatformList = async () => {
 const getSexList = async () => { 
   try {
     const dictType='sys_user_sex'
-    const res = await get(`/app/dict/listData?dictType=${dictType}`)  
+    const res = await get(`/app/dict/listData?dictType=${dictType}`, { showError: false })  
     if (res && res.code === 200) {
       sexOptions.value = res.data || []
     }
   } catch (err) {
-    console.error('获取平台列表失败:', err)
+    console.error('获取性别列表失败:', err)
   }
 }
 const getUserPortraitData = () => {
@@ -109,7 +111,7 @@ const getUserPortraitData = () => {
   }).catch(e => console.error(e));
 
   // Query via REST API
-  const requestPromise = post(`/app/profiles/getByAppId`,{appId:targetPhone});
+  const requestPromise = post(`/app/profiles/getByAppId`,{appId:targetPhone}, { showError: false });
   
   // 保证至少 300ms 的加载动画延时，防止本地加载过快导致肉眼无法察觉而误以为失效
   Promise.all([
@@ -162,6 +164,9 @@ const getUserPortraitData = () => {
     }
   }).catch(err => {
     console.error('Fetch user portrait failed:', err);
+    if (!err.isHandled && messageTipRef.value) {
+      messageTipRef.value.show('获取用户信息失败', 'error');
+    }
     isEditProfile.value = false;
   });
 }
@@ -326,9 +331,11 @@ const confirmClick = () => {
 
   const requestMethod = isEditProfile.value&&formData.value.profileId ? put : post;
 
-  requestMethod('/app/profiles', params).then(res => {
+  requestMethod('/app/profiles', params, { showError: false }).then(res => {
     if (res.code === 200) {
-      Notification.message({ message: '保存成功', type: 'success' });
+      if (messageTipRef.value) {
+        messageTipRef.value.show('保存成功');
+      }
       getUserPortraitData()
       isEditProfile.value = true;
       
@@ -353,6 +360,9 @@ const confirmClick = () => {
     }
   }).catch(err => {
     console.error('Save profile failed:', err);
+    if (!err.isHandled && messageTipRef.value) {
+      messageTipRef.value.show('保存用户信息失败', 'error');
+    }
   });
 };
 
@@ -371,6 +381,9 @@ const confirmClick = () => {
       </div>
       <button class="close-btn" @click="emit('close')">×</button>
     </div>
+    
+    <!-- 局部保存成功提示 -->
+    <MessageTip ref="messageTipRef" top="50%" />
     <template v-if="formData.phone_number && formData.phone_number !== 'default'">
       <el-scrollbar class="persona-scroll">
         <div class="persona-content" v-loading="isLoading" element-loading-text="加载数据中...">
@@ -426,7 +439,7 @@ const confirmClick = () => {
             </div>
             <div class="form-row">
               <span class="label">客户来源</span>
-              <el-select v-model="formData.source" placeholder="选择客户来源" class="custom-select">
+              <el-select v-model="formData.appSource" placeholder="选择客户来源" class="custom-select">
                  <el-option 
                 v-for="item in platformOptions" 
               :key="item.dictValue" 
@@ -509,6 +522,7 @@ const confirmClick = () => {
 
 <style scoped>
 .user-persona-panel {
+  position: relative; /* 为保存提示语提供定位基准 */
   height: 100%;
   width: 100%;
   background: #fff;

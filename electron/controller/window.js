@@ -189,7 +189,20 @@ class WindowController extends Controller {
             return { status: false, message: '获取IP信息失败' };
         }
     }
-
+    
+    async runFetchIpGeoByService(args, event) {
+        try {
+            return await Services.get('window').runFetchIpGeoByService(args);
+        } catch (error) {
+            Log.error('runFetchIpGeoByService:', error);
+            return {
+                status: false,
+                message: error.message || String(error),
+                elapsedSec: '0.0',
+                elapsedMs: 0,
+            };
+        }
+    }
     async hideWindow(args, event) {
         try {
             await Services.get('window').hideAllWindow();

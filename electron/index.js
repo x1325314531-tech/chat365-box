@@ -168,6 +168,130 @@ class Index extends Application {
    * electron app ready
    */
   async electronAppReady () {
+    Log.info('Chat365 electronAppReady STARTing...');
+
+    // ========== 覆盖层通知窗口处理程序 (前置注册) ==========
+    ipcMain.handle('show-overlay-notification', async (event, opts = {}) => {
+      try {
+        const { message = '', type = 'is-info', duration = 4500 } = opts;
+        Log.info(`[show-overlay-notification] received: type=${type}, message=${message}`);
+        
+        // 尝试多种方式获取主窗口
+        let mainWin = this.electron.mainWindow;
+        if (!mainWin || mainWin.isDestroyed()) {
+           const mainId = Addon.get('window').getMWCid();
+           mainWin = BrowserWindow.fromId(mainId);
+        }
+        if (!mainWin || mainWin.isDestroyed()) {
+          mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.isVisible());
+        }
+        
+        Log.info(`[show-overlay-notification] target mainWin resolved: ${!!mainWin}`);
+
+        const typeStyles = {
+          'is-info':    { bg: 'rgba(32, 126, 189, 1)',  icon: 'ℹ️' },
+          'is-success': { bg: 'rgba(56, 175, 121, 1)',  icon: '✅' },
+          'is-warning': { bg: 'rgba(255, 184, 0, 1)',   icon: '⚠️', color: '#333' },
+          'is-danger':  { bg: 'rgba(230, 70, 100, 1)',  icon: '❌' },
+          'error':      { bg: 'rgba(230, 70, 100, 1)',  icon: '❌' },
+          'success':    { bg: 'rgba(56, 175, 121, 1)',  icon: '✅' },
+          'warning':    { bg: 'rgba(255, 184, 0, 1)',   icon: '⚠️', color: '#333' },
+          'info':       { bg: 'rgba(32, 126, 189, 1)',  icon: 'ℹ️' },
+        };
+        const normalizedType = type.startsWith('is-') ? type : `is-${type}`;
+        const style = typeStyles[normalizedType] || typeStyles[type] || typeStyles['is-info'];
+        const textColor = style.color || '#ffffff';
+
+        const notifWin = new BrowserWindow({
+          width: 420,
+          height: 90,
+          frame: false,
+          transparent: true,
+          alwaysOnTop: true,
+          skipTaskbar: true,
+          resizable: false,
+          focusable: false,
+          hasShadow: false,
+          show: false,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+          }
+        });
+
+        // 强力置顶
+        if (process.platform === 'darwin') {
+          notifWin.setAlwaysOnTop(true, 'floating');
+        } else {
+          notifWin.setAlwaysOnTop(true, 'screen-saver');
+        }
+
+        // 居中定位逻辑
+        if (mainWin && !mainWin.isDestroyed()) {
+          const bounds = mainWin.getNormalBounds ? mainWin.getNormalBounds() : mainWin.getBounds();
+          const x = Math.round(bounds.x + (bounds.width - 420) / 2);
+          const y = Math.round(bounds.y + 70); // 距离窗口顶部 70px
+          notifWin.setPosition(x, y);
+          Log.info(`[show-overlay-notification] set position: x=${x}, y=${y} (main bounds: ${JSON.stringify(bounds)})`);
+        } else {
+          notifWin.center();
+          Log.info(`[show-overlay-notification] mainWin not found, using screen center`);
+        }
+
+        const safeMsg = String(message).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background: transparent; overflow: hidden; height: 100%; border-radius: 12px; }
+  .box {
+    width: 420px; min-height: 70px;
+    background: ${style.bg};
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow: 0 0px 0px rgba(0,0,0,0.4);
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 24px;
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 15px; font-weight: bold; color: ${textColor};
+    animation: slideDown 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .icon { font-size: 22px; flex-shrink: 0; }
+  .msg { flex: 1; line-height: 1.5; word-break: break-all; }
+  @keyframes slideDown { 
+    from { opacity:0; transform: translateY(-30px); } 
+    to { opacity:1; transform: translateY(0); } 
+  }
+</style>
+</head><body>
+<div class="box">
+  <div class="icon">${style.icon}</div>
+  <div class="msg">${safeMsg}</div>
+</div>
+</body></html>`;
+
+        await notifWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        
+        notifWin.once('ready-to-show', () => {
+          notifWin.showInactive();
+        });
+
+        // 自动关闭逻辑
+        setTimeout(() => {
+          if (!notifWin.isDestroyed()) {
+            notifWin.webContents.executeJavaScript(
+              `document.querySelector('.box').style.cssText += '; transition: opacity 0.5s, transform 0.5s; opacity:0; transform: translateY(-20px);'`
+            ).catch(() => {});
+            setTimeout(() => { if (!notifWin.isDestroyed()) notifWin.close(); }, 500);
+          }
+        }, duration);
+
+        return { status: true };
+      } catch (err) {
+        Log.error('[show-overlay-notification] error:', err);
+        return { status: false, message: err.message };
+      }
+    });
+
     // 在应用启动时就注册 simulate-typing 处理程序
     // 这样确保在任何 WebContents 加载之前就已准备好
     ipcMain.handle('simulate-typing', async (event, args) => {

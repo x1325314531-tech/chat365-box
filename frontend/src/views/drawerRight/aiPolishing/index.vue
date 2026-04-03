@@ -3,7 +3,10 @@ import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ipc } from '@/utils/ipcRenderer';
 import { post } from '@/utils/request';
-import Notification from '@/utils/notification';
+import MessageTip from '@/views/components/MessageTip.vue';
+
+const messageTipRef = ref(null);
+const { t } = useI18n();
 
 const props = defineProps({
   chatId: {
@@ -20,7 +23,6 @@ const props = defineProps({
   }
 });
 
-const { t } = useI18n();
 const emit = defineEmits(['close']);
 const activeTab = ref('polish');
 const originalText = ref(props.initialText);
@@ -269,7 +271,7 @@ async function handlePolish() {
       suggestionCount:resolvedHistoryCount
     };
 console.log('params', params)
-    const res = await post('/app/agentChat', params);
+    const res = await post('/app/agentChat', params, { showError: false });
     if (res && res.code === 200) {
       if (Array.isArray(res.data.suggestions) && res.data.suggestions.length > 0) {
         suggestions.value = res.data.suggestions;
@@ -286,8 +288,12 @@ console.log('params', params)
       }
     }
   } catch (e) {
+    console.log('wwwwwww');
+    
     if (!e.isHandled) {
-      Notification.message({ message: `${t('aiPolish.polishFailed')}: ${e.message}`, type: 'error' });
+      if (messageTipRef.value) {
+        messageTipRef.value.show(`${t('aiPolish.polishFailed')}: ${e.message}`, 'error');
+      }
     }
   } finally {
     isLoading.value = false;
@@ -312,7 +318,7 @@ async function handleTranslate() {
      targetLang: "zh",
       fromLang: "en"
 
-    });
+    }, { showError: false });
     if (res && res.code === 200) {
       translatedText.value = res.data;
     }
@@ -339,10 +345,12 @@ async function applyToDraft() {
     args: [polishedText.value]
   });
 
-  Notification.message({
-    message: result?.status ? t('aiPolish.applySuccess') : t('aiPolish.applyFailed'),
-    type: result?.status ? 'success' : 'error'
-  });
+  if (messageTipRef.value) {
+    messageTipRef.value.show(
+      result?.status ? t('aiPolish.applySuccess') : t('aiPolish.applyFailed'),
+      result?.status ? 'success' : 'error'
+    );
+  }
 }
 
 async function sendImmediate() {
@@ -354,25 +362,29 @@ async function sendImmediate() {
     args: [polishedText.value]
   });
 
-  Notification.message({
-    message: result?.status ? t('aiPolish.sendSuccess') : t('aiPolish.sendFailed'),
-    type: result?.status ? 'success' : 'error'
-  });
-  originalText.value= '';
+  if (messageTipRef.value) {
+    messageTipRef.value.show(
+      result?.status ? t('aiPolish.sendSuccess') : t('aiPolish.sendFailed'),
+      result?.status ? 'success' : 'error'
+    );
+  }
+  originalText.value = '';
   polishedText.value = '';
   suggestions.value = [];
-  selectedIndex.value = -1
-
+  selectedIndex.value = -1;
 }
 </script>
 
 <template>
   <div class="ai-polish-panel">
     <div v-if="hasActiveConversation">
-    <div class="panel-header">
-      <div class="panel-title"><span class="star">✦</span>{{ $t('aiPolish.title') }}</div>
-      <button class="panel-close" type="button" @click="emit('close')">×</button>
-    </div>
+      <div class="panel-header">
+        <div class="panel-title"><span class="star">✦</span>{{ $t('aiPolish.title') }}</div>
+        <button class="panel-close" type="button" @click="emit('close')">&times;</button>
+      </div>
+
+      <!-- 局部提示语 -->
+      <MessageTip ref="messageTipRef" top="84px" />
 
     <el-tabs v-model="activeTab" class="ai-tabs">
       <el-tab-pane :label="$t('aiPolish.tabPolish')" name="polish">
@@ -545,14 +557,13 @@ async function sendImmediate() {
 
 <style scoped>
 .ai-polish-panel {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   background: #eef0ef;
   color: #2f3832;
   box-sizing: border-box;
- 
-
 }
 
 .panel-header {

@@ -18,6 +18,7 @@ const platforms = [
     // { platform: 'WhatsApp', url: 'https://ipcs.vip/' },
 ];
 const { Service, Services } = require('ee-core');
+const { fetchIpGeo: runFetchIpGeo } = require('../utils/NetGetIpGeo');
 /**
  * 示例服务（service层为单例）
  * @class
@@ -546,10 +547,29 @@ class WindowService extends Service {
 
         if (!view || !view.webContents || view.webContents.isDestroyed()) {
             try {
+                // 优先查找 WhatsApp 活跃卡片
                 const activeCard = await app.sdb.selectOne('cards', { active_status: 'true', platform: 'WhatsApp' });
                 if (activeCard?.card_id) {
                     targetChatId = String(activeCard.card_id);
                     view = app.viewsMap.get(targetChatId);
+                }
+                // 若 WhatsApp 活跃卡片未找到，查找任意平台的活跃卡片
+                if (!view || !view.webContents || view.webContents.isDestroyed()) {
+                    const anyActiveCard = await app.sdb.selectOne('cards', { active_status: 'true' });
+                    if (anyActiveCard?.card_id) {
+                        targetChatId = String(anyActiveCard.card_id);
+                        view = app.viewsMap.get(targetChatId);
+                    }
+                }
+                // 最终兜底：取 viewsMap 中第一个可用视图
+                if (!view || !view.webContents || view.webContents.isDestroyed()) {
+                    for (const [key, v] of app.viewsMap) {
+                        if (v && !v.webContents.isDestroyed()) {
+                            targetChatId = key;
+                            view = v;
+                            break;
+                        }
+                    }
                 }
             } catch (error) {
                 Log.error('[sendToWv] resolve active card failed:', error);
@@ -1069,6 +1089,80 @@ class WindowService extends Service {
 
         // 使用 `Intl.DateTimeFormat` 获取系统区域设置（适用于跨平台）
         return Intl.DateTimeFormat().resolvedOptions().locale;
+    }
+    
+    async runFetchIpGeoByService(args) {
+        const {
+            proxyStatus,
+            proxy: proxyType,
+            host,
+            port,
+            username,
+            password,
+            forceDirect,
+            forceProxy,
+        } = args || {};
+        const base = {
+            raceCount: 2,
+            timeoutMs: 20000,
+        };
+        if (forceDirect === true) {
+            return runFetchIpGeo({ ...base, useProxy: false });
+        }
+        if (forceProxy === true) {
+            const pType = String(proxyType || 'noProxy').toLowerCase();
+            if (pType === 'noproxy') {
+                return {
+                    status: false,
+                    message: '多线路检测须选择 HTTP/HTTPS/SOCKS5 代理协议',
+                    elapsedSec: '0.0',
+                    elapsedMs: 0,
+                };
+            }
+            const h = String(host || '').trim();
+            const pt = parseInt(String(port || '').trim(), 10);
+            if (!h || Number.isNaN(pt)) {
+                return {
+                    status: false,
+                    message: '请先填写主机与端口',
+                    elapsedSec: '0.0',
+                    elapsedMs: 0,
+                };
+            }
+            return runFetchIpGeo({
+                ...base,
+                useProxy: true,
+                proxyType: pType,
+                host: h,
+                port: pt,
+                username,
+                password,
+            });
+        }
+        const useProxy = proxyStatus === 'true' || proxyStatus === true;
+        const pType = String(proxyType || 'noProxy').toLowerCase();
+        if (!useProxy || pType === 'noproxy') {
+            return runFetchIpGeo({ ...base, useProxy: false });
+        }
+        const h = String(host || '').trim();
+        const pt = parseInt(String(port || '').trim(), 10);
+        if (!h || Number.isNaN(pt)) {
+            return {
+                status: false,
+                message: '请先填写主机与端口',
+                elapsedSec: '0.0',
+                elapsedMs: 0,
+            };
+        }
+        return runFetchIpGeo({
+            ...base,
+            useProxy: true,
+            proxyType: pType,
+            host: h,
+            port: pt,
+            username,
+            password,
+        });
     }
 
 }

@@ -48,7 +48,7 @@ service.interceptors.response.use(
                 return Promise.reject(new Error('Auth failed'));
             }
             const errorMsg = res.msg || '请求失败';
-            Notification.message({ message: errorMsg, type: 'error' }); // 使用 Notification 包装类显示错误信息
+            Notification.message({ message: errorMsg, type: 'error' });
             console.error('请求失败:', errorMsg);
             const error = new Error(errorMsg);
             error.isHandled = true; // 标记已处理，避免外部再次处理
@@ -59,7 +59,7 @@ service.interceptors.response.use(
     },
     (error) => {
         console.log('异常', error, error.response);
-        
+         Notification.message({ message: error, type: 'error' });
         // 如果是已经在上面处理过的业务错误，直接 reject
         if (error.isHandled) {
             return Promise.reject(error);

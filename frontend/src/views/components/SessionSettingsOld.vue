@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, onMounted, watch, ref, computed, nextTick } from 'vue';
+import { reactive, onMounted, watch, ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Refresh } from '@element-plus/icons-vue';
 import { ipc } from '@/utils/ipcRenderer';
@@ -97,12 +97,6 @@ const configForm = reactive({
 const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
 const accountId = userInfo.accountId;
 const timezoneList = ref([]);
-/** 通道检测 IPC 世代：切换会话或取消时递增，过期返回不再更新 UI */
-const probeEpoch = ref(0);
-const proxyProbeLoading = ref(null);
-const currentNetworkLoading = ref(false);
-const networkCheckResultText = ref('');
-
 const addLanguageVisible = ref(false);
 const languageSearchQuery = ref('');
 const allLanguages = ref([]);
@@ -229,169 +223,8 @@ const ipcApiRoute = {
   addSession: 'controller.window.addSession',
   getConfigInfo: 'controller.window.getConfigInfo',
   addConfigInfo: 'controller.window.addConfigInfo',
-  getIPInfo: 'get-ip-info-backend',
-  runFetchIpGeoByService: 'controller.window.runFetchIpGeoByService',
+  getIPInfo: 'get-ip-info-backend'
 };
-
-function invalidateProbeSession() {
-  probeEpoch.value += 1;
-}
-function isProbeStale(epoch) {
-  return epoch !== probeEpoch.value;
-}
-function formatMultiLineIpGeoSuccess(res) {
-  const ip = res && res.exitIp ? res.exitIp : '-';
-  let geoPart = '未知';
-  if (res && res.ipv6OnlyCountry) {
-    geoPart = res.country || '未知';
-  } else if (res) {
-    const country = res.country || '';
-    const region = res.region || '';
-    const city = res.city || '';
-    geoPart = [country, region, city].filter((s) => String(s).trim()).join(' ') || '未知';
-  }
-  const sec = res && res.elapsedSec != null ? res.elapsedSec : '0.0';
-  const lineId = res && res.source ? String(res.source) : '未知';
-  return `✅ 已获取出口IP【${ip}】【${geoPart}】（${lineId}线路，用时${sec}秒）`;
-}
-function isMultiLineTimeoutMessage(msg) {
-  const s = String(msg || '').toLowerCase();
-  return (
-    s.includes('timeout') ||
-    s.includes('etimedout') ||
-    s.includes('timed out') ||
-    s.includes('econnaborted') ||
-    /超时/.test(String(msg || ''))
-  );
-}
-function formatMultiLineIpGeoFailure(res, isTimeout) {
-  const reason = res && res.message ? res.message : '未知';
-  const sec = res && res.elapsedSec != null ? res.elapsedSec : '0.0';
-  if (isTimeout) {
-    return `❌ 获取超时，请重试！原因：【${reason}】（用时${sec}秒）`;
-  }
-  return `❌ 获取失败！原因：【${reason}】（用时${sec}秒）`;
-}
-
-/** 「多线路(本地)」专用：强制走代理通道，参数来自本页代理区（与代理开关无关） */
-function buildMultiLineProxyPayloadFromForm() {
-  const pType = String(configForm.proxy || 'noProxy').trim().toLowerCase() || 'noProxy';
-  return {
-    forceProxy: true,
-    proxy: pType,
-    host: String(configForm.host ?? '').trim(),
-    port: String(configForm.port ?? '').trim(),
-    username: String(configForm.username ?? '').trim(),
-    password: String(configForm.password ?? ''),
-  };
-}
-
-/** 多线路必须：协议非 No Proxy，且主机、端口有效 */
-function validateMultiLineProxyPayload(payload) {
-  const pType = String(payload.proxy || 'noProxy').toLowerCase();
-  if (pType === 'noproxy') {
-    return {
-      ok: false,
-      message: '代理通道检测，请先选择 HTTP / HTTPS / SOCKS5，并填写主机与端口',
-    };
-  }
-  const h = payload.host;
-  const pt = parseInt(String(payload.port || '').trim(), 10);
-  if (!h || Number.isNaN(pt)) {
-    return {
-      ok: false,
-      message: '「多线路(本地)」须填写有效的主机与端口以走代理通道',
-    };
-  }
-  return { ok: true };
-}
-
-function multilineProbeLoadingHint(payload) {
-  const pType = String(payload.proxy || 'noProxy').toLowerCase();
-  const host = payload.host || '';
-  const port = payload.port || '';
-  const auth = '';//payload.username ? '（已带用户名）' : '';
-  return `⌛ 代理网络：${pType.toUpperCase()} ${host}:${port}${auth} `;
-}
-
-async function runMultiLineIpGeo() {
-  const payload = buildMultiLineProxyPayloadFromForm();
-  const check = validateMultiLineProxyPayload(payload);
-  if (!check.ok) {
-    ElMessage.warning(check.message);
-    return;
-  }
-
-  const epoch = probeEpoch.value;
-  proxyProbeLoading.value = 'multiline';
-  networkCheckResultText.value = `${multilineProbeLoadingHint(payload)} 请耐心等待…`;
-  try {
-    await nextTick();
-    if (isProbeStale(epoch)) {
-      return;
-    }
-    const res = await ipc.invoke(ipcApiRoute.runFetchIpGeoByService, payload);
-    if (isProbeStale(epoch)) {
-      return;
-    }
-    if (res && res.status === true) {
-      networkCheckResultText.value = formatMultiLineIpGeoSuccess(res);
-      return;
-    }
-    const timeout = isMultiLineTimeoutMessage(res && res.message);
-    networkCheckResultText.value = formatMultiLineIpGeoFailure(res, timeout);
-  } catch (e) {
-    if (isProbeStale(epoch)) {
-      return;
-    }
-    const reason = e && e.message ? e.message : String(e);
-    const timeout = isMultiLineTimeoutMessage(reason);
-    networkCheckResultText.value = formatMultiLineIpGeoFailure(
-      { message: reason, elapsedSec: '0.0' },
-      timeout,
-    );
-  } finally {
-    if (!isProbeStale(epoch)) {
-      proxyProbeLoading.value = null;
-    }
-  }
-}
-async function runCurrentNetworkInfo() {
-  const epoch = probeEpoch.value;
-  currentNetworkLoading.value = true;
-  networkCheckResultText.value =
-    '⌛ 直通本地网络， 请耐心等待…';
-  try {
-    await nextTick();
-    if (isProbeStale(epoch)) {
-      return;
-    }
-    const res = await ipc.invoke(ipcApiRoute.runFetchIpGeoByService, { forceDirect: true });
-    if (isProbeStale(epoch)) {
-      return;
-    }
-    if (res && res.status === true) {
-      networkCheckResultText.value = formatMultiLineIpGeoSuccess(res);
-      return;
-    }
-    const timeout = isMultiLineTimeoutMessage(res && res.message);
-    networkCheckResultText.value = formatMultiLineIpGeoFailure(res, timeout);
-  } catch (e) {
-    if (isProbeStale(epoch)) {
-      return;
-    }
-    const reason = e && e.message ? e.message : String(e);
-    const timeout = isMultiLineTimeoutMessage(reason);
-    networkCheckResultText.value = formatMultiLineIpGeoFailure(
-      { message: reason, elapsedSec: '0.0' },
-      timeout,
-    );
-  } finally {
-    if (!isProbeStale(epoch)) {
-      currentNetworkLoading.value = false;
-    }
-  }
-}
 
 const currentOS = ref('');
 const detectOS = () => {
@@ -738,10 +571,6 @@ const generateFingerprint = () => {
 };
 
 watch(() => props.card, () => {
-  invalidateProbeSession();
-  networkCheckResultText.value = '';
-  proxyProbeLoading.value = null;
-  currentNetworkLoading.value = false;
   fetchConfig();
 });
 
@@ -1376,7 +1205,6 @@ async function confirmClick() {
 };
 
 const cancelClick = () => {
-  invalidateProbeSession();
   emit('cancel');
 };
 </script>
@@ -1834,30 +1662,6 @@ const cancelClick = () => {
                 <el-form-item :label="$t('session.config.password')">
                   <el-input type="password" v-model="configForm.password" :placeholder="$t('session.config.passwordPlaceholder')" show-password></el-input>
                 </el-form-item>
-
-                <el-form-item label="通道检测">
-                  <div class="network-check-col">
-                    <div class="network-check-actions">
-                      <el-button
-                        :loading="proxyProbeLoading === 'multiline'"
-                        @click="runMultiLineIpGeo"
-                      >
-                        代理网络检测
-                      </el-button>
-                      <el-button :loading="currentNetworkLoading" @click="runCurrentNetworkInfo">
-                        本地网络检测
-                      </el-button>
-                    </div>
-                    <div class="network-check-result-box">
-                      <pre v-if="networkCheckResultText" class="network-check-result-pre">{{ networkCheckResultText }}</pre>
-                      <p v-else class="network-check-result-hint">
-                        可能会因为线路不稳或代理问题，耗时较长，请耐心等待！
-                      </p>
-                    </div>
-                  </div>
-                </el-form-item>
-
-                
               </el-form>
             </div>
           </el-tab-pane>
@@ -2600,43 +2404,5 @@ const cancelClick = () => {
 .geolocation-custom-container :deep(.el-input__wrapper) {
   border-radius: 6px;
   background-color: #fcfdfe;
-}
-
-.network-check-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.network-check-col {
-  width: 100%;
-  max-width: 100%;
-}
-.network-check-result-box {
-  margin-top: 12px;
-  min-height: 72px;
-  padding: 12px 14px;
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  box-sizing: border-box;
-  text-align: left;
-}
-.network-check-result-pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 14px;
-  line-height: 1.65;
-  font-family: ui-monospace, 'Segoe UI', system-ui, sans-serif;
-  color: var(--el-text-color-primary);
-  text-align: left;
-}
-.network-check-result-hint {
-  margin: 0;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
-  text-align: left;
 }
 </style>
