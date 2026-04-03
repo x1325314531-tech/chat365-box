@@ -9,7 +9,6 @@
 
 const net = require('net');
 const axios = require('axios');
-const Log = require('ee-core/log');
 const {
     buildProxyAuthUrl,
     buildSocksAuthUrl,
@@ -204,13 +203,6 @@ async function fetchUrlBody(url, ctx) {
     if (!h || Number.isNaN(pt)) {
         throw new Error('代理已启用但未填写主机或端口');
     }
-    Log.info('[NetGetIpGeo] 代理单次请求', {
-        proxyProtocol: pType,
-        proxyAddress: `${h}:${pt}`,
-        username: u,
-        password: p,
-        targetUrl: url,
-    });
     if (pType === 'socks5') {
         const socksUrl = buildSocksAuthUrl(h, pt, u, p);
         return fetchTextViaSocksProxy(url, socksUrl, TLS_INSECURE);
@@ -219,7 +211,6 @@ async function fetchUrlBody(url, ctx) {
         const proxyUrl = buildProxyAuthUrl('https', h, pt, u, p);
         return fetchTextViaProxyUrl(url, proxyUrl, TLS_INSECURE);
     }
-
     const proxyUrl = buildProxyAuthUrl('http', h, pt, u, p);
     return fetchTextViaProxyUrl(url, proxyUrl);
 }
@@ -297,18 +288,6 @@ async function fetchIpGeo(opts = {}) {
     };
 
     const picked = pickRandomEndpoints(endpoints, raceCount);
-
-    if (ctx.useProxy) {
-        const h = String(ctx.host || '').trim();
-        const pt = String(ctx.port || '').trim();
-        Log.info('[NetGetIpGeo] 走代理协议探测', {
-            proxyProtocol: ctx.proxyType,
-            proxyAddress: `${h}:${pt}`,
-            username: String(ctx.username || '').trim(),
-            password: String(ctx.password || '').trim(),
-            endpoints: picked.map((ep) => ({ id: ep.id, label: ep.label, url: ep.url })),
-        });
-    }
 
     try {
         const { ep, data } = await raceEndpoints(picked, ctx);

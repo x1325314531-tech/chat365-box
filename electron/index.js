@@ -189,18 +189,20 @@ class Index extends Application {
         Log.info(`[show-overlay-notification] target mainWin resolved: ${!!mainWin}`);
 
         const typeStyles = {
-          'is-info':    { bg: 'rgba(32, 126, 189, 1)',  icon: 'ℹ️' },
-          'is-success': { bg: 'rgba(56, 175, 121, 1)',  icon: '✅' },
-          'is-warning': { bg: 'rgba(255, 184, 0, 1)',   icon: '⚠️', color: '#333' },
-          'is-danger':  { bg: 'rgba(230, 70, 100, 1)',  icon: '❌' },
-          'error':      { bg: 'rgba(230, 70, 100, 1)',  icon: '❌' },
-          'success':    { bg: 'rgba(56, 175, 121, 1)',  icon: '✅' },
-          'warning':    { bg: 'rgba(255, 184, 0, 1)',   icon: '⚠️', color: '#333' },
-          'info':       { bg: 'rgba(32, 126, 189, 1)',  icon: 'ℹ️' },
+          'success': { color: '#67c23a', bg: '#f0f9eb', border: '#e1f3d8', icon: '<svg viewBox="0 0 1024 1024" width="18" height="18" style="vertical-align: middle;"><path fill="currentColor" d="M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896zm-55.808 536.384-99.52-99.584a38.4 38.4 0 1 0-54.336 54.336l126.72 126.72a38.4 38.4 0 0 0 54.336 0l262.4-262.464a38.4 38.4 0 1 0-54.272-54.336L456.192 600.384z"></path></svg>' },
+          'warning': { color: '#e6a23c', bg: '#fdf6ec', border: '#faecd8', icon: '<svg viewBox="0 0 1024 1024" width="18" height="18" style="vertical-align: middle;"><path fill="currentColor" d="M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896zm0 192a58.432 58.432 0 0 0-58.24 63.744l23.36 256.384a35.072 35.072 0 0 0 69.76 0l23.296-256.384A58.432 58.432 0 0 0 512 256zm0 512a51.2 51.2 0 1 0 0-102.4 51.2 51.2 0 0 0 0 102.4z"></path></svg>' },
+          'info':    { color: '#909399', bg: '#f4f4f5', border: '#e9e9eb', icon: '<svg viewBox="0 0 1024 1024" width="18" height="18" style="vertical-align: middle;"><path fill="currentColor" d="M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896zm0 480a48 48 0 0 0-48 48v160a48 48 0 1 0 96 0V592a48 48 0 0 0-48-48zm0-240a56 56 0 1 0 0 112 56 56 0 0 0 0-112z"></path></svg>' },
+          'error':   { color: '#f56c6c', bg: '#fef0f0', border: '#fde2e2', icon: '<svg viewBox="0 0 1024 1024" width="18" height="18" style="vertical-align: middle;"><path fill="currentColor" d="M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896zm165.12 497.12L622.848 512l54.272-54.272a38.4 38.4 0 1 0-54.336-54.336L568.512 457.664l-54.272-54.272a38.4 38.4 0 1 0-54.336 54.336L514.176 512l-54.272 54.272a38.4 38.4 0 1 0 54.336 54.336l54.272-54.272 54.272 54.272a38.4 38.4 0 1 0 54.336-54.336z"></path></svg>' },
         };
-        const normalizedType = type.startsWith('is-') ? type : `is-${type}`;
-        const style = typeStyles[normalizedType] || typeStyles[type] || typeStyles['is-info'];
-        const textColor = style.color || '#ffffff';
+        // 映射旧的 is- 前缀类型
+        typeStyles['is-success'] = typeStyles['success'];
+        typeStyles['is-warning'] = typeStyles['warning'];
+        typeStyles['is-info'] = typeStyles['info'];
+        typeStyles['is-danger'] = typeStyles['error'];
+        typeStyles['is-error'] = typeStyles['error'];
+
+        const style = typeStyles[type] || typeStyles['info'];
+        const textColor = style.color;
 
         const notifWin = new BrowserWindow({
           width: 420,
@@ -242,23 +244,28 @@ class Index extends Application {
         const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  html, body { background: transparent; overflow: hidden; height: 100%; border-radius: 12px; }
+  html, body { background: transparent; overflow: hidden; height: 100%; }
   .box {
-    width: 420px; min-height: 70px;
+    width: 420px; min-height: 48px;
     background: ${style.bg};
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.4);
-    box-shadow: 0 0px 0px rgba(0,0,0,0.4);
-    display: flex; align-items: center; gap: 16px;
-    padding: 16px 24px;
-    font-family: -apple-system, "Microsoft YaHei", sans-serif;
-    font-size: 15px; font-weight: bold; color: ${textColor};
-    animation: slideDown 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border-radius: 4px;
+    border: 1px solid ${style.border};
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 15px 15px 15px 20px;
+    font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+    font-size: 14px; color: ${textColor};
+    animation: slideDown 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    word-break: break-all;
+    overflow: hidden;
   }
-  .icon { font-size: 22px; flex-shrink: 0; }
-  .msg { flex: 1; line-height: 1.5; word-break: break-all; }
+  .icon { 
+    display: flex; align-items: center; justify-content: center;
+    color: ${textColor}; flex-shrink: 0; margin-top: 1px;
+  }
+  .msg { flex: 1; line-height: 1.4; }
   @keyframes slideDown { 
-    from { opacity:0; transform: translateY(-30px); } 
+    from { opacity:0; transform: translateY(-20px); } 
     to { opacity:1; transform: translateY(0); } 
   }
 </style>

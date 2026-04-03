@@ -2,9 +2,6 @@
 
 const https = require('https');
 const http = require('http');
-const { HttpsProxyAgent } = require('https-proxy-agent');
-const { HttpProxyAgent } = require('http-proxy-agent');
-const { SocksProxyAgent } = require('socks-proxy-agent');
 
 /**
  * 构造与 Python requests 相同的代理 URL：http(s)://user:pwd@host:port
@@ -29,7 +26,8 @@ function buildSocksAuthUrl(host, port, username, password) {
 /**
  * 经 SOCKS5 拉取 URL 文本（HTTPS 目标在 SOCKS 隧道上建立 TLS）
  */
-function fetchTextViaSocksProxy(targetUrl, socksProxyUrl, agentOpts = {}) {
+async function fetchTextViaSocksProxy(targetUrl, socksProxyUrl, agentOpts = {}) {
+    const { SocksProxyAgent } = await import('socks-proxy-agent');
     const isTargetHttps = /^https:/i.test(targetUrl);
     const { rejectUnauthorized, ...socksAgentOpts } = agentOpts;
     const agent = new SocksProxyAgent(socksProxyUrl, socksAgentOpts);
@@ -62,8 +60,10 @@ function fetchTextViaSocksProxy(targetUrl, socksProxyUrl, agentOpts = {}) {
  * 用代理拉取 URL 文本。HTTPS 目标走 CONNECT（HttpsProxyAgent），HTTP 目标走转发（HttpProxyAgent），
  * 避免 Axios 在 Node 下对「HTTPS 目标 + HTTP 代理」发错误的 GET https://绝对路径。
  */
-function fetchTextViaProxyUrl(targetUrl, proxyUrl, agentOpts = {}) {
+async function fetchTextViaProxyUrl(targetUrl, proxyUrl, agentOpts = {}) {
     const isTargetHttps = /^https:/i.test(targetUrl);
+    const { HttpsProxyAgent } = await import('https-proxy-agent');
+    const { HttpProxyAgent } = await import('http-proxy-agent');
     const AgentCtor = isTargetHttps ? HttpsProxyAgent : HttpProxyAgent;
     const agent = new AgentCtor(proxyUrl, agentOpts);
     const lib = isTargetHttps ? https : http;

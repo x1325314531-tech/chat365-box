@@ -840,7 +840,7 @@ class WindowService extends Service {
                 proxyConfig = `http://${config.host}:${config.port}`;
                 break;
             case 'https':
-                proxyConfig = `https://${config.host}:${config.port}`;
+                proxyConfig = `http://${config.host}:${config.port}`;
                 break;
             case 'socks4':
                 proxyConfig = `socks4://${config.host}:${config.port}`;

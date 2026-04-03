@@ -123,7 +123,7 @@ module.exports = (appInfo) => {
    * 硬件加速
    */
   config.hardGpu = {
-    enable: true
+    enable: false
   };
 
   /**
