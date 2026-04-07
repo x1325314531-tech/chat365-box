@@ -7,6 +7,9 @@ const axios = require('axios');
 const { app, BrowserWindow, WebContentsView ,session} = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 const Storage = require('ee-core/storage');
 const platforms = [
     { platform: 'Telegram', url: 'https://web.telegram.org/a/' },
@@ -222,8 +225,8 @@ class WindowService extends Service {
     }
 
     async detectFingerprint(args, event) {
-        Log.info('[Service] detectFingerprint starting for cardId:', args.cardId);
-        const { cardId } = args;
+        Log.info('[Service] detectFingerprint starting for cardId:', args.cardId, 'URL:', args.url);
+        const { cardId, url } = args;
         const dbConfig = await app.sdb.selectOne('card_config', { card_id: cardId });
         if (!dbConfig) {
             return { status: false, message: '未找到配置信息' };
@@ -264,7 +267,7 @@ class WindowService extends Service {
             });
         }
 
-        detectWin.loadURL('https://amiunique.org/fingerprint');
+        detectWin.loadURL(url || 'https://amiunique.org/fingerprint');
         detectWin.show();
 
         return { status: true, message: '检测窗口已打开' };
@@ -1043,6 +1046,7 @@ class WindowService extends Service {
             screen: dbConfig.screen || null,
             battery: dbConfig.battery || null,
             portScanProtection: dbConfig.port_scan_protection === 'true',
+            portScanProtectionCustom: dbConfig.port_Scan_Protection_Custom || null,
             geolocationLatitude: dbConfig.geolocation_latitude || '',
             geolocationLongitude: dbConfig.geolocation_longitude || '',
             geolocationAccuracy: dbConfig.geolocation_accuracy || '1000',
@@ -1075,44 +1079,147 @@ class WindowService extends Service {
 
         // 设置 Cookies
         if (config.cookie) {
-            this._setCookies(view.webContents, config.cookie);
+            // 获取卡片对应的平台 URL
+            let platformUrl = '';
+            try {
+                const card = await app.sdb.selectOne('cards', { card_id: cardId });
+                if (card && card.platform) {
+                    const platformInfo = app.platforms.find(p => p.platform === card.platform);
+                    if (platformInfo) platformUrl = platformInfo.url;
+                }
+            } catch (_) {}
+            await this._setCookies(view.webContents, config.cookie, platformUrl);
             Log.info('Cookies 已设置');
         }
 
-        // 注入端口扫描保护脚本
+        // 注入指纹保护脚本
+        if (config.fingerprintSwitch) {
+            const injectionScript = FingerprintProfile.generateInjectionScript(config);
+            if (injectionScript) {
+                // 清理旧的监听器，防止多次重复注入
+                view.webContents.removeAllListeners('did-start-navigation');
+                view.webContents.removeAllListeners('dom-ready');
+
+                // 在主框架完成导航后注入，确保尽早生效
+                view.webContents.on('did-start-navigation', () => {
+                    view.webContents.executeJavaScript(injectionScript)
+                        .then(() => Log.info('会话指纹脚本已注入 (did-start-navigation)'))
+                        .catch(err => Log.error('指纹脚本注入失败:', err));
+                });
+                
+                // 兜底注入：确保在 DOM 就绪时也运行一次
+                view.webContents.on('dom-ready', () => {
+                    view.webContents.executeJavaScript(injectionScript)
+                        .then(() => Log.info('会话指纹脚本已确认 (dom-ready)'))
+                        .catch(err => Log.error('指纹脚本确认失败:', err));
+                });
+
+                // 如果已经有页面加载，也立即执行一次
+                if (!view.webContents.isLoading()) {
+                    view.webContents.executeJavaScript(injectionScript).catch(() => {});
+                }
+            }
+            Log.info('会话指纹保护已启用');
+        }
+
+        // 注入端口扫描保护脚本 (PortScanProtection)
         if (config.portScanProtection) {
             const PortScanProtection = require('../utils/PortScanProtection');
-            const allowedPorts = []; // 可以从配置中读取允许的端口范围
-            const protectionScript = PortScanProtection.generatePortScanProtectionScript(true, allowedPorts);
+            const protectionScript = PortScanProtection.generatePortScanProtectionScript(true, []);
             
+            view.webContents.removeAllListeners('did-finish-load');
             view.webContents.on('did-finish-load', () => {
                 view.webContents.executeJavaScript(protectionScript)
-                    .then(() => {
-                        Log.info('端口扫描保护脚本已注入');
-                    })
-                    .catch(err => {
-                        Log.error('注入端口扫描保护脚本失败:', err);
-                    });
+                    .then(() => Log.info('端口扫描保护脚本已注入'))
+                    .catch(err => Log.error('注入端口扫描保护脚本失败:', err));
             });
-            
             Log.info('端口扫描保护已启用');
-        } else {
-            Log.info('端口扫描保护已禁用');
         }
     }
 
-    // 示例 _setCookies 方法
-    _setCookies(webContents, cookie) {
+    /**
+     * 解析并设置 Cookies
+     * 支持两种格式：
+     *   1. 标准 Cookie 字符串: "name1=val1; name2=val2"
+     *   2. JSON 数组: [{ url, name, value, domain?, path?, secure?, httpOnly? }]
+     * @param {Electron.WebContents} webContents
+     * @param {string} cookie - cookie 字符串或 JSON 字符串
+     * @param {string} [targetUrl] - 目标站点 URL（用于推断 domain）
+     */
+    async _setCookies(webContents, cookie, targetUrl) {
         const session = webContents.session;
-        if (session && cookie) {
-            session.cookies.set(cookie)
-                .then(() => {
-                    Log.info('Cookies 设置成功:', cookie);
-                })
-                .catch((error) => {
-                    Log.error('设置 Cookies 时出错:', error);
-                });
+        if (!session || !cookie) return;
+
+        let cookieItems = [];
+
+        // 尝试解析为 JSON 数组（高级格式）
+        const trimmed = cookie.trim();
+        if (trimmed.startsWith('[')) {
+            try {
+                cookieItems = JSON.parse(trimmed);
+                if (!Array.isArray(cookieItems)) cookieItems = [];
+            } catch (e) {
+                Log.warn('Cookie JSON 解析失败，将按字符串格式处理:', e.message);
+                cookieItems = [];
+            }
         }
+
+        // 如果不是 JSON 数组，按 "name=value; name2=value2" 格式解析
+        if (cookieItems.length === 0 && trimmed.length > 0 && !trimmed.startsWith('[')) {
+            const pairs = trimmed.split(';').map(s => s.trim()).filter(s => s);
+            for (const pair of pairs) {
+                const eqIdx = pair.indexOf('=');
+                if (eqIdx > 0) {
+                    const name = pair.substring(0, eqIdx).trim();
+                    const value = pair.substring(eqIdx + 1).trim();
+                    cookieItems.push({ name, value });
+                }
+            }
+        }
+
+        if (cookieItems.length === 0) {
+            Log.warn('Cookie 解析结果为空，未设置任何 cookie');
+            return;
+        }
+
+        // 推断默认 URL：优先使用传入的 targetUrl，否则尝试从 webContents 获取
+        let defaultUrl = targetUrl || '';
+        if (!defaultUrl) {
+            try {
+                const currentUrl = webContents.getURL();
+                if (currentUrl && currentUrl.startsWith('http')) {
+                    defaultUrl = currentUrl;
+                }
+            } catch (_) {}
+        }
+        // 兜底：使用通用的 HTTPS 域
+        if (!defaultUrl) {
+            defaultUrl = 'https://web.whatsapp.com';
+        }
+
+        let successCount = 0;
+        for (const item of cookieItems) {
+            try {
+                const cookieDetail = {
+                    url: item.url || defaultUrl,
+                    name: item.name || '',
+                    value: item.value || '',
+                };
+                if (item.domain) cookieDetail.domain = item.domain;
+                if (item.path) cookieDetail.path = item.path;
+                if (item.secure !== undefined) cookieDetail.secure = item.secure;
+                if (item.httpOnly !== undefined) cookieDetail.httpOnly = item.httpOnly;
+                if (item.expirationDate) cookieDetail.expirationDate = item.expirationDate;
+
+                if (!cookieDetail.name) continue;
+
+                await session.cookies.set(cookieDetail);
+                successCount++;
+            } catch (error) {
+                Log.error(`设置 Cookie [${item.name}] 时出错:`, error.message);
+            }
+        }
+        Log.info(`Cookies 设置完成: 成功 ${successCount}/${cookieItems.length}`);
     }
 
     _destroyView(cardId) {
@@ -1150,6 +1257,59 @@ class WindowService extends Service {
         return Intl.DateTimeFormat().resolvedOptions().locale;
     }
     
+    async getBluetoothInfo(args, event) {
+        try {
+            const si = require('systeminformation');
+            let bluetoothInfo = {
+                available: false,
+                devices: [],
+                features: 0,
+                hash: ''
+            };
+
+            // Windows 特色：使用 PowerShell 获取更准确的硬件名称
+            if (process.platform === 'win32') {
+                try {
+                    // 过滤掉枚举器，只保留实际硬件
+                    const { stdout } = await execPromise('powershell -Command "Get-PnpDevice -Class Bluetooth | Where-Object { $_.Status -eq \'OK\' -and $_.FriendlyName -notlike \'*Enumerator*\' -and $_.FriendlyName -notlike \'*枚举器*\' } | Select-Object -ExpandProperty FriendlyName"');
+                    if (stdout && stdout.trim()) {
+                        const devs = stdout.trim().split(/\r?\n/).map(s => s.trim()).filter(s => s);
+                        bluetoothInfo.devices = devs;
+                        bluetoothInfo.available = devs.length > 0;
+                    }
+                } catch (err) {
+                    Log.error('PowerShell get bluetooth failed:', err);
+                }
+            }
+
+            // 如果 PowerShell 没拿到或非 Windows，尝试 systeminformation
+            if (bluetoothInfo.devices.length === 0) {
+                const siDevs = await si.bluetoothDevices();
+                if (siDevs && siDevs.length > 0) {
+                    bluetoothInfo.devices = siDevs.map(d => d.name || d.deviceName || 'Unknown Device');
+                    bluetoothInfo.available = true;
+                }
+            }
+
+            // 进一步检测功能特征（模拟 Web API 环境）
+            bluetoothInfo.features = 4; // 默认支持程度
+
+            // 生成简易哈希
+            const hashSource = bluetoothInfo.devices.join(',') + process.platform;
+            let hash = 0;
+            for (let i = 0; i < hashSource.length; i++) {
+                hash = ((hash << 5) - hash) + hashSource.charCodeAt(i);
+                hash |= 0;
+            }
+            bluetoothInfo.hash = Math.abs(hash).toString(16).substring(0, 8);
+
+            return { status: true, data: bluetoothInfo };
+        } catch (error) {
+            Log.error('getBluetoothInfo error:', error);
+            return { status: false, message: error.message };
+        }
+    }
+
     async runFetchIpGeoByService(args) {
         const {
             proxyStatus,

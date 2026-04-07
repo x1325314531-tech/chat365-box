@@ -203,6 +203,15 @@ class WindowController extends Controller {
             return { status: false, message: '获取IP信息失败' };
         }
     }
+
+    async getBluetoothInfo(args, event) {
+        try {
+            return await Services.get('window').getBluetoothInfo(args, event);
+        } catch (error) {
+            Log.error('获取蓝牙信息出错:', error);
+            return { status: false, message: '获取蓝牙信息失败' };
+        }
+    }
     
     async runFetchIpGeoByService(args, event) {
         try {

@@ -86,6 +86,8 @@ const configForm = reactive({
   portScanProtectionCustom: '',
   languages: ['英语', '英语 (美国)'],
   languageCustom: '',
+  cookie:'',
+  scanProCustom:'',
   // 代理配置
   proxyStatus: 'false',
   proxy: 'noProxy',
@@ -232,6 +234,7 @@ const ipcApiRoute = {
   getIPInfo: 'get-ip-info-backend',
   runFetchIpGeoByService: 'controller.window.runFetchIpGeoByService',
   detectFingerprint: 'controller.window.detectFingerprint',
+  getBluetoothInfo: 'controller.window.getBluetoothInfo',
 };
 
 function invalidateProbeSession() {
@@ -418,16 +421,37 @@ const getWebGLInfo = () => {
 const getWebGPUInfo = async () => {
   if (!navigator.gpu) return 'Unavailable';
   try {
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) return 'Unknown WebGPU Adapter';
-    const info = adapter.info;
+    // 尝试高性能适配器
+    let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })
+    if (!adapter) {
+      // 降级尝试默认适配器
+      adapter = await navigator.gpu.requestAdapter();
+    }
+    
+    if (!adapter) {
+      // 极速模式/降级尝试（软件适配器）
+      adapter = await navigator.gpu.requestAdapter({ forceFallbackAdapter: true });
+    }
+    
+    if (!adapter) return 'No WebGPU Adapter found';
+    
+    let info = adapter.info;
+    if (!info && typeof adapter.requestAdapterInfo === 'function') {
+      info = await adapter.requestAdapterInfo();
+    }
+    
+    if (!info) return 'WebGPU Adapter (Info Protected)';
+    
     const parts = [];
     if (info.vendor) parts.push(info.vendor);
     if (info.architecture) parts.push(info.architecture);
-    if (info.description || info.device) parts.push(info.description || info.device);
+    if (info.description) parts.push(info.description);
+    else if (info.device) parts.push(info.device);
     if (info.driver) parts.push(info.driver);
-    return parts.length > 0 ? parts.join(' ') : 'Unknown WebGPU Adapter';
+      console.log('parts', parts.join(''));
+    return parts.length > 0 ? parts.join(' ') : 'WebGPU Adapter Detected';
   } catch (e) {
+    console.error('WebGPU detection error:', e);
     return 'Error detecting WebGPU';
   }
 };
@@ -763,6 +787,34 @@ const detectFingerprint = async () => {
   }
 };
 
+const detectChineseFingerprint = async () => {
+  if (!configForm.sessionId && !props.card?.sessionId) {
+    Notification.message({ message: '请先保存或选择一个会话后再执行检测', type: 'warning' });
+    return;
+  }
+  
+  try {
+    const cardId = configForm.cardId || props.card?.cardId;
+    if (!cardId) {
+      Notification.message({ message: '会话 ID 缺失，请先选择或保存会话', type: 'warning' });
+      return;
+    }
+
+    const res = await ipc.invoke(ipcApiRoute.detectFingerprint, { 
+      cardId, 
+      url: 'https://zw.ul25.com/' 
+    });
+    if (res && res.status) {
+      Notification.message({ message: res.message, type: 'success' });
+    } else {
+      Notification.message({ message: res.message || '打开检测窗口失败', type: 'error' });
+    }
+  } catch (error) {
+    console.error('检测指纹失败:', error);
+    Notification.message({ message: `调用接口失败: ${error.message || '未知错误'}`, type: 'error' });
+  }
+};
+
 watch(() => props.card, () => {
   invalidateProbeSession();
   networkCheckResultText.value = '';
@@ -787,6 +839,8 @@ watch(() => configForm.webglMetadata, (val) => {
     }
   }
 });
+
+
 
 watch(() => configForm.webgpu, async (val) => {
   if (val === '基于WebGL') {
@@ -813,7 +867,7 @@ watch(() => configForm.webrtc, async (val) => {
   } else if (val === '真实') {
     configForm.webrtcCustom = await getWebRTCIP();
   } else if (val === '禁用') {
-    configForm.webrtcCustom = t('session.config.webrtcDescDisabled');
+    configForm.webrtcCustom = t('session.config.webrtcDescDisabled' , {ip:''});
   }
 }, { immediate: true });
 
@@ -825,7 +879,7 @@ watch(() => [configForm.geolocation, configForm.geolocationCustom], async ([geo,
       configForm.geolocationLongitude = data.longitude;
       configForm.geolocationAccuracy = data.accuracy;
     }
-  } else if (!custom) {
+  } else  {
     configForm.geolocationLatitude = '';
     configForm.geolocationLongitude = '';
     configForm.geolocationAccuracy = '';
@@ -947,32 +1001,11 @@ watch(() => configForm.canvas, (val) => {
   }
 }, { immediate: true });
 
-watch(() => configForm.audioContext, (val) => {
+watch(() => configForm.audioContext, async (val) => {
   if (val === '噪音') {
     configForm.audioContextCustom = t('session.config.audioContextDescNoise');
   } else if (val === '真实') {
-    try {
-      const audioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
-      const oscillator = audioContext.createOscillator();
-      oscillator.type = 'triangle';
-      oscillator.frequency.value = 1e4;
-      const compressor = audioContext.createDynamicsCompressor();
-      compressor.threshold.value = -50;
-      compressor.knee.value = 40;
-      compressor.ratio.value = 12;
-      compressor.attack.value = 0;
-      compressor.release.value = 0.25;
-      oscillator.connect(compressor);
-      compressor.connect(audioContext.destination);
-      oscillator.start(0);
-      audioContext.startRendering().then((buffer) => {
-        console.log('buffer', buffer ,buffer.getChannelData(0) );
-        
-          configForm.audioContextCustom = 'Hash: ' + buffer.getChannelData(0).slice(0, 10).reduce((acc, val) => acc + val, 0);
-      });
-    } catch (e) {
-      configForm.audioContextCustom = `${t('session.options.real')} AudioContext ${t('session.status.failed')}`;
-    }
+    configForm.audioContextCustom = await getAudioContextFingerprint();
   }
 }, { immediate: true });
 
@@ -1018,6 +1051,7 @@ watch(() => configForm.clientRects, (val) => {
         hash = ((hash << 5) - hash) + char;
         hash |= 0; // Convert to 32bit integer
       }
+        console.log('clientRects指纹检测 (Main Process):', Math.abs(hash).toString(16));
       configForm.clientRectsCustom = t('session.config.clientRectsDescReal', { hash: Math.abs(hash).toString(16) });
     } catch (e) {
       configForm.clientRectsCustom = t('session.config.clientRectsDescFailed');
@@ -1065,10 +1099,10 @@ watch(() => configForm.memory, (val) => {
 }, { immediate: true });
 
 watch(() => configForm.doNotTrack, (val) => {
-  if (val === false) {
-    configForm.doNotTrackCustom = t('session.config.doNotTrackDescOn');
-  } else {
-    configForm.doNotTrackCustom = t('session.config.doNotTrackDescOff');
+  if (val === true) {
+    configForm.doNotTrackCustom = '1';
+  } else if (val === false) {
+    configForm.doNotTrackCustom = '0';
   }
 }, { immediate: true });
 
@@ -1077,73 +1111,34 @@ watch(() => configForm.screen, (val) => {
     configForm.screenCustom = t('session.config.screenDescNoise');
   } else if (val === '真实') {
     const { width, height, colorDepth, pixelDepth } = window.screen;
-    configForm.screenCustom = t('session.config.screenDescReal', { w: width, h: height, d: colorDepth });
+    configForm.screenCustom = `${width},${height}`;
   }
 }, { immediate: true });
 
 const getBluetoothFingerprint = async () => {
-  if (!navigator.bluetooth) {
-    return t('session.status.bluetoothNotSupported');
-  }
-
   try {
-    // 检查蓝牙可用性
-    const available = await navigator.bluetooth.getAvailability();
-    if (!available) {
-      return t('session.status.bluetoothUnavailable');
-    }
-
-    // 构建蓝牙指纹信息
-    const fingerprintData = {
-      available: true,
-      apiVersion: 'Web Bluetooth API',
-      devices: [],
-      features: {}
-    };
-
-    // 检测蓝牙 API 特性
-    fingerprintData.features = {
-      getAvailability: typeof navigator.bluetooth.getAvailability === 'function',
-      requestDevice: typeof navigator.bluetooth.requestDevice === 'function',
-      getDevices: typeof navigator.bluetooth.getDevices === 'function',
-      requestLEScan: typeof navigator.bluetooth.requestLEScan === 'function'
-    };
-
-    // 尝试获取已配对的设备（需要用户之前授权过）
-    if (fingerprintData.features.getDevices) {
-      try {
-        const devices = await navigator.bluetooth.getDevices();
-        fingerprintData.devices = devices.map(device => ({
-          id: device.id || 'unknown',
-          name: device.name || 'unnamed',
-          connected: device.gatt?.connected || false
-        }));
-      } catch (e) {
-        console.log('无法获取已配对设备:', e.message);
+    // 调用主进程接口获取真实蓝牙信息
+    const res = await ipc.invoke(ipcApiRoute.getBluetoothInfo, {});
+    
+    if (res && res.status && res.data) {
+      const { available, devices, features, hash } = res.data;
+      if (!available) {
+        return t('session.status.bluetoothUnavailable');
       }
+
+      // 如果有设备，取第一个设备名称作为代表，或者显示设备总数
+      const deviceDesc = devices.length > 0 ? devices[0] : t('session.options.on');
+      console.log('蓝牙指纹检测 (Main Process):', res.data);
+        //  available = deviceDesc
+      const  paired = devices.length
+        // features =features 
+        //  hash =hash  
+          const bluetoothInfo =`${available}-${paired}-${features}-${hash}` 
+      // 构建详细的指纹信息文本
+      return   bluetoothInfo
+    } else {
+      return t('session.status.bluetoothNotSupported');
     }
-
-    // 生成指纹哈希（基于特性和设备信息）
-    const fingerprintString = JSON.stringify({
-      features: fingerprintData.features,
-      deviceCount: fingerprintData.devices.length,
-      userAgent: navigator.userAgent
-    });
-    
-    let hash = 0;
-    for (let i = 0; i < fingerprintString.length; i++) {
-      const char = fingerprintString.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    const fingerprintHash = Math.abs(hash).toString(16).substring(0, 8);
-    
-    // 获取支持的特性数量
-    const supportedFeatures = Object.values(fingerprintData.features).filter(Boolean).length;
-
-    // 构建详细的指纹信息文本
-    return t('session.config.bluetoothDescReal', { available: t('session.options.on'), paired: fingerprintData.devices.length, features: supportedFeatures, hash: fingerprintHash });
-
   } catch (e) {
     console.error('蓝牙指纹检测失败:', e);
     return `${t('session.status.failed')}: ${e.message || t('session.status.unknown')}`;
@@ -1201,11 +1196,53 @@ const getBatteryFingerprint = async () => {
   }
 };
 
+const getAudioContextFingerprint = async () => {
+  try {
+    const audioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+    
+    const sampleRate = audioContext.sampleRate;
+    const maxChannels = audioContext.destination.maxChannelCount || 2;
+
+    const oscillator = audioContext.createOscillator();
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = 10000;
+
+    const compressor = audioContext.createDynamicsCompressor();
+    compressor.threshold.value = -50;
+    compressor.knee.value = 40;
+    compressor.ratio.value = 12;
+    compressor.attack.value = 0;
+    compressor.release.value = 0.25;
+
+    oscillator.connect(compressor);
+    compressor.connect(audioContext.destination);
+    oscillator.start(0);
+
+    const buffer = await audioContext.startRendering();
+    const data = buffer.getChannelData(0);
+    
+    // 生成稳健的哈希值
+    let hash = 0;
+    for (let i = 0; i < data.length; i++) {
+        if (i % 100 === 0) { // 抽样以提高效率
+            hash = ((hash << 5) - hash) + Math.round(data[i] * 1000000);
+            hash |= 0;
+        }
+    }
+    const fingerprintHash = Math.abs(hash).toString(16);
+
+    return t('session.config.audioContextDescRealMsg', { s: sampleRate, c: maxChannels, h: fingerprintHash });
+  } catch (e) {
+    console.error('AudioContext指纹检测失败:', e);
+    return `${t('session.options.real')} AudioContext ${t('session.status.failed')}`;
+  }
+};
+
 watch(() => configForm.Bluetooth, async (val) => {
   if (val === '隐私') {
     configForm.BluetoothCustom = t('session.config.bluetoothDescPrivacy');
   } else if (val === '真实') {
-    configForm.BluetoothCustom = t('session.status.detectingBluetooth');
+    // configForm.BluetoothCustom = t('session.status.detectingBluetooth');
     configForm.BluetoothCustom = await getBluetoothFingerprint();
   }
 }, { immediate: true });
@@ -1214,16 +1251,16 @@ watch(() => configForm.battery, async (val) => {
   if (val === '隐私') {
     configForm.batteryCustom = t('session.config.batteryDescPrivacy');
   } else if (val === '真实') {
-    configForm.batteryCustom = t('session.status.detectingBattery');
+    // configForm.batteryCustom = t('session.status.detectingBattery');
     configForm.batteryCustom = await getBatteryFingerprint();
   }
 }, { immediate: true });
 
 watch(() => configForm.portScanProtection, (val) => {
   if (val === true) {
-    configForm.portScanProtectionCustom = t('session.config.portScanDescOn');
+    // configForm.portScanProtectionCustom = t('session.config.portScanDescOn');
   } else {
-    configForm.portScanProtectionCustom = t('session.config.portScanDescOff');
+    configForm.portScanProtectionCustom = '';
   }
 }, { immediate: true });
 
@@ -1335,6 +1372,7 @@ async function confirmClick() {
         geolocation: configForm.geolocation,
         geolocation_custom: String(configForm.geolocationCustom),
         language: Array.isArray(configForm.language) ? JSON.stringify(configForm.language) : String(configForm.language || ''),
+        language_custom: configForm.languageCustom, 
         resolution: configForm.resolution,
         resolution_width: configForm.resolutionWidth,
         resolution_height: configForm.resolutionHeight,
@@ -1369,7 +1407,8 @@ async function confirmClick() {
         webgl_image_custom: configForm.webglImageCustom,
         webgpu_custom: configForm.webgpuCustom,
         timezone_custom: configForm.timezoneCustom,
-        bluetooth_custom: configForm.BluetoothCustom
+        bluetooth_custom: configForm.BluetoothCustom,
+        webrtc_custom: configForm.webrtcCustom
       };
 
       // 如果是新建会话，先通过 IPC 添加
@@ -1554,6 +1593,16 @@ const cancelClick = () => {
                   <div class="form-sub-tip" v-if="configForm.webrtc==='替换'">{{ $t('session.config.webrtcDescReplace') }}</div>
                    <div class="form-sub-tip" v-if="configForm.webrtc==='真实'">{{ $t('session.config.webrtcDescReal') }}</div>
                     <div class="form-sub-tip" v-if="configForm.webrtc==='禁用'">{{ $t('session.config.webrtcDescDisabled') }}</div>
+                    
+                    <!-- 新增 webrtcCustom 输入框 -->
+                    <div class="form-sub-input" v-if="configForm.webrtc === '替换'" style="margin-top: 8px;">
+                      <div class="flex-row">
+                        <el-input v-model="configForm.webrtcCustom" :placeholder="$t('session.config.webrtcCustomPlaceholder') || '请输入伪装的 IP 地址'"></el-input>
+                        <span class="refresh-icon" @click="async () => { configForm.webrtcCustom = await getWebRTCIP() }" style="margin-left: 8px; cursor: pointer;">
+                          <i class="iconfont icon-refresh"></i>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </el-form-item>
 
@@ -1806,6 +1855,7 @@ const cancelClick = () => {
                   </div>
                 </el-form-item>
                     <el-form-item :label="$t('session.config.bluetooth')">
+                      
                        <div class="flex-column">
                   <el-radio-group v-model="configForm.Bluetooth">
                     <el-radio-button label="隐私">{{ $t('session.options.privacy') }}</el-radio-button>
@@ -1816,6 +1866,7 @@ const cancelClick = () => {
                    </div>
                 </el-form-item>
                 <el-form-item :label="$t('session.config.battery')">
+               
                    <div class="flex-column">
                   <el-radio-group v-model="configForm.battery">
                     <el-radio-button label="隐私">{{ $t('session.options.privacy') }}</el-radio-button>
@@ -1834,7 +1885,7 @@ const cancelClick = () => {
                   </el-radio-group>
                   <div class="form-sub-tip" v-if="configForm.portScanProtection">{{ $t('session.config.portScanDescOn') }}</div>
                    <div class="form-sub-tip" v-if="!configForm.portScanProtection">{{ $t('session.config.portScanDescOff') }}</div>
-                    <el-input type="textarea" v-if="configForm.portScanProtection" :rows="3" v-model="configForm.cookie" :placeholder="$t('session.config.portScanPlaceholder')"></el-input>
+                    <el-input type="textarea" v-if="configForm.portScanProtection" :rows="3" v-model="configForm.portScanProtectionCustom" :placeholder="$t('session.config.portScanPlaceholder')"></el-input>
                   </div>
                 </el-form-item>
 
@@ -1920,6 +1971,10 @@ const cancelClick = () => {
               <i class="iconfont icon-search" style="margin-right: 8px;"></i>
               <span>{{ $t('session.config.detectBtn') }}</span>
              </el-button>
+             <el-button type="warning" class="detect-btn" @click="detectChineseFingerprint" size="small" round>
+              <i class="iconfont icon-search" style="margin-right: 8px;"></i>
+              <span>{{ $t('session.config.chineseDetectBtn') }}</span>
+             </el-button>
              <el-button type="success" class="generate-btn" @click="generateFingerprint" size="small" round> 
               <i class="iconfont icon-fingerprint" style="margin-right: 15px;"></i>
               <span>{{ $t('session.config.generateBtn') }}</span>
@@ -1968,6 +2023,10 @@ const cancelClick = () => {
           <div class="overview-item">
             <span class="label">{{ $t('session.config.webrtc') }}</span>
             <span class="value text-success">{{configForm.webrtc === '真实' ? $t('session.options.real') : (configForm.webrtc === '禁用' ? $t('session.options.disabled') : $t('session.options.replace')) }}</span>
+          </div>
+          <div class="overview-item" v-if="(configForm.webrtc === '替换' || configForm.webrtc === '真实') && configForm.webrtcCustom">
+            <span class="label">WebRTC IP</span>
+            <span class="value text-primary">{{ configForm.webrtcCustom }}</span>
           </div>
           <div class="overview-item">
             <span class="label">{{ $t('session.config.timezone') }}</span>

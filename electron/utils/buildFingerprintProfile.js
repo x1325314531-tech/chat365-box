@@ -44,7 +44,9 @@ class FingerprintProfile {
             screen,
             bluetooth,
             battery,
-            portScanProtection
+            portScanProtection,
+            webrtcCustom,
+            languageCustom
         } = config;
 
         // 如果指纹开关关闭，返回空脚本
@@ -189,11 +191,42 @@ class FingerprintProfile {
             `);
         }
 
-        // 10. WebRTC 禁用 (Privacy mode)
+        // 10. WebRTC 禁用 (Privacy mode) 或 替换 (Custom IP)
         if (webrtc === '禁用') {
             scripts.push(`
                 window.RTCPeerConnection = undefined;
                 window.webkitRTCPeerConnection = undefined;
+            `);
+        } else if (webrtc === '替换' && webrtcCustom) {
+            scripts.push(`
+                (function() {
+                    const customIP = ${JSON.stringify(webrtcCustom)};
+                    const originalRTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection;
+                    if (!originalRTCPeerConnection) return;
+
+                    const HookRTCPeerConnection = function(arg) {
+                        const pc = new originalRTCPeerConnection(arg);
+                        const originalCreateOffer = pc.createOffer;
+                        pc.createOffer = function() {
+                            return originalCreateOffer.apply(this, arguments).then(offer => {
+                                if (offer && offer.sdp) {
+                                    offer.sdp = offer.sdp.replace(
+                                        /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/g,
+                                        customIP
+                                    );
+                                }
+                                return offer;
+                            });
+                        };
+                        return pc;
+                    };
+
+                    window.RTCPeerConnection = HookRTCPeerConnection;
+                    window.webkitRTCPeerConnection = HookRTCPeerConnection;
+                    if (originalRTCPeerConnection.prototype) {
+                        HookRTCPeerConnection.prototype = originalRTCPeerConnection.prototype;
+                    }
+                })();
             `);
         }
 
@@ -236,14 +269,20 @@ class FingerprintProfile {
                     navigator.gpu.requestAdapter = async function() {
                         const adapter = await originalRequestAdapter.apply(navigator.gpu, arguments);
                         if (adapter) {
-                            Object.defineProperty(adapter, 'info', {
-                                get: () => ({
-                                    vendor: ${JSON.stringify(config.webgpuCustom.split(' ')[0] || '')},
-                                    architecture: '',
-                                    device: '',
-                                    description: ${JSON.stringify(config.webgpuCustom)}
-                                })
-                            });
+                            const spoofedInfo = {
+                                vendor: ${JSON.stringify(config.webgpuCustom.split(' ')[0] || '')},
+                                architecture: '',
+                                device: '',
+                                description: ${JSON.stringify(config.webgpuCustom)}
+                            };
+                            try {
+                                Object.defineProperty(adapter, 'info', {
+                                    get: () => spoofedInfo
+                                });
+                            } catch (e) {}
+                            if (typeof adapter.requestAdapterInfo === 'function') {
+                                adapter.requestAdapterInfo = () => Promise.resolve(spoofedInfo);
+                            }
                         }
                         return adapter;
                     };
@@ -304,7 +343,25 @@ class FingerprintProfile {
         }
 
         // 16. 蓝牙 (Bluetooth) 伪装
-        if (bluetooth === '隐私') {
+        if (bluetooth === '真实' && config.bluetoothCustom) {
+            try {
+                const parts = config.bluetoothCustom.split('-');
+                const available = parts[0] === 'true';
+                const count = parseInt(parts[1]) || 0;
+                scripts.push(`
+                    if (navigator.bluetooth) {
+                        navigator.bluetooth.getAvailability = () => Promise.resolve(${available});
+                        navigator.bluetooth.getDevices = () => Promise.resolve(new Array(${count}).fill({
+                            name: 'Bluetooth Device',
+                            id: 'dummy-id',
+                            gatt: { connected: false }
+                        }));
+                    }
+                `);
+            } catch (e) {
+                console.error('解析 bluetoothCustom 失败:', e);
+            }
+        } else if (bluetooth === '隐私') {
             scripts.push(`
                 if (navigator.bluetooth) {
                     navigator.bluetooth.getAvailability = () => Promise.resolve(false);
@@ -436,7 +493,12 @@ class FingerprintProfile {
             webrtcCustom: dbConfig.webrtc_custom,
             doNotTrackCustom: dbConfig.do_not_track_custom,
             screenCustom: dbConfig.screen_custom,
-            portScanProtectionCustom: dbConfig.port_scan_protection_custom
+            portScanProtectionCustom: dbConfig.port_scan_protection_custom,
+            geolocationLatitude: dbConfig.geolocation_latitude,
+            geolocationLongitude: dbConfig.geolocation_longitude,
+            geolocationAccuracy: dbConfig.geolocation_accuracy,
+            batteryCustom: dbConfig.battery_custom,
+            languageCustom: dbConfig.language_custom
         };
     }
 }

@@ -36,7 +36,7 @@ module.exports = (appInfo) => {
       devTools: true,
       //preload: path.join(appInfo.baseDir, 'preload', 'bridge.js'),
     },
-    frame: false,
+    frame:  true,
     show: false,
     icon: path.join(appInfo.home, 'public', 'images', 'chat365-logo-32.png'),
   };
@@ -123,7 +123,7 @@ module.exports = (appInfo) => {
    * 硬件加速
    */
   config.hardGpu = {
-    enable: false
+    enable: true
   };
 
   /**

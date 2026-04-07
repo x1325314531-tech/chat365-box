@@ -30,6 +30,10 @@ class Index extends Application {
     process.on('unhandledRejection', (reason) => {
       Log.error('[Main] Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
     });
+
+    // 启用 WebGPU 支持和忽略 GPU 黑名单
+    app.commandLine.appendSwitch('enable-unsafe-webgpu');
+    app.commandLine.appendSwitch('ignore-gpu-blocklist');
   }
 
   /**
@@ -86,6 +90,7 @@ class Index extends Application {
           geolocation: 'TEXT',
           geolocation_custom: 'TEXT',
           language: 'TEXT',
+          language_custom: 'TEXT',
           resolution: 'TEXT',
           resolution_width: 'TEXT',
           resolution_height: 'TEXT',
