@@ -388,163 +388,168 @@ async function sendImmediate() {
 
     <el-tabs v-model="activeTab" class="ai-tabs">
       <el-tab-pane :label="$t('aiPolish.tabPolish')" name="polish">
-        <div class="content-row">
-          <div class="left-col">
-            <div class="block-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> {{ $t('aiPolish.original') }}</div>
-            <el-input
-              v-model="originalText"
-              class="original-input"
-              type="textarea"
-              :rows="9"
-              resize="none"
-              :placeholder="$t('aiPolish.originalPlaceholder')"
-              @blur="handlePolish"
-            />
-          </div>
-
-          <div class="right-col">
-            <div class="block-label suggest-label">
-              <div class="suggest-label-left">
-                <span class="star">✦</span>
-                <span>{{ $t('aiPolish.suggestions') }}</span>
-              </div>
-              <div class="suggest-tools">
-                <span class="translate-text">{{ $t('aiPolish.translateToZh') }}</span>
-                <el-switch
-                  v-model="isTranslationEnabled"
-                  class="translate-switch"
-                  style="--el-switch-on-color: #22C55E; --el-switch-off-color: #bfbfbf"
-                  @change="handleTranslationToggle"
-                />
-              </div>
+        <div class="tab-scroll-wrap">
+          <div class="content-row">
+            <div class="left-col">
+              <div class="block-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> {{ $t('aiPolish.original') }}</div>
+              <el-input
+                v-model="originalText"
+                class="original-input"
+                type="textarea"
+                :rows="9"
+                resize="none"
+                :placeholder="$t('aiPolish.originalPlaceholder')"
+                @blur="handlePolish"
+              />
             </div>
-            <div class="suggestion-box" :class="{ 'is-empty': !isLoading && !polishedText }" v-loading="isLoading">
-              <template v-if="polishedText">
-                <div class="suggestion-text">{{ polishedText }}</div>
-                <div v-if="translatedText" class="translation-text">{{ translatedText }}</div>
-              </template>
-              <div v-else class="suggestion-empty">
-                <div class="empty-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 3L13.9 8.1L19 10L13.9 11.9L12 17L10.1 11.9L5 10L10.1 8.1L12 3Z" fill="currentColor" />
-                  </svg>
+
+            <div class="right-col">
+              <div class="block-label suggest-label">
+                <div class="suggest-label-left">
+                  <span class="star">✦</span>
+                  <span>{{ $t('aiPolish.suggestions') }}</span>
                 </div>
-                <div class="empty-title">{{ $t('aiPolish.noSuggestions') }}</div>
-                <div class="empty-tip">{{ $t('aiPolish.noSuggestionsDesc') }}</div>
+                <div class="suggest-tools">
+                  <span class="translate-text">{{ $t('aiPolish.translateToZh') }}</span>
+                  <el-switch
+                    v-model="isTranslationEnabled"
+                    class="translate-switch"
+                    style="--el-switch-on-color: #22C55E; --el-switch-off-color: #bfbfbf"
+                    @change="handleTranslationToggle"
+                  />
+                </div>
+              </div>
+              <div class="suggestion-box" :class="{ 'is-empty': !isLoading && !polishedText }" v-loading="isLoading">
+                <template v-if="polishedText">
+                  <div class="suggestion-text">{{ polishedText }}</div>
+                  <div v-if="translatedText" class="translation-text">{{ translatedText }}</div>
+                </template>
+                <div v-else class="suggestion-empty">
+                  <div class="empty-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 3L13.9 8.1L19 10L13.9 11.9L12 17L10.1 11.9L5 10L10.1 8.1L12 3Z" fill="currentColor" />
+                    </svg>
+                  </div>
+                  <div class="empty-title">{{ $t('aiPolish.noSuggestions') }}</div>
+                  <div class="empty-tip">{{ $t('aiPolish.noSuggestionsDesc') }}</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-       <div class="ai-polish-recommend-body">
-        <div class="ai-polist-recommend--title"> AI润色推荐</div>
-       <div class="ai-polish-list" v-loading="isLoading" element-loading-background="rgba(238, 240, 239, 0.8)">
-          <template v-if="suggestions.length > 0">
-            <div 
-              v-for="(s, index) in suggestions" 
-              :key="index"
-              class="ai-polish-item"
-              :class="{ active: selectedIndex === index }"
-              @click="selectSuggestion(index)"
-            >
-              <div class="item-head">
-                <span class="star">✦</span>
-                <span class="item-index">{{ $t('aiPolish.suggestionNum', { n: index + 1 }) }}</span>
-              </div>
-              <div class="item-preview">{{ s }}</div>
-            </div>
-          </template>
-          <div v-else-if="!isLoading" class="no-suggestions-text">
-            暂无AI润色推荐建议
-          </div>
-       </div>
-       </div>
-      
-        <div class="style-panel">
-          <div class="style-title">{{ $t('aiPolish.replyStyle') }}</div>
 
-          <div class="style-inline-row">
-            <div class="style-item">
-              <span class="style-name">{{ $t('aiPolish.tone') }}</span>
-              <el-tag class="style-tag" round>{{ toneDisplayName }}</el-tag>
+          <div class="ai-polish-recommend-body">
+            <div class="ai-polist-recommend--title"> AI润色推荐</div>
+            <div class="ai-polish-list" v-loading="isLoading" element-loading-background="rgba(238, 240, 239, 0.8)">
+              <template v-if="suggestions.length > 0">
+                <div 
+                  v-for="(s, index) in suggestions" 
+                  :key="index"
+                  class="ai-polish-item"
+                  :class="{ active: selectedIndex === index }"
+                  @click="selectSuggestion(index)"
+                >
+                  <div class="item-head">
+                    <span class="star">✦</span>
+                    <span class="item-index">{{ $t('aiPolish.suggestionNum', { n: index + 1 }) }}</span>
+                  </div>
+                  <div class="item-preview">{{ s }}</div>
+                </div>
+              </template>
+              <div v-else-if="!isLoading" class="no-suggestions-text">
+                暂无AI润色推荐建议
+              </div>
             </div>
-            <div class="style-item">
-              <span class="style-name">{{ $t('aiPolish.theme') }}</span>
-              <el-tag class="style-tag" round>{{ themeDisplayName }}</el-tag>
-            </div>
-            <div class="style-item">
-              <span class="style-name">{{ $t('aiPolish.role') }}</span>
-              <el-tag class="style-tag" round>{{ roleDisplayName }}</el-tag>
+          </div>
+        
+          <div class="style-panel">
+            <div class="style-title">{{ $t('aiPolish.replyStyle') }}</div>
+
+            <div class="style-inline-row">
+              <div class="style-item">
+                <span class="style-name">{{ $t('aiPolish.tone') }}</span>
+                <el-tag class="style-tag" round>{{ toneDisplayName }}</el-tag>
+              </div>
+              <div class="style-item">
+                <span class="style-name">{{ $t('aiPolish.theme') }}</span>
+                <el-tag class="style-tag" round>{{ themeDisplayName }}</el-tag>
+              </div>
+              <div class="style-item">
+                <span class="style-name">{{ $t('aiPolish.role') }}</span>
+                <el-tag class="style-tag" round>{{ roleDisplayName }}</el-tag>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="bottom-actions">
           <el-button class="action-btn  action-primary" :disabled="!polishedText" @click="sendImmediate">
-           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             {{ $t('aiPolish.sendChat') }}
           </el-button>
         </div>
       </el-tab-pane>
 
       <el-tab-pane :label="$t('aiPolish.tabSettings')" name="settings">
-        <div class="settings-wrap">
-          <div class="setting-row">
-            <div class="setting-label">
-              <div class="main-label">{{ $t('aiPolish.enableSessionConfig') }}</div>
-              <div class="sub-label">{{ $t('aiPolish.enableSessionConfigDesc') }}</div>
+        <div class="tab-scroll-wrap">
+          <div class="settings-wrap">
+            <div class="setting-row">
+              <div class="setting-label">
+                <div class="main-label">{{ $t('aiPolish.enableSessionConfig') }}</div>
+                <div class="sub-label">{{ $t('aiPolish.enableSessionConfigDesc') }}</div>
+              </div>
+              <el-switch v-model="config.enabled" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="saveConfig" />
             </div>
-            <el-switch v-model="config.enabled" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="saveConfig" />
+
+            <template v-if="config.enabled">
+              <div class="setting-field">
+                <div class="field-label">{{ $t('aiPolish.toneLabel') }}</div>
+                <el-select v-model="config.tone" :placeholder="$t('aiPolish.tonePlaceholder')" style="width: 100%" @change="saveConfig">
+                  <el-option
+                    v-for="item in dictTone"
+                    :key="item.dictValue"
+                    :label="item.dictLabel"
+                    :value="item.dictValue"
+                  />
+                </el-select>
+              </div>
+
+              <div class="setting-field">
+                <div class="field-label">{{ $t('aiPolish.themeLabel') }}</div>
+                <el-select v-model="config.theme" :placeholder="$t('aiPolish.themePlaceholder')" style="width: 100%" @change="saveConfig">
+                  <el-option
+                    v-for="item in dictTheme"
+                    :key="item.dictValue"
+                    :label="item.dictLabel"
+                    :value="item.dictValue"
+                  />
+                </el-select>
+              </div>
+
+              <div class="setting-field">
+                <div class="field-label">{{ $t('aiPolish.roleLabel') }}</div>
+                <el-select v-model="config.role" :placeholder="$t('aiPolish.rolePlaceholder')" style="width: 100%" @change="saveConfig">
+                  <el-option
+                    v-for="item in dictRole"
+                    :key="item.dictValue"
+                    :label="item.dictLabel"
+                    :value="item.dictValue"
+                  />
+                </el-select>
+              </div>
+
+              <div class="setting-field"  style="margin-top: 14px;">
+                <div class="field-label">对话上下文</div>
+                <el-select v-model="config.historyCount" placeholder="选择历史条数" style="width: 100%" @change="saveConfig">
+                  <el-option
+                    v-for="item in historyOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </div> 
+            </template>
           </div>
-
-          <template v-if="config.enabled">
-            <div class="setting-field">
-              <div class="field-label">{{ $t('aiPolish.toneLabel') }}</div>
-              <el-select v-model="config.tone" :placeholder="$t('aiPolish.tonePlaceholder')" style="width: 100%" @change="saveConfig">
-                <el-option
-                  v-for="item in dictTone"
-                  :key="item.dictValue"
-                  :label="item.dictLabel"
-                  :value="item.dictValue"
-                />
-              </el-select>
-            </div>
-
-            <div class="setting-field">
-              <div class="field-label">{{ $t('aiPolish.themeLabel') }}</div>
-              <el-select v-model="config.theme" :placeholder="$t('aiPolish.themePlaceholder')" style="width: 100%" @change="saveConfig">
-                <el-option
-                  v-for="item in dictTheme"
-                  :key="item.dictValue"
-                  :label="item.dictLabel"
-                  :value="item.dictValue"
-                />
-              </el-select>
-            </div>
-
-            <div class="setting-field">
-              <div class="field-label">{{ $t('aiPolish.roleLabel') }}</div>
-              <el-select v-model="config.role" :placeholder="$t('aiPolish.rolePlaceholder')" style="width: 100%" @change="saveConfig">
-                <el-option
-                  v-for="item in dictRole"
-                  :key="item.dictValue"
-                  :label="item.dictLabel"
-                  :value="item.dictValue"
-                />
-              </el-select>
-            </div>
-
-            <div class="setting-field"  style="margin-top: 14px;">
-              <div class="field-label">对话上下文</div>
-              <el-select v-model="config.historyCount" placeholder="选择历史条数" style="width: 100%" @change="saveConfig">
-                <el-option
-                  v-for="item in historyOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </div> 
-          </template>
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -610,11 +615,13 @@ async function sendImmediate() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0px 22px;
+  padding: 0; /* 移除全局 padding，改为内部精确控制 */
+  min-height: 0;
 }
 
 .ai-tabs :deep(.el-tabs__header) {
   margin: 0 0 10px;
+  padding: 0 22px; /* 单独为 header 设置内边距 */
 }
 
 .ai-tabs :deep(.el-tabs__item.is-active) {
@@ -631,7 +638,48 @@ async function sendImmediate() {
 
 .ai-tabs :deep(.el-tabs__content) {
   flex: 1;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 改为 hidden，内部自滚动 */
+  min-height: 0; /* 关键，允许内部容器溢出并滚动 */
+  padding-bottom: 0;
+}
+
+.ai-tabs :deep(.el-tab-pane) {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tab-scroll-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 22px 12px; /* 内边距控制在此，确保滚动条贴合内容 */
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+/* 全局可滚动区域滚动条美化 */
+.tab-scroll-wrap::-webkit-scrollbar {
+  width: 10px; /* 进一步增加宽度 */
+}
+
+.tab-scroll-wrap::-webkit-scrollbar-thumb {
+  background: #198745; /* 颜色更深，更显目 */
+  border-radius: 10px;
+  border: 2px solid #eef0ef; /* 与背景色相同作为边框 */
+}
+
+.tab-scroll-wrap::-webkit-scrollbar-thumb:hover {
+  background: #15733b;
+}
+
+.tab-scroll-wrap::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
 }
 
 .content-row {
@@ -788,7 +836,7 @@ async function sendImmediate() {
 .style-inline-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   padding-bottom: 2px;
 }
 
@@ -820,9 +868,14 @@ async function sendImmediate() {
 }
 
 .bottom-actions {
-  margin-top: 14px;
+  flex-shrink: 0; /* 强制不收缩，确保按钮完整 */
+  margin-top: auto; 
+  padding: 12px 22px 30px; /* 增加底部 padding 防止截断 */
+  background: #eef0ef; 
+  z-index: 10;
   display: grid;
   gap: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1); 
 }
 
 .action-btn {
@@ -909,13 +962,13 @@ async function sendImmediate() {
 .ai-polish-list {
   display: flex;
   flex-wrap: nowrap;
-  overflow-y: auto;
+  /* 移除内部溢出滚动，让外层统一处理 */
+  /* overflow-y: auto; */ 
   gap: 12px;
   margin: 12px 0 16px;
-  padding: 4px 6px 10px;
+  padding: 4px 6px 4px;
   flex-direction: column;
-  max-height: 240px;
-  min-height: 100px; /* 增加最小高度，使加载状态更美观 */
+  /* 移除 max-height 限制 */
   position: relative;
 }
 

@@ -1119,6 +1119,7 @@ function placedLeft() {
   border-radius: 50%;
   border: 2px solid transparent;
   transition: all 0.2s;
+  width: 85px;
 }
 .horizontal-card.selected-card {
   /* border-color: #25d366; */

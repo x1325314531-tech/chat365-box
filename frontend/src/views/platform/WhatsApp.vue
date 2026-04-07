@@ -37,7 +37,7 @@
     <!-- 非全屏/非最大化时 order:3 → 在 sidebar 右边 -->
     <div
       v-if="personaDrawerVisible"
-      class="persona-drawer-container"
+      class="persona-drawer-container" 
       :style="{ order: isMaximized ? 1 : 3 }"
     >
       <UserPersona
@@ -53,6 +53,7 @@
     <!-- 非全屏/非最大化时 order:3 → 在 sidebar 右边 -->
     <div
       v-if="aiDrawerVisible"
+      :class="!isMaximized?'ai-polish-drawer-auto':''"
       class="ai-polish-drawer-container"
       :style="{ order: isMaximized ? 1 : 3 }"
     >
@@ -321,7 +322,26 @@ const receiveCardId = (card)=> {
   position: relative;
   z-index: 2;
 }
-
+.ai-polish-drawer-auto { 
+  overflow-y: auto;
+}
+ 
+/* 美化滚动条 */
+.ai-polish-drawer-auto::-webkit-scrollbar {
+  width: 6px;
+}
+.ai-polish-drawer-auto::-webkit-scrollbar-thumb {
+  background: #c1cdd1;
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+.ai-polish-drawer-auto::-webkit-scrollbar-thumb:hover {
+  background: #aab6ba;
+}
+.ai-polish-drawer-auto::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
 .ai-polish-drawer-container {
   background: #eef0ef;
   border-left: 1px solid #dfe3df;

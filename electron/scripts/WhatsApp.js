@@ -2629,24 +2629,24 @@ function injectAiToolbar() {
     
     // 关键修正：只有在会话改变或工具栏内容为空时才重新渲染 innerHTML
     // 这样可以防止在操作下拉框时，因为 MutationObserver 或 setInterval 触发 re-render 导致下拉框关闭
-    if (isChatChanged || !toolbar.innerHTML.trim()) {
-        console.log('🔄 [Session] 渲染 AI 工具栏, 会话:', chatId);
-        window._chat365_state.lastToolbarChatId = chatId;
+    // if (isChatChanged || !toolbar.innerHTML.trim()) {
+    //     console.log('🔄 [Session] 渲染 AI 工具栏, 会话111111:')
+    //     window._chat365_state.lastToolbarChatId = chatId;
         
-        toolbar.innerHTML = `
-            <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
-                AI润色
-            </div>
-            <div class="ai-toolbar-btn ai-toolbar-toggle-btn" id="ai-btn-config-collapse" title="收起配置">
-                <span class="toggle-icon">&lt;</span>
-                <span class="toggle-text">收起</span>
-            </div>
-            <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
-                <!-- 配置区域容器 -->
-            </div>
-        `;
-    }
+    //     toolbar.innerHTML = `
+    //         <div class="ai-toolbar-btn" id="ai-btn-auto-polish">
+    //             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+    //             AI润色
+    //         </div>
+    //         <div class="ai-toolbar-btn ai-toolbar-toggle-btn" id="ai-btn-config-collapse" title="收起配置">
+    //             <span class="toggle-icon">&lt;</span>
+    //             <span class="toggle-text">收起</span>
+    //         </div>
+    //         <div id="ai-toolbar-config-area" style="display: flex; align-items: center; gap: 8px; margin-left: 8px; border-left: 1px solid #eee; padding-left: 8px;">
+    //             <!-- 配置区域容器 -->
+    //         </div>
+    //     `;
+    // }
 
     if (isChatChanged || !toolbar.innerHTML.trim()) {
         toolbar.innerHTML = `
