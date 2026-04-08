@@ -6,6 +6,9 @@
     "output": "out"
   },
   "asar": true,
+  "asarUnpack": [
+    "electron/resources/gost/**"
+  ],
   "files": [
     "**/*",
     "!frontend/",

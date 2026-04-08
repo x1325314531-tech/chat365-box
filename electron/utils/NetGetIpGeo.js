@@ -16,7 +16,13 @@ const {
     fetchTextViaProxyUrl,
     fetchTextViaSocksProxy,
 } = require('./proxyFetch');
-
+const {
+    getSystemProxyForUrl,
+    buildProxyNodeUrl,
+    ensureGostProxyChain,
+    stopGostProxyChain,
+    fetchTextViaProxyNode,
+} = require('./TwoLevelProxyChain');
 // ---------------------------------------------------------------------------
 // 可配置：同时返回 IP + 地理的探测地址（顺序与随机池无关；竞速前会再随机抽子集）
 // ---------------------------------------------------------------------------
@@ -186,7 +192,12 @@ function normalizeGeoRow(kind, rawText, rawObj) {
  * ctx：useProxy、proxyType、host、port、username、password、timeoutMs
  */
 async function fetchUrlBody(url, ctx) {
+     const systemProxyNodeUrl = await getSystemProxyForUrl(url);
     if (!ctx.useProxy) {
+        if (systemProxyNodeUrl) {
+            ctx._usedSystemProxy = true;
+            return fetchTextViaProxyNode(url, systemProxyNodeUrl);
+        }
         const r = await axios.get(url, {
             timeout: ctx.timeoutMs,
             proxy: false,
@@ -211,6 +222,29 @@ async function fetchUrlBody(url, ctx) {
         password: p,
         targetUrl: url,
     });
+     if (systemProxyNodeUrl) {
+        ctx._usedSystemProxy = true;
+        const customProxyNodeUrl = buildProxyNodeUrl({
+            proxyType: pType,
+            host: h,
+            port: pt,
+            username: u,
+            password: p,
+        });
+        const gostLocalProxyUrl = await ensureGostProxyChain(ctx, systemProxyNodeUrl, customProxyNodeUrl, ctx.timeoutMs);
+        try {
+            return await fetchTextViaProxyUrl(url, gostLocalProxyUrl);
+        } catch (e) {
+            const code = e && e.code ? String(e.code) : '';
+            const msg = e && e.message ? String(e.message) : String(e);
+            if (code === 'ECONNREFUSED' || /ECONNREFUSED/i.test(msg)) {
+                stopGostProxyChain(ctx);
+                const gostLocalProxyUrl2 = await ensureGostProxyChain(ctx, systemProxyNodeUrl, customProxyNodeUrl, ctx.timeoutMs);
+                return fetchTextViaProxyUrl(url, gostLocalProxyUrl2);
+            }
+            throw e;
+        }
+    }
     if (pType === 'socks5') {
         const socksUrl = buildSocksAuthUrl(h, pt, u, p);
         return fetchTextViaSocksProxy(url, socksUrl, TLS_INSECURE);
@@ -294,27 +328,31 @@ async function fetchIpGeo(opts = {}) {
         username: opts.username,
         password: opts.password,
         timeoutMs,
+        _usedSystemProxy: false,
+        _gostPromise: null,
+        _gostProc: null,
+        _gostProxyUrl: null,
     };
 
     const picked = pickRandomEndpoints(endpoints, raceCount);
-
-    if (ctx.useProxy) {
-        const h = String(ctx.host || '').trim();
-        const pt = String(ctx.port || '').trim();
-        Log.info('[NetGetIpGeo] 走代理协议探测', {
-            proxyProtocol: ctx.proxyType,
-            proxyAddress: `${h}:${pt}`,
-            username: String(ctx.username || '').trim(),
-            password: String(ctx.password || '').trim(),
-            endpoints: picked.map((ep) => ({ id: ep.id, label: ep.label, url: ep.url })),
-        });
-    }
+     let result
+    // if (ctx.useProxy) {
+    //     const h = String(ctx.host || '').trim();
+    //     const pt = String(ctx.port || '').trim();
+    //     Log.info('[NetGetIpGeo] 走代理协议探测', {
+    //         proxyProtocol: ctx.proxyType,
+    //         proxyAddress: `${h}:${pt}`,
+    //         username: String(ctx.username || '').trim(),
+    //         password: String(ctx.password || '').trim(),
+    //         endpoints: picked.map((ep) => ({ id: ep.id, label: ep.label, url: ep.url })),
+    //     });
+    // }
 
     try {
         const { ep, data } = await raceEndpoints(picked, ctx);
         const elapsedMs = Date.now() - startedAt;
         const elapsedSec = formatElapsedSec(elapsedMs);
-        return {
+        result= {
             status: true,
             message: 'OK',
             exitIp: data.exitIp,
@@ -326,18 +364,21 @@ async function fetchIpGeo(opts = {}) {
             ipv6OnlyCountry: data.ipv6OnlyCountry === true,
             elapsedMs,
             elapsedSec,
-            direct: !ctx.useProxy,
+           direct: !ctx.useProxy && ctx._usedSystemProxy !== true,
         };
     } catch (e) {
         const elapsedMs = Date.now() - startedAt;
-        return {
+         result= {
             status: false,
             message: e && e.message ? e.message : String(e),
             elapsedMs,
             elapsedSec: formatElapsedSec(elapsedMs),
-            direct: !ctx.useProxy,
+             direct: !ctx.useProxy && ctx._usedSystemProxy !== true,
         };
+    } finally{ 
+        stopGostProxyChain(ctx);
     }
+    return result
 }
 
 /**

@@ -228,13 +228,14 @@ class WindowService extends Service {
         Log.info('[Service] detectFingerprint starting for cardId:', args.cardId, 'URL:', args.url);
         const { cardId, url } = args;
         const dbConfig = await app.sdb.selectOne('card_config', { card_id: cardId });
+            
         if (!dbConfig) {
             return { status: false, message: '未找到配置信息' };
         }
 
         const config = FingerprintProfile.mapConfig(dbConfig);
         const injectionScript = FingerprintProfile.generateInjectionScript({ ...config, fingerprintSwitch: true }); // 检测时强制开启指纹
-
+      
         // 创建独立检测窗口
         const detectWin = new BrowserWindow({
             width: 1200,
@@ -257,7 +258,7 @@ class WindowService extends Service {
         if (config.proxyStatus === 'true' && config.proxyType && config.host && config.port) {
             await this._applyProxySettings(detectWin.webContents, config);
         }
-
+         
         // 注入脚本
         if (injectionScript) {
             // 在文档开始加载前注入（尽可能早）

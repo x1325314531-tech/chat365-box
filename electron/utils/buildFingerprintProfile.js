@@ -421,6 +421,7 @@ class FingerprintProfile {
         }
 
         // 封装在自执行函数中以避免变量冲突
+        console.log('SCROIPT', scripts);
         return `(function() {
             try {
                 ${scripts.join('\n')}
@@ -430,7 +431,7 @@ class FingerprintProfile {
             }
         })();`;
     }
-
+      
     /**
      * 生成映射后的配置对象，供后端逻辑使用
      * @param {Object} dbConfig 数据库原始字段
