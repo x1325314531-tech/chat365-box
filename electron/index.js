@@ -5,7 +5,7 @@ const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('ele
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
-const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans, getHeavyFans, agentChat, getDictData} = require('./api/index')
+const {translateText,getLanguages,checkSensitiveContent,translateImage,translateVoice,getTenantSetting, syncNewFan, batchAddFans, getHeavyFans, agentChat, agentChatTranslate, getDictData} = require('./api/index')
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
@@ -546,6 +546,9 @@ class Index extends Application {
     });
     ipcMain.handle('agent-chat', async (event, args) => {
       return agentChat(args)
+    });
+    ipcMain.handle('agent-chat-translate', async (event, args) => {
+      return agentChatTranslate(args)
     });
     ipcMain.handle('get-dict-data', async (event, dictType) => {
       return getDictData(dictType)

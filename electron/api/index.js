@@ -449,6 +449,23 @@ async function agentChat(params) {
     }
 }
 
+// AI 翻译接口
+async function agentChatTranslate(params) {
+    try {
+        Log.info('🚀 调用 AI 翻译接口:', params);
+        const response = await request.post('/app/agentChat/translate', params);
+        Log.info('AI 翻译响应结果：', response);
+        if (response.code === 200) {
+            return { success: true, data: response.data }; 
+        } else {
+            return { success: false, msg: response.msg || 'AI 翻译失败' };
+        }
+    } catch (error) {
+        Log.error('❌ agentChatTranslate 接口请求失败:', error);
+        return { success: false, msg: error.message || '网络请求失败' };
+    }
+}
+
 // 导出业务请求函数
 module.exports = {
     translateText,
@@ -461,5 +478,6 @@ module.exports = {
     batchAddFans,
     getHeavyFans,
     agentChat,
+    agentChatTranslate,
     getDictData
 };

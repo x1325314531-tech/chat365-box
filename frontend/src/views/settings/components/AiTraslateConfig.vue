@@ -185,7 +185,7 @@ const languageChange = (val) => {
 const applyConfig = () => {
   const  aiConfigData=  aiTranslateConfig[activeAiPlatform]
   console.log('wwwww', aiConfigData);
-  
+   console.log('AI翻译配置', aiTranslateConfig);
   localStorage.setItem('aiTranslateConfig', JSON.stringify(aiTranslateConfig))
   ipc.invoke('save-ai-translate-config', JSON.parse(JSON.stringify(aiTranslateConfig))).then(res => {
     console.log('AI配置已同步到主进程:', res)

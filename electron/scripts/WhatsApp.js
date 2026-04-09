@@ -413,6 +413,8 @@ function getMyPhone() {
 let languages = []
 let globalConfig = null;
 let globalAiConfig = null;
+let globalAiTranslateConfig =null;
+let aiTranslateConfig = null;
 let lastPreviewedTranslation = '';
 let lastPreviewedSource = '';
 let previewNode = null;
@@ -924,6 +926,7 @@ async function syncGlobalConfig() {
     try {
         const config = await window.electronAPI.getTranslateConfig();
         const aiConfig = await window.electronAPI.getAiConfig();
+        const aiTranslateConfig = await window.electronAPI.getAiTranslateConfig()
         // const tenantConfig = await window.electronAPI.getTenantConfig()
         // const tenantConfig  = await  initTenantConfig()   
         if (config) {
@@ -942,6 +945,10 @@ async function syncGlobalConfig() {
         if (aiConfig) {
             globalAiConfig = aiConfig.whatsapp || aiConfig;
             console.log('🔄 AI配置同步成功:', globalAiConfig);
+        }
+        if(aiTranslateConfig) { 
+             globalAiTranslateConfig= aiTranslateConfig.whatsapp || aiConfig;
+            console.log('🔄 AI配置同步成功:', globalAiConfig); 
         }
     } catch (e) {
         console.error('❌ 同步全局配置失败:', e);
@@ -1631,6 +1638,16 @@ async function handleKeyDown(event) {
             event.stopPropagation();
             event.stopImmediatePropagation();
             showPdrPanel(inputText);  
+            return;
+        }
+
+        // ========== 场景0.2: AI 翻译模式 (次高优先级，当 aiTranslationToggle 开启时) ==========
+        if (globalAiTranslateConfig?.aiTranslationToggle && inputText !== lastPolishedText) {
+            console.log('🌐 Enter 键触发 AI 翻译模式');
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            performAiTranslate(inputText);
             return;
         }
 
@@ -2337,6 +2354,88 @@ async function callAgentChatAPI(content, type = 'polish') {
     
     console.log(`🚀 发起 AI [${type}] 请求，参数:`, params);
     return await window.electronAPI.agentChat(params);
+}
+
+/**
+ * 执行 AI 翻译流程
+ */
+async function performAiTranslate(content) {
+    if (!globalAiTranslateConfig) {
+        console.error('❌ AI 翻译配置未就绪');
+        // 如果配置没加载，降级直接发送？或者提示用户？
+        // 这里选择提示并返回，防止误操作
+        window.electronAPI.showNotification({ message: 'AI 翻译配置未就绪，请稍后刷新重试', type: 'is-warning' });
+        return;
+    }
+
+    const config = globalAiTranslateConfig;
+    
+    // 显示加载状态
+    const loadingNode = generateLoadingNode();
+    loadingNode.id = 'aiTranslateLoading';
+    const inputArea = document.querySelector('footer div[contenteditable="true"]')?.parentNode?.parentNode;
+    operationNode('add', loadingNode, inputArea);
+
+    try {
+        const history = getChatHistory(config.historyCount || 3);
+        const params = {
+            content: content,
+            targetLanguage: config.aiTranslationTargetLang || 'en',
+            validationLevel: config.validationLevel || 'full',
+            englishDialect: config.enTargetLang || 'british',
+            modelName: config.model || 'Gemini',
+            history: history
+        };
+
+        console.log('🚀 调用 AI 翻译端点 API:', params);
+        const res = await window.electronAPI.agentChatTranslate(params);
+
+        if (res && res.success) {
+            const translatedText = res.data.translatedContent;
+            console.log('✅ AI 翻译成功:', translatedText);
+            
+            // 更新输入框内容
+            replaceInputWithAiTranslation(translatedText);
+        } else {
+            console.error('❌ AI 翻译失败:', res?.msg);
+            window.electronAPI.showNotification({ message: `AI 翻译失败: ${res?.msg || '未知错误'}`, type: 'is-danger' });
+        }
+    } catch (error) {
+        console.error('❌ AI 翻译发生异常:', error);
+        window.electronAPI.showNotification({ message: 'AI 翻译处理异常', type: 'is-danger' });
+    } finally {
+        // 移除加载状态
+        operationNode('remove', document.getElementById('aiTranslateLoading'));
+    }
+}
+
+/**
+ * 将翻译结果应用到输入框
+ */
+function replaceInputWithAiTranslation(translatedText) {
+    const editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
+    if (editableDiv) {
+        lastPolishedText = translatedText; // 标记，使下一次回车正常发送
+        editableDiv.focus();
+        
+        // 使用与 PDR 相同的替换逻辑
+        setTimeout(() => {
+            document.execCommand('selectAll', false, null);
+            setTimeout(() => {
+                document.execCommand('delete', false, null);
+                setTimeout(() => {
+                    document.execCommand('insertText', false, translatedText);
+                }, 50);
+            }, 100);
+        }, 150);
+
+        window.electronAPI.showNotification({ message: '✨ AI 翻译已应用', type: 'is-success' });
+        
+        // 视觉反馈动画
+        editableDiv.style.transition = 'background 0.3s';
+        editableDiv.style.background = 'rgba(37, 211, 102, 0.15)';
+        setTimeout(() => editableDiv.style.background = '', 500);
+    }
 }
 
 
