@@ -59,7 +59,7 @@ class FingerprintProfile {
         // 1. 硬件核心数 (CPU Cores)
         if (cpuCores === '自定义' && cpuCoresCustom) {
             scripts.push(`
-                Object.defineProperty(navigator, 'hardwareConcurrency', {
+                safeDefineProperty(navigator, 'hardwareConcurrency', {
                     get: () => ${parseInt(cpuCoresCustom) || 8}
                 });
             `);
@@ -68,7 +68,7 @@ class FingerprintProfile {
         // 2. 内存大小 (Memory)
         if (memory === '自定义' && memoryCustom) {
             scripts.push(`
-                Object.defineProperty(navigator, 'deviceMemory', {
+                safeDefineProperty(navigator, 'deviceMemory', {
                     get: () => ${parseInt(memoryCustom) || 8}
                 });
             `);
@@ -84,10 +84,10 @@ class FingerprintProfile {
             }
             if (Array.isArray(langList) && langList.length > 0) {
                 scripts.push(`
-                    Object.defineProperty(navigator, 'languages', {
+                    safeDefineProperty(navigator, 'languages', {
                         get: () => ${JSON.stringify(langList)}
                     });
-                    Object.defineProperty(navigator, 'language', {
+                    safeDefineProperty(navigator, 'language', {
                         get: () => ${JSON.stringify(langList[0])}
                     });
                 `);
@@ -156,21 +156,21 @@ class FingerprintProfile {
             const w = parseInt(resolutionWidth);
             const h = parseInt(resolutionHeight);
             scripts.push(`
-                Object.defineProperty(window.screen, 'width', { get: () => ${w} });
-                Object.defineProperty(window.screen, 'height', { get: () => ${h} });
-                Object.defineProperty(window.screen, 'availWidth', { get: () => ${w} });
-                Object.defineProperty(window.screen, 'availHeight', { get: () => ${h} });
-                Object.defineProperty(window, 'innerWidth', { get: () => ${w} });
-                Object.defineProperty(window, 'innerHeight', { get: () => ${h} });
-                Object.defineProperty(window, 'outerWidth', { get: () => ${w} });
-                Object.defineProperty(window, 'outerHeight', { get: () => ${h} });
+                safeDefineProperty(window.screen, 'width', { get: () => ${w} });
+                safeDefineProperty(window.screen, 'height', { get: () => ${h} });
+                safeDefineProperty(window.screen, 'availWidth', { get: () => ${w} });
+                safeDefineProperty(window.screen, 'availHeight', { get: () => ${h} });
+                safeDefineProperty(window, 'innerWidth', { get: () => ${w} });
+                safeDefineProperty(window, 'innerHeight', { get: () => ${h} });
+                safeDefineProperty(window, 'outerWidth', { get: () => ${w} });
+                safeDefineProperty(window, 'outerHeight', { get: () => ${h} });
             `);
         }
 
         // 8. Do Not Track
         if (doNotTrack === true || doNotTrack === 'true') {
             scripts.push(`
-                Object.defineProperty(navigator, 'doNotTrack', { get: () => "1" });
+                safeDefineProperty(navigator, 'doNotTrack', { get: () => "1" });
             `);
         }
 
@@ -276,7 +276,7 @@ class FingerprintProfile {
                                 description: ${JSON.stringify(config.webgpuCustom)}
                             };
                             try {
-                                Object.defineProperty(adapter, 'info', {
+                                safeDefineProperty(adapter, 'info', {
                                     get: () => spoofedInfo
                                 });
                             } catch (e) {}
@@ -378,28 +378,28 @@ class FingerprintProfile {
                     const rects = originalGetClientRects.apply(this, arguments);
                     for (let i = 0; i < rects.length; i++) {
                         const rect = rects[i];
-                        Object.defineProperty(rect, 'width', { get: () => rect.width + 0.0001 });
-                        Object.defineProperty(rect, 'height', { get: () => rect.height + 0.0001 });
-                        Object.defineProperty(rect, 'top', { get: () => rect.top + 0.0001 });
-                        Object.defineProperty(rect, 'left', { get: () => rect.left + 0.0001 });
-                        Object.defineProperty(rect, 'right', { get: () => rect.right + 0.0001 });
-                        Object.defineProperty(rect, 'bottom', { get: () => rect.bottom + 0.0001 });
-                        Object.defineProperty(rect, 'x', { get: () => rect.x + 0.0001 });
-                        Object.defineProperty(rect, 'y', { get: () => rect.y + 0.0001 });
+                        safeDefineProperty(rect, 'width', { get: () => rect.width + 0.0001 });
+                        safeDefineProperty(rect, 'height', { get: () => rect.height + 0.0001 });
+                        safeDefineProperty(rect, 'top', { get: () => rect.top + 0.0001 });
+                        safeDefineProperty(rect, 'left', { get: () => rect.left + 0.0001 });
+                        safeDefineProperty(rect, 'right', { get: () => rect.right + 0.0001 });
+                        safeDefineProperty(rect, 'bottom', { get: () => rect.bottom + 0.0001 });
+                        safeDefineProperty(rect, 'x', { get: () => rect.x + 0.0001 });
+                        safeDefineProperty(rect, 'y', { get: () => rect.y + 0.0001 });
                     }
                     return rects;
                 };
                 const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
                 Element.prototype.getBoundingClientRect = function() {
                     const rect = originalGetBoundingClientRect.apply(this, arguments);
-                    Object.defineProperty(rect, 'width', { get: () => rect.width + 0.0001 });
-                    Object.defineProperty(rect, 'height', { get: () => rect.height + 0.0001 });
-                    Object.defineProperty(rect, 'top', { get: () => rect.top + 0.0001 });
-                    Object.defineProperty(rect, 'left', { get: () => rect.left + 0.0001 });
-                    Object.defineProperty(rect, 'right', { get: () => rect.right + 0.0001 });
-                    Object.defineProperty(rect, 'bottom', { get: () => rect.bottom + 0.0001 });
-                    Object.defineProperty(rect, 'x', { get: () => rect.x + 0.0001 });
-                    Object.defineProperty(rect, 'y', { get: () => rect.y + 0.0001 });
+                    safeDefineProperty(rect, 'width', { get: () => rect.width + 0.0001 });
+                    safeDefineProperty(rect, 'height', { get: () => rect.height + 0.0001 });
+                    safeDefineProperty(rect, 'top', { get: () => rect.top + 0.0001 });
+                    safeDefineProperty(rect, 'left', { get: () => rect.left + 0.0001 });
+                    safeDefineProperty(rect, 'right', { get: () => rect.right + 0.0001 });
+                    safeDefineProperty(rect, 'bottom', { get: () => rect.bottom + 0.0001 });
+                    safeDefineProperty(rect, 'x', { get: () => rect.x + 0.0001 });
+                    safeDefineProperty(rect, 'y', { get: () => rect.y + 0.0001 });
                     return rect;
                 };
             `);
@@ -423,6 +423,22 @@ class FingerprintProfile {
         // 封装在自执行函数中以避免变量冲突
         console.log('SCROIPT', scripts);
         return `(function() {
+            /**
+             * 安全定义属性，防止 TypeError: Cannot redefine property
+             */
+            const safeDefineProperty = (obj, prop, descriptor) => {
+                try {
+                    const existingDescriptor = Object.getOwnPropertyDescriptor(obj, prop);
+                    if (existingDescriptor && !existingDescriptor.configurable) {
+                        console.warn('🧬 [Fingerprint] Skipping non-configurable property:', prop);
+                        return;
+                    }
+                    Object.defineProperty(obj, prop, descriptor);
+                } catch (e) {
+                    console.warn('🧬 [Fingerprint] Failed to define property ' + prop + ':', e);
+                }
+            };
+
             try {
                 ${scripts.join('\n')}
                 console.log('🧬 [Fingerprint] Profile applied successfully.');

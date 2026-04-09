@@ -32,7 +32,7 @@
   "quickItems": {
     "translate": "Translation Settings",
     "translateDesc": "Set default config for new sessions",
-    "aiReply": "AI Reply Settings",
+    "aiReply": "AI Polishing Settings",
     "aiReplyDesc": "Configure global AI auto-reply settings",
     "aiPolish": "AI Polish",
     "aiTranslation":"AI Translation",
@@ -103,10 +103,10 @@
     "showTranslateConfigDesc": "Display and switch translation languages in chat window",
     "apply": "Apply",
     "updateSuccess": "Updated successfully",
-    "aiReplyConfigDesc": "Configure AI reply parameters, including model selection, reply style, etc.",
+    "aiReplyConfigDesc": "Configure AI polishing parameters, including model selection, response style, and more",
     "aiPlatform": "Platform",
     "aiBasicSettings": "Basic Settings",
-    "aiReplyToggle": "AI Reply Toggle",
+    "aiReplyToggle": "AI Polishing Settings",
     "aiPolishNotEnabled": "AI Polish not enabled",
 
     "selectModel": "Select Model",

@@ -32,7 +32,7 @@
   "quickItems": {
     "translate": "Paramètres de traduction",
     "translateDesc": "Configurer les paramètres par défaut pour les nouvelles sessions",
-    "aiReply": "Paramètres de réponse IA",
+    "aiReply": "Paramètres de polissage par IA",
     "aiReplyDesc": "Configurer les paramètres globaux de réponse automatique IA",
     "aiPolish": "Polissage IA",
     "aiTranslation":"Traduction par IA",
@@ -102,10 +102,10 @@
     "showTranslateConfigDesc": "Afficher et changer les langues de traduction dans la fen\u00eatre de chat",
     "apply": "Appliquer",
     "updateSuccess": "Mise \u00e0 jour r\u00e9ussie",
-    "aiReplyConfigDesc": "Configurer les param\u00e8tres de r\u00e9ponse IA, y compris la s\u00e9lection du mod\u00e8le, le style de r\u00e9ponse, etc.",
+    "aiReplyConfigDesc": "Configurez les paramètres de polissage par IA, y compris la sélection du modèle, le style de réponse et plus encore",
     "aiPlatform": "Plateforme",
     "aiBasicSettings": "Param\u00e8tres de base",
-    "aiReplyToggle": "Activation de la r\u00e9ponse IA",
+    "aiReplyToggle": "Paramètres de polissage par IA",
     "aiPolishNotEnabled": "Polissage IA non activ\u00e9",
 
     "selectModel": "S\u00e9lectionner le mod\u00e8le",

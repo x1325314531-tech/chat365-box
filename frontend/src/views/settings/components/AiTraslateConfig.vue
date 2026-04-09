@@ -125,6 +125,7 @@ const aiTranslateConfig = reactive({
     historyCount: 3,
     aiTranslationTargetLang: '',
     enTargetLang:'',
+    validationLevel: 'rules'
   },
   telegram: {
    aiTranslationToggle: false,
@@ -132,6 +133,7 @@ const aiTranslateConfig = reactive({
    historyCount: 3,
   aiTranslationTargetLang: '',
   enTargetLang:'',
+  validationLevel: 'rules'
   }
 })
 
@@ -142,8 +144,8 @@ const historyOptions = computed(() => [
   { label: `10 ${t('settings.historyCountSuffix')}`, value: 10 }
 ])
 const enLangOtions = computed(()=> [
-  { label: `${t('settings.enUsTargetLang')}`, value: 'en-US' },
-  { label: `${t('settings.enGbTargetLang')}`, value: 'en-GB' },
+  { label: `${t('settings.enUsTargetLang')}`, value: 'american' },
+  { label: `${t('settings.enGbTargetLang')}`, value: 'british' },
 ])
 const languageList =ref([])
 const toggleSection = (section) => {

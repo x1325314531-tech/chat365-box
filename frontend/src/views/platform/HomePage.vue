@@ -329,7 +329,7 @@ import  aiTranslateIcon from '@/assets/home/ai-translate.svg'
 const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
   { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
-  { id: 'aiTranslate', icon: aiTranslateIcon, titleKey: 'quickItems.aiTranslation', descKey: 'quickItems.aiTranslationDesc' },
+  // { id: 'aiTranslate', icon: aiTranslateIcon, titleKey: 'quickItems.aiTranslation', descKey: 'quickItems.aiTranslationDesc' },
    { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
   // { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
   // { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
