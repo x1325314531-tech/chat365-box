@@ -170,6 +170,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveAiConfig: (args) => {
     return ipcRenderer.invoke('save-ai-config', args);
   },
+  // AI翻译配置
+  getAiTranslateConfig: () => {
+    return ipcRenderer.invoke('get-ai-translate-config');
+  },
+  saveAiTranslateConfig: (args) => {
+    return ipcRenderer.invoke('save-ai-translate-config', args);
+  },
   // 敏感词检测
   checkSensitiveContent: (args) => {
     return ipcRenderer.invoke('check-sensitive-content', args);

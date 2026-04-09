@@ -434,7 +434,34 @@ class Index extends Application {
         return null;
       }
     });
-
+       // AI翻译配置持久化
+    ipcMain.handle('save-ai-translate-config', async (event, args) => {
+      try {
+        Log.info('保存AI翻译配置到 config.json:', args);
+        const configStorage = Storage.connection('config.json');
+        configStorage.setItem('aiTranslateConfig', args);
+        // 同时挂载到 app 对象上，方便后台脚本直接访问
+        app.aiTranslateConfig = args;
+        return { success: true };
+      } catch (err) {
+        Log.error('保存AI配置失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
+    // 获取AI配置
+    ipcMain.handle('get-ai-translate-config', async (event) => {
+      try {
+        const configStorage = Storage.connection('config.json');
+        const config = configStorage.getItem('aiTranslateConfig');
+        // 同步到内存中
+         Log.info('取AI配置到 config.json:', config);
+        if (config) app.aiTranslateConfig = config;
+        return config;
+      } catch (err) {
+        Log.error('读取AI配置失败:', err);
+        return null;
+      }
+    });
     // 获取租户配置
     ipcMain.handle('get-tenant-config', async (event) => {
       try {

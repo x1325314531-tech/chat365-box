@@ -35,7 +35,7 @@
     "aiReply": "AI Reply Settings",
     "aiReplyDesc": "Configure global AI auto-reply settings",
     "aiPolish": "AI Polish",
-
+    "aiTranslation":"AI Translation",
     "material": "Personal Materials",
     "materialDesc": "Customize displayed platforms",
     "platform": "Platform Settings",
@@ -54,6 +54,7 @@
     "wsContactDesc": "Batch import registered WS contacts",
     "fans": "Fan List",
     "fansDesc": "View and manage fan data"
+    
   },
   "aside": {
     "sessionCount": "Sessions: {count}",
@@ -70,7 +71,7 @@
     "translateConfig": "Translation Config",
     "globalConfigDesc": "The following will be used as global translation config",
     "translateSettings": "Translation Settings",
-     "aiReplySettings":"AI Reply Settings",
+     "aiReplySettings":"AI Polishing Settings",
     "sendSettings": "Send Translation Settings",
     "collapse": "Collapse",
     "expand": "Expand",
@@ -120,7 +121,17 @@
     "theme": "Reply Theme",
     "themePlaceholder": "Select theme",
     "role": "Reply Role",
-    "rolePlaceholder": "Select role"
+    "rolePlaceholder": "Select role",
+    "aiTranslationConfigDesc":"Configure AI translation parameters, including model selection, target language, and more",
+    "aiTranslationToggle": "AI  Translation Toggle",
+    "AImodelDesc": "AI products for generating translations",
+    "aiTranslationTargetLanguageSettings": "AI Translation Target Language Settings",
+    "aiTranslationTargetLanguage":"AI Translation Target Language",
+    "aiTranslationTargetPlaceholder": "Please select the target language for AI translation",
+    "enUsTargetLang":"American English",
+    "enGbTargetLang":"British English",
+    "enTargetPlaceholder":"Select English as the Target Language",
+    "englishType": "English Genres"
   },
   "session": {
     "tabs": {

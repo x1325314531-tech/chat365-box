@@ -1092,8 +1092,19 @@ async function confirmPreviewAndSend() {
     const finalTranslated = currentPreviewText;
     const original = lastPreviewedSource;
 
+    // --- 新增：中文消息拦截逻辑 ---
+    if (globalConfig?.blockChineseMessage && containsChinese(original)) {
+        console.warn('🚫 [Confirm] 原消息包含中文，拦截发送');
+        window.electronAPI.showNotification({
+            message: '开启了禁用中文消息，无法发送',
+            type: 'is-danger'
+        });
+        _isConfirmingPreview = false;
+        return;
+    }
+
     // --- 新增：翻译结果中文拦截逻辑 ---
-    if (globalConfig?.blockChineseTranslation && /[\u4e00-\u9fa5]/.test(finalTranslated)) {
+    if (globalConfig?.blockChineseTranslation && containsChinese(finalTranslated)) {
         console.warn('🚫 [Confirm] 译文包含中文，拦截发送');
         window.electronAPI.showNotification({
             message: '翻译后消息包含中文无法发送',
@@ -1288,6 +1299,19 @@ function startMonitor() {
                     console.log('🖱️ 点击发送按钮 - 场景2: 发送原文,下方显示译文');
                     const originalText = inputText;
                     
+                    // --- 新增：中文消息拦截逻辑 ---
+                    if (globalConfig?.blockChineseMessage && containsChinese(originalText)) {
+                        console.warn('🚫 原消息包含中文，拦截发送');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        window.electronAPI.showNotification({
+                            message: '开启了禁用中文消息，无法发送',
+                            type: 'is-danger'
+                        });
+                        return;
+                    }
+
                     const sensitiveCheck = await checkSensitiveContent(inputText);
                     if (sensitiveCheck.isSensitive) {
                         console.warn('🚫 检测到敏感内容，阻止发送');
@@ -1320,6 +1344,18 @@ function startMonitor() {
 
                 // --- 场景4: 直接发送 ---
                 console.log('🖱️ 点击发送按钮 - 场景4: 直接发送');
+                // --- 新增：中文消息拦截逻辑 ---
+                if (globalConfig?.blockChineseMessage && containsChinese(inputText)) {
+                    console.warn('🚫 原消息包含中文，拦截发送');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    window.electronAPI.showNotification({
+                        message: '开启了禁用中文消息，无法发送',
+                        type: 'is-danger'
+                    });
+                    return;
+                }
             }, true); // 捕获阶段
             console.log('✅ 发送按钮点击拦截器已添加');
         }
@@ -1343,6 +1379,11 @@ function handleInput(event) {
         }
     }
 }
+// 检查文本是否包含中文
+function containsChinese(text) {
+    return /[\u4e00-\u9fa5]/.test(text || '');
+}
+
 // 归一化文本，将所有空白字符（含换行、制表符、多个空格）统一处理为单个半角空格并修剪首尾
 // 同时移除不可见字符和 WhatsApp 特有的控制字符（包括双向控制符如 LRM/RLM）
 function normalizeText(text) {
@@ -1570,6 +1611,19 @@ async function handleKeyDown(event) {
             return;
         }
 
+       // --- 新增：中文消息拦截逻辑 ---
+    if (globalConfig?.blockChineseMessage && containsChinese(inputText)) {
+        console.warn('🚫 [Confirm] 原消息包含中文，拦截发送');
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        window.electronAPI.showNotification({
+            message: '开启了禁用中文消息，无法发送',
+            type: 'is-danger'
+        });
+        _isConfirmingPreview = false;
+        return;
+    }
         // ========== 场景0: AI 润色模式 (最高优先级，Enter键触发) ==========
         if (globalAiConfig?.aiReplyToggle && inputText !== lastPolishedText) {
             console.log('✨ Enter 键触发 AI 润色模式 - 唤起 PDR 面板');
@@ -1620,6 +1674,19 @@ async function handleKeyDown(event) {
             // 不阻止默认发送行为,让消息正常发送
             // 记录原文,用于后续翻译
             const originalText = inputText;
+
+            if (globalConfig?.blockChineseMessage && containsChinese(originalText)) {
+                console.warn('🚫 原消息包含中文，拦截发送');
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                window.electronAPI.showNotification({
+                    message: '开启了禁用中文消息，无法发送',
+                    type: 'is-danger'
+                });
+                return;
+            }
+
              // ===== 敏感词检测 =====
          console.log('敏感词inputText', inputText);
         const sensitiveCheck = await checkSensitiveContent(inputText);
@@ -1652,6 +1719,18 @@ async function handleKeyDown(event) {
            
         // ========== 场景3: 两个开关都关闭 - 直接发送,不做任何处理 ==========
         console.log('➡️ 场景3: 直接发送原文,不翻译');
+        // --- 新增：中文消息拦截逻辑 ---
+        if (globalConfig?.blockChineseMessage && containsChinese(inputText)) {
+            console.warn('🚫 原消息包含中文，拦截发送');
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            window.electronAPI.showNotification({
+                message: '开启了禁用中文消息，无法发送',
+                type: 'is-danger'
+            });
+            return;
+        }
         // 不需要额外代码,让消息正常发送即可
     }
 }
@@ -1700,6 +1779,16 @@ async function executeTranslationFlow(inputText) {
     try {
         console.log('🔄 开始翻译流程，原文:', inputText);
         
+        // --- 新增：中文消息拦截逻辑 ---
+        if (globalConfig?.blockChineseMessage && containsChinese(inputText)) {
+            console.warn('🚫 [Execute] 原消息包含中文，拦截发送');
+            window.electronAPI.showNotification({
+                message: '开启了禁用中文消息，无法发送',
+                type: 'is-danger'
+            });
+            return;
+        }
+
         // ===== 敏感词检测 =====
         const sensitiveCheck = await checkSensitiveContent(inputText);
         if (sensitiveCheck.isSensitive) {
@@ -1731,6 +1820,23 @@ async function executeTranslationFlow(inputText) {
 
         if (result && result.success) {
             finalInput = result.data;
+
+            // --- 新增：翻译结果中文拦截逻辑 ---
+            if (globalConfig?.blockChineseTranslation && containsChinese(finalInput)) {
+                console.warn('🚫 [Execute] 译文包含中文，拦截发送');
+                window.electronAPI.showNotification({
+                    message: '翻译后消息包含中文无法发送',
+                    type: 'is-danger'
+                });
+                // 移除加载状态
+                operationNode('remove', document.getElementById('editDivLoadingNode'));
+                // 如果开启了预览且拦截，更新预览显示（可选：也可以不显示）
+                if (globalConfig?.translatePreview) {
+                    updatePreviewUI(null);
+                }
+                return;
+            }
+
             await saveTranslationCache(inputText, finalInput, getLocalLanguage(), getTargetLanguage());
         } else {
             console.warn('⚠️ 翻译失败:', result?.msg);

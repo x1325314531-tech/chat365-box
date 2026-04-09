@@ -324,10 +324,12 @@ import subaccountIcon from '@/assets/home/sub-account.png'
 import charQuotaIcon from '@/assets/home/char-quota.png'
 import portQuotaIcon from '@/assets/home/port-quota.png'
 import planRenewalIcon from '@/assets/home/plan-renewal.png'
+import  aiTranslateIcon from '@/assets/home/ai-translate.svg'
 // 快捷入口数据 (使用 i18n key 而非硬编码文案)
 const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
   { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
+  { id: 'aiTranslate', icon: aiTranslateIcon, titleKey: 'quickItems.aiTranslation', descKey: 'quickItems.aiTranslationDesc' },
    { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
   // { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
   // { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
@@ -347,7 +349,10 @@ const handleQuickAccess = (item) => {
     router.push({ path: '/home/settings', query: { activeMenu: 'translate' } })
   } else if (item.id === 'aiReply') {
     router.push({ path: '/home/settings', query: { activeMenu: 'aiReply' } })
-  } else if (item.id === 'fans') {
+  } else if (item.id === 'aiTranslate') {
+    router.push({ path: '/home/settings', query: { activeMenu: 'aiTranslation' } })
+  } 
+  else if (item.id === 'fans') {
     router.push('/home/fans')
   } else { 
      Notification.message({ 
@@ -615,7 +620,7 @@ const handleQuickAccess = (item) => {
   width: calc((100% - 32px) / 3); /* 默认3列 (100% - 2个gap) / 3 */
   background: #FAFAFA;
   border-radius: 6px;
-  padding: 18px 20px;
+  padding: 38px 20px;
   display: flex;
   align-items: center;
   gap: 16px;
