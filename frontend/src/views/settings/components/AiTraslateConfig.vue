@@ -255,9 +255,9 @@ const applyConfig = () => {
 
   Notification.message({ message: t('settings.updateSuccess'), type: 'success' })
   
-  // setTimeout(() => {
-  //   router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
-  // }, 1000)
+  setTimeout(() => {
+    router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
+  }, 1000)
 }
 //获取模型
 const getModelOptions = async() => { 
