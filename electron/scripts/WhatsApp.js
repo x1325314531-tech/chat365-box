@@ -1126,7 +1126,7 @@ async function confirmPreviewAndSend() {
     try {
         // 1. 立即清除预览 UI
         updatePreviewUI(null);
-         if(globalConfig?.sendAutoTranslate && globalConfig?.translatePreview) { 
+         if((globalConfig?.sendAutoTranslate && globalConfig?.translatePreview) || (globalAiTranslateConfig?.aiTranslationToggle && globalAiTranslateConfig?.aiTranslationPreview)) { 
             const editableDiv = document.querySelector('footer div[aria-owns="emoji-suggestion"][contenteditable="true"]');
             if (editableDiv) {
                  // 彻底无感隐藏：避免全选、删除和插入时文字闪烁
@@ -1643,6 +1643,20 @@ async function handleKeyDown(event) {
 
         // ========== 场景0.2: AI 翻译模式 (次高优先级，当 aiTranslationToggle 开启时) ==========
         if (globalAiTranslateConfig?.aiTranslationToggle && inputText !== lastPolishedText) {
+            // --- AI 翻译预览逻辑 ---
+            if (globalAiTranslateConfig?.aiTranslationPreview && lastPreviewedTranslation) {
+                // 如果当前输入框内容是上次生成预览的原文，第二次按下 Enter 则发送预览内容
+                if (inputText.trim() === lastPreviewedSource.trim()) {
+                    console.log('🌐 AI 预览匹配，准备发送确认');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.stopImmediatePropagation();
+                    confirmPreviewAndSend();
+                    return;
+                }
+            }
+            // ---------------------
+
             console.log('🌐 Enter 键触发 AI 翻译模式');
             event.preventDefault();
             event.stopPropagation();
@@ -2375,9 +2389,9 @@ async function performAiTranslate(content) {
     loadingNode.id = 'aiTranslateLoading';
     const inputArea = document.querySelector('footer div[contenteditable="true"]')?.parentNode?.parentNode;
     operationNode('add', loadingNode, inputArea);
-
+  console.log('🚀 调用 AI 翻译配置:', config);
     try {
-        const history = getChatHistory(config.historyCount || 3);
+        const history =config.historyCount>0?  getChatHistory(config.historyCount):[];
         const params = {
             content: content,
             targetLanguage: config.aiTranslationTargetLang || 'en',
@@ -2393,9 +2407,17 @@ async function performAiTranslate(content) {
         if (res && res.success) {
             const translatedText = res.data.translatedContent;
             console.log('✅ AI 翻译成功:', translatedText);
-            
-            // 更新输入框内容
+            if(config?.aiTranslationPreview&&res && res.success) { 
+                lastPreviewedTranslation = res.data.translatedContent;
+            currentPreviewText = res.data.translatedContent;
+            lastPreviewedSource = content;
+            updatePreviewUI(res.data.translatedContent);
+            return;
+            }else{
+                // 更新输入框内容
             replaceInputWithAiTranslation(translatedText);
+            }
+            
         } else {
             console.error('❌ AI 翻译失败:', res?.msg);
             window.electronAPI.showNotification({ message: `AI 翻译失败: ${res?.msg || '未知错误'}`, type: 'is-danger' });
@@ -2429,7 +2451,7 @@ function replaceInputWithAiTranslation(translatedText) {
             }, 100);
         }, 150);
 
-        window.electronAPI.showNotification({ message: '✨ AI 翻译已应用', type: 'is-success' });
+        // window.electronAPI.showNotification({ message: '✨ AI 翻译已应用', type: 'is-success' });
         
         // 视觉反馈动画
         editableDiv.style.transition = 'background 0.3s';
@@ -3378,8 +3400,9 @@ function generateLoadingNode() {
     loadingNode.style.gap = '4px';
     loadingNode.style.padding = '5px';
     loadingNode.style.alignItems = 'center';
+    let loadingText =globalAiTranslateConfig?.aiTranslationToggle ?'AI翻译中':'翻译中';
     loadingNode.innerHTML = `
-        <span style="color: #666; font-size: 12px; white-space: nowrap">翻译中</span>
+        <span style="color: #666; font-size: 12px; white-space: nowrap">  ${loadingText} </span>
         <div style="display: flex; gap: 2px;">
             <div style="width: 4px; height: 4px; border-radius: 50%; background: #666; animation: bounce 1.4s infinite;"></div>
             <div style="width: 4px; height: 4px; border-radius: 50%; background: #666; animation: bounce 1.4s infinite 0.2s;"></div>

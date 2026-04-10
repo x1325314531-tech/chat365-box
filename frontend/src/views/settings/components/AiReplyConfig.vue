@@ -168,7 +168,7 @@ const toggleSection = (section) => {
 
 const handleAiReplyToggle = (val) => {
   if (val) {
-    // 互斥逻辑：开启 AI 回复时，关闭自动翻译
+    // 互斥逻辑：开启 AI润色 回复时，关闭自动翻译
     ipc.invoke('get-translate-config').then(transRes => {
       if (transRes) {
         transRes.sendAutoTranslate = false
@@ -177,6 +177,15 @@ const handleAiReplyToggle = (val) => {
           console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
         })
       }
+    })
+    // 互斥逻辑：开启 AI润色 回复时，关闭AI翻译
+    ipc.invoke('get-ai-translate-config').then(transRes=> {
+      console.log('transRes' ,transRes);
+      transRes.whatsapp.aiTranslationToggle= false
+       transRes.whatsapp.aiTranslationPreview=  false
+         ipc.invoke('save-ai-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
+          console.log('AI配置已同步到主进程:', res)
+  })
     })
   }
 }

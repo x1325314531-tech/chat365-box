@@ -147,6 +147,13 @@ const updateActiveMenu = () => {
 // 监听路由变化
 watch(() => route.path, () => {
   updateActiveMenu();
+  
+  // 如果当前不是平台页面（是 Home、Settings 或 FansList 等），则隐藏 Web 视图
+  const isPlatformPage = ['whatsApp', 'faceBook', 'zalo', 'telegramK', 'telegram'].includes(activeMenu.value);
+  if (!isPlatformPage) {
+    console.log('检测到进入非平台页面，自动隐藏 Web 视图');
+    ipc.invoke(ipcApiRoute.hideWindow, {});
+  }
 });
 
 onMounted(async () => {

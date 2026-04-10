@@ -124,6 +124,8 @@
     "rolePlaceholder": "Select role",
     "aiTranslationConfigDesc":"Configure AI translation parameters, including model selection, target language, and more",
     "aiTranslationToggle": "AI  Translation Toggle",
+     "aiTranslationPreview":"AI Translation Preview",
+    "aiTranslationPreviewDesc":"When AI Translation Preview is enabled, the translated text appears above the input box",
     "AImodelDesc": "AI products for generating translations",
     "aiTranslationTargetLanguageSettings": "AI Translation Target Language Settings",
     "aiTranslationTargetLanguage":"AI Translation Target Language",

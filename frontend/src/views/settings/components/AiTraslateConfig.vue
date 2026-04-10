@@ -32,6 +32,7 @@
                <div class="form-label">{{ $t('settings.aiTranslationToggle') }}</div>
                <el-switch v-model="aiTranslateConfig[activeAiPlatform].aiTranslationToggle"  style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="handleAiReplyToggle"></el-switch>
             </div>
+          
             <div class="form-col">
               <div class="form-label">{{ $t('settings.selectModel') }}</div>
               <el-select v-model="aiTranslateConfig[activeAiPlatform].model" :placeholder="$t('settings.modelPlaceholder')">
@@ -44,10 +45,19 @@
               </el-select>
               <div class="form-desc-ai form-desc">{{ $t('settings.AImodelDesc') }}</div>
             </div>
-
+                  <div class="form-col flex-between  ai-translation-preview">
+                <div class="flex-column">
+               <div class="form-label">{{ $t('settings.aiTranslationPreview') }}</div>
+               <div class="form-desc">{{ $t('settings.aiTranslationPreviewDesc') }}</div>
+               </div>
+               <el-switch v-model="aiTranslateConfig[activeAiPlatform].aiTranslationPreview"  style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf"  @change="handleAiTranslationPreview"></el-switch>
+            </div>
             <div class="form-col" style="margin-top: 16px;">
+              <div class="flex-between">
               <div class="form-label">{{ $t('settings.historyCountPrefix') }}{{ $t('settings.historyCountSuffix') }}</div>
-              <el-select v-model="aiTranslateConfig[activeAiPlatform].historyCount"  :placeholder="$t('settings.historyPlaceholder')">
+              <el-switch v-model="aiTranslateConfig[activeAiPlatform].historyCountToggle"  style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" @change="handlehistoryCountToggle"></el-switch>
+             </div>
+              <el-select  v-if="aiTranslateConfig[activeAiPlatform].historyCountToggle" v-model="aiTranslateConfig[activeAiPlatform].historyCount"  :placeholder="$t('settings.historyPlaceholder')">
                 <el-option
                   v-for="item in historyOptions"
                   :key="item.value"
@@ -121,7 +131,9 @@ const activeAiPlatform = ref('whatsapp')
 const aiTranslateConfig = reactive({
   whatsapp: {
     aiTranslationToggle: false,
+    aiTranslationPreview: false,
     model: 'Gemini',
+    historyCountToggle: true,
     historyCount: 3,
     aiTranslationTargetLang: '',
     enTargetLang:'',
@@ -129,7 +141,9 @@ const aiTranslateConfig = reactive({
   },
   telegram: {
    aiTranslationToggle: false,
+   aiTranslationPreview: false,
    model: 'Gemini',
+   historyCountToggle: true,
    historyCount: 3,
   aiTranslationTargetLang: '',
   enTargetLang:'',
@@ -176,14 +190,60 @@ const handleAiReplyToggle = (val) => {
         })
       }
     })
+  }else{ 
+    // 互斥逻辑：开启 AI翻译 回复时，关闭自动翻译
+    ipc.invoke('get-translate-config').then(transRes => {
+      if (transRes) {
+        transRes.sendAutoTranslate = false
+        transRes.sendAutoNotTranslate = true
+        ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
+        })
+      }
+    })
+    //AI润色 关闭
+     ipc.invoke('get-ai-config').then(transRes => {
+      if (transRes) {
+        transRes.whatsapp.aiReplyToggle = true
+         console.log('润色', transRes);
+        ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(transRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭AI润色开关', res)
+        })
+      }
+    })
+    //AI 翻译预览关闭
+      aiTranslateConfig[activeAiPlatform.value].aiTranslationPreview =false
   }
 }
+//AI翻译预览开关
+const handleAiTranslationPreview = (val)=> { 
+  if(!aiTranslateConfig[activeAiPlatform.value].aiTranslationToggle) { 
+      Notification.message({ message: 'AI翻译设置开关未开启', type: 'warning' })
+      aiTranslateConfig[activeAiPlatform.value].aiTranslationPreview =false
+      return
+  }
+}
+//历史消息开关
+const handlehistoryCountToggle = (val) => { 
+  console.log('条数开关', val);
+  if (!aiTranslateConfig[activeAiPlatform.value]) {
+    aiTranslateConfig[activeAiPlatform.value] = {}
+  }
+
+  aiTranslateConfig[activeAiPlatform.value].historyCountToggle = val
+
+  if (!val) {
+    aiTranslateConfig[activeAiPlatform.value].historyCount =''
+  }
+  console.log(' AI翻译',  aiTranslateConfig[activeAiPlatform.value] );
+}
+
 const languageChange = (val) => { 
 //    aiConfig[activeAiPlatform.value]. = languageList.value.find((item)=> item.value===val)?.label
 }
 
 const applyConfig = () => {
-  const  aiConfigData=  aiTranslateConfig[activeAiPlatform]
+  const  aiConfigData=  aiTranslateConfig[activeAiPlatform.value]
   console.log('wwwww', aiConfigData);
    console.log('AI翻译配置', aiTranslateConfig);
   localStorage.setItem('aiTranslateConfig', JSON.stringify(aiTranslateConfig))
@@ -374,6 +434,10 @@ onMounted(async() => {
 
 .form-col {
   flex: 1;
+}
+.ai-translation-preview { 
+  margin-top: 16px;
+  align-items: baseline !important;
 }
 .flex-between { 
   justify-content: space-between;

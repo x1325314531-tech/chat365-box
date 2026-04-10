@@ -124,6 +124,8 @@
     "rolePlaceholder": "请选择角色",
     "aiTranslationConfigDesc":"配置AI翻译的相关参数，包括模型选择、目标语言等",
     "aiTranslationToggle": "AI翻译设置",
+    "aiTranslationPreview":"AI翻译预览",
+    "aiTranslationPreviewDesc":"AI翻译预览开启时，发送消息在输入框上方译文",
     "AImodelDesc": "用于生成翻译的AI产品",
     "aiTranslationTargetLanguageSettings": "AI翻译目标语言设置",
     "aiTranslationTargetLanguage":"AI翻译目标语言",

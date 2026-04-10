@@ -101,7 +101,7 @@
         <div class="recharge-text">
           <div class="recharge-title">{{ $t('home.renewPlan') }}</div>
           <div class="recharge-subtitle">{{ $t('home.planPromo') }}</div>
-          <el-button type="success" color="#2cd67a" class="recharge-btn">{{ $t('home.goToRecharge') }}</el-button>
+          <el-button type="success" color="#2cd67a" class="recharge-btn" @click="topUp">{{ $t('home.goToRecharge') }}</el-button>
         </div>
         <div class="recharge-illustration">
           <img :src="planRenewalIcon" />
@@ -283,6 +283,15 @@ const confirmLogout = async () => {
     ipc.invoke('controller.window.restoreActiveViews', {});
   })
 }
+//前往充值
+const topUp=()=> { 
+   const isDev = import.meta.env.MODE === 'development'
+  if (isDev) {
+    window.open('http://192.168.3.18/logion', '_blank')
+  } else {
+    window.open('https://chat365.cc/chat365admin', '_blank')
+  }
+}
 
 // 组件挂载时启动定时器
 onMounted(() => {
@@ -329,7 +338,7 @@ import  aiTranslateIcon from '@/assets/home/ai-translate.svg'
 const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
   { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
-  // { id: 'aiTranslate', icon: aiTranslateIcon, titleKey: 'quickItems.aiTranslation', descKey: 'quickItems.aiTranslationDesc' },
+   { id: 'aiTranslate', icon: aiTranslateIcon, titleKey: 'quickItems.aiTranslation', descKey: 'quickItems.aiTranslationDesc' },
    { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
   // { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
   // { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
