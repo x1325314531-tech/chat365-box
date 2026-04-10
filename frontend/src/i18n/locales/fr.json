@@ -36,6 +36,7 @@
     "aiReplyDesc": "Configurer les paramètres globaux de réponse automatique IA",
     "aiPolish": "Polissage IA",
     "aiTranslation":"Traduction par IA",
+    "aiTranslationDesc":"Configurer les paramètres globaux pour la traduction par IA",
     "material": "Matériaux personnels",
     "materialDesc": "Personnaliser les plateformes affichées",
     "platform": "Paramètres de la plateforme",

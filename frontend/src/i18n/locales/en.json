@@ -36,6 +36,7 @@
     "aiReplyDesc": "Configure global AI auto-reply settings",
     "aiPolish": "AI Polish",
     "aiTranslation":"AI Translation",
+    "aiTranslationDesc":"Configure Global Settings for AI Translation",
     "material": "Personal Materials",
     "materialDesc": "Customize displayed platforms",
     "platform": "Platform Settings",

@@ -286,11 +286,8 @@ const confirmLogout = async () => {
 //前往充值
 const topUp=()=> { 
    const isDev = import.meta.env.MODE === 'development'
-  if (isDev) {
-    window.open('http://192.168.3.18/logion', '_blank')
-  } else {
-    window.open('https://chat365.cc/chat365admin', '_blank')
-  }
+   const url = isDev ? 'http://192.168.3.18/logion' : 'https://chat365.cc/chat365admin'
+   ipc.invoke('open-external-url', url)
 }
 
 // 组件挂载时启动定时器
@@ -353,15 +350,18 @@ const quickAccessList = ref([
 
 const router = useRouter()
 // 处理快捷入口点击
-const handleQuickAccess = (item) => {
-  if (item.id === 'translate') {
-    router.push({ path: '/home/settings', query: { activeMenu: 'translate' } })
-  } else if (item.id === 'aiReply') {
-    router.push({ path: '/home/settings', query: { activeMenu: 'aiReply' } })
-  } else if (item.id === 'aiTranslate') {
-    router.push({ path: '/home/settings', query: { activeMenu: 'aiTranslation' } })
-  } 
-  else if (item.id === 'fans') {
+const handleQuickAccess = async (item) => {
+  if (item.id === 'translate' || item.id === 'aiReply' || item.id === 'aiTranslate') {
+    // 跳转到设置页面前，隐藏所有活跃视图，防止遮挡
+    await ipc.invoke('controller.window.hideWindow', {});
+    
+    const menuMap = {
+      'translate': 'translate',
+      'aiReply': 'aiReply',
+      'aiTranslate': 'aiTranslation'
+    };
+    router.push({ path: '/home/settings', query: { activeMenu: menuMap[item.id] } })
+  } else if (item.id === 'fans') {
     router.push('/home/fans')
   } else { 
      Notification.message({ 

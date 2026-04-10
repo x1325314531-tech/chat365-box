@@ -35,16 +35,17 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 // 导入组件
 import TranslateConfig from './components/TranslateConfig.vue'
 import AiReplyConfig from './components/AiReplyConfig.vue'
 import AiTraslateConfig from './components/AiTraslateConfig.vue'
 import { useRoute } from 'vue-router'
+import { ipc } from '@/utils/ipcRenderer'
 // 导入图标
-import translateIcon from '@/assets/svgs/translate.svg'
-import aiReplyIcon from '@/assets/svgs/ai-reply.svg'
+import translateIcon from '@/assets/home/translate.png'
+import aiReplyIcon from '@/assets/home/ai-reply.png'
 import aiTranslationIcon from '@/assets/home/ai-translate.svg'
 
 const { t } = useI18n()
@@ -58,6 +59,11 @@ const sidebarMenus = ref([
 ])
 
 const activeMenu = ref(route.query.activeMenu || 'translate')
+
+onMounted(async () => {
+  // 确保进入设置页面时，隐藏所有可能遮挡的活跃视图
+  await ipc.invoke('controller.window.hideWindow', {});
+})
 </script>
 
 <style scoped>

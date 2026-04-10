@@ -175,22 +175,22 @@ const handleAiReplyToggle = (val) => {
         transRes.sendAutoNotTranslate = true
         ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
           console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
+          localStorage.setItem('translateConfig', JSON.stringify(transRes))
         })
       }
     })
     //AI润色 关闭
-     ipc.invoke('get-ai-config').then(transRes => {
+    ipc.invoke('get-ai-config').then(transRes => {
       if (transRes) {
-        // transRes.sendAutoTranslate = false
-        // transRes.sendAutoNotTranslate = true
         transRes.whatsapp.aiReplyToggle = false
-         console.log('润色', transRes);
+        console.log('润色', transRes);
         ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(transRes))).then(res => {
           console.log('互斥逻辑：已自动关闭AI润色开关', res)
+          localStorage.setItem('aiConfig', JSON.stringify(transRes))
         })
       }
     })
-  }else{ 
+  } else {
     // 互斥逻辑：开启 AI翻译 回复时，关闭自动翻译
     ipc.invoke('get-translate-config').then(transRes => {
       if (transRes) {
@@ -198,21 +198,23 @@ const handleAiReplyToggle = (val) => {
         transRes.sendAutoNotTranslate = true
         ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
           console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
+          localStorage.setItem('translateConfig', JSON.stringify(transRes))
         })
       }
     })
-    //AI润色 关闭
-     ipc.invoke('get-ai-config').then(transRes => {
+    //AI润色 关闭 (这里原本逻辑是开启AI润色，保持原样同步)
+    ipc.invoke('get-ai-config').then(transRes => {
       if (transRes) {
         transRes.whatsapp.aiReplyToggle = true
-         console.log('润色', transRes);
+        console.log('润色', transRes);
         ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(transRes))).then(res => {
-          console.log('互斥逻辑：已自动关闭AI润色开关', res)
+          console.log('互斥逻辑：已恢复开启AI润色开关', res)
+          localStorage.setItem('aiConfig', JSON.stringify(transRes))
         })
       }
     })
     //AI 翻译预览关闭
-      aiTranslateConfig[activeAiPlatform.value].aiTranslationPreview =false
+    aiTranslateConfig[activeAiPlatform.value].aiTranslationPreview = false
   }
 }
 //AI翻译预览开关
@@ -253,9 +255,9 @@ const applyConfig = () => {
 
   Notification.message({ message: t('settings.updateSuccess'), type: 'success' })
   
-  setTimeout(() => {
-    router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
-  }, 1000)
+  // setTimeout(() => {
+  //   router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
+  // }, 1000)
 }
 //获取模型
 const getModelOptions = async() => { 

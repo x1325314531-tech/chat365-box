@@ -175,18 +175,22 @@ const handleAiReplyToggle = (val) => {
         transRes.sendAutoNotTranslate = true
         ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
           console.log('互斥逻辑：已自动关闭发送自动翻译开关', res)
+          localStorage.setItem('translateConfig', JSON.stringify(transRes))
         })
       }
     })
     // 互斥逻辑：开启 AI润色 回复时，关闭AI翻译
-    ipc.invoke('get-ai-translate-config').then(transRes=> {
-      console.log('transRes' ,transRes);
-      transRes.whatsapp.aiTranslationToggle= false
-       transRes.whatsapp.aiTranslationPreview=  false
-         ipc.invoke('save-ai-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
-          console.log('AI配置已同步到主进程:', res)
-  })
+    ipc.invoke('get-ai-translate-config').then(transRes => {
+      console.log('transRes', transRes);
+      transRes.whatsapp.aiTranslationToggle = false
+      transRes.whatsapp.aiTranslationPreview = false
+      ipc.invoke('save-ai-translate-config', JSON.parse(JSON.stringify(transRes))).then(res => {
+        console.log('AI配置已同步到主进程:', res)
+        localStorage.setItem('aiTranslateConfig', JSON.stringify(transRes))
+      })
     })
+  } else {
+    // 互斥逻辑：关闭时暂无额外逻辑
   }
 }
 const toneChange = (val) => { 
@@ -209,9 +213,9 @@ const applyConfig = () => {
 
   Notification.message({ message: t('settings.updateSuccess'), type: 'success' })
   
-  setTimeout(() => {
-    router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
-  }, 1000)
+  // setTimeout(() => {
+  //   router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
+  // }, 1000)
 }
 //获取模型
 const getModelOptions = async() => { 

@@ -1,7 +1,7 @@
 const { Application } = require('ee-core');
 const Log = require('ee-core/log');
 const Services = require('ee-core/services');
-const { app, BrowserWindow, WebContentsView,webContents ,ipcMain} = require('electron');
+const { app, BrowserWindow, WebContentsView,webContents ,ipcMain, shell} = require('electron');
 const request = require('./utils/request'); // 导入工具类
 const path = require('path');
 const fs = require('fs');
@@ -9,6 +9,76 @@ const {translateText,getLanguages,checkSensitiveContent,translateImage,translate
 const Addon = require("ee-core/addon");
 const Storage = require("ee-core/storage");
 const Database = require('./utils/DatabaseUtils');
+
+/**
+ * 默认配置定义
+ */
+const DEFAULT_TRANSLATE_CONFIG = {
+  sendAutoTranslate: true,
+  sendChannel: 'Baidu',
+  sendTargetLang: 'en',
+  translatePreview: false,
+  blockChineseMessage: false,
+  blockChineseTranslation: true,
+  receiveAutoTranslate: true,
+  receiveChannel: 'Baidu',
+  receiveTargetLang: 'zh',
+  sendAutoNotTranslate: false,
+  sendAutoNotSourceLang: 'en',
+  sendAutoNotTargetLang: 'zh',
+  sendColoseChannel: 'Baidu',
+  sendVoiceSourceLang: 'zh',
+  sendVoiceTargetLang: 'en',
+  sendVoiceChannel: 'Baidu',
+  receiveVoiceSourceLang: 'en',
+  receiveVoiceTargetLang: 'zh',
+  receiveVoiceChannel: 'Baidu',
+  showTranslateConfig: true
+};
+
+const DEFAULT_AI_CONFIG = {
+  whatsapp: {
+    aiReplyToggle: false,
+    model: 'Gemini',
+    historyCount: 3,
+    tone: 'default',
+    theme: 'default',
+    role: 'default',
+    toneName: '默认',
+    themeName: '默认',
+    roleName: '默认',
+  },
+  telegram: {
+    model: 'Gemini',
+    historyCount: 3,
+    tone: '默认',
+    theme: '默认',
+    role: '朋友'
+  }
+};
+
+const DEFAULT_AI_TRANSLATE_CONFIG = {
+  whatsapp: {
+    aiTranslationToggle: false,
+    aiTranslationPreview: false,
+    model: 'Gemini',
+    historyCountToggle: true,
+    historyCount: 3,
+    aiTranslationTargetLang: '',
+    enTargetLang: '',
+    validationLevel: 'rules'
+  },
+  telegram: {
+    aiTranslationToggle: false,
+    aiTranslationPreview: false,
+    model: 'Gemini',
+    historyCountToggle: true,
+    historyCount: 3,
+    aiTranslationTargetLang: '',
+    enTargetLang: '',
+    validationLevel: 'rules'
+  }
+};
 class Index extends Application {
   constructor() {
     super();
@@ -488,6 +558,17 @@ class Index extends Application {
         stack,
       });
     });
+
+    // 打开外部 URL
+    ipcMain.handle('open-external-url', async (event, url) => {
+      try {
+        await shell.openExternal(url);
+        return { success: true };
+      } catch (err) {
+        Log.error('打开外部URL失败:', err);
+        return { success: false, error: err.message };
+      }
+    });
   }
 
   /**
@@ -500,9 +581,26 @@ class Index extends Application {
     // if (app.userId && parseInt(app.userId) > 1) {
     //   win.setTitle(`Chat365 用户 ${app.userId}`);
     // }
-    // 初始化翻译配置到内存
-    app.translateConfig = Storage.connection('config.json').getItem('translateConfig');
-    app.aiConfig = Storage.connection('config.json').getItem('aiConfig');
+    // 初始化配置到内存 (如果不存在则取默认值)
+    const configStorage = Storage.connection('config.json');
+    
+    app.translateConfig = configStorage.getItem('translateConfig');
+    if (!app.translateConfig) {
+      app.translateConfig = DEFAULT_TRANSLATE_CONFIG;
+      configStorage.setItem('translateConfig', DEFAULT_TRANSLATE_CONFIG);
+    }
+    
+    app.aiConfig = configStorage.getItem('aiConfig');
+    if (!app.aiConfig) {
+      app.aiConfig = DEFAULT_AI_CONFIG;
+      configStorage.setItem('aiConfig', DEFAULT_AI_CONFIG);
+    }
+
+    app.aiTranslateConfig = configStorage.getItem('aiTranslateConfig');
+    if (!app.aiTranslateConfig) {
+      app.aiTranslateConfig = DEFAULT_AI_TRANSLATE_CONFIG;
+      configStorage.setItem('aiTranslateConfig', DEFAULT_AI_TRANSLATE_CONFIG);
+    }
     
     // do some things
     // 延迟加载，无白屏

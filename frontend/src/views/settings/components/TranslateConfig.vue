@@ -32,59 +32,59 @@
                 </div>
                 <div class="form-desc">{{ $t('settings.sendAutoTranslateDesc') }}</div>
               </div>
-              <el-switch v-model="config.sendAutoTranslate" @change="handleSendAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.sendAutoTranslate" @change="handleSendAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
 
-            <div class="form-row" v-if="config.sendAutoTranslate">
+            <div class="form-row" v-if="translateConfig.sendAutoTranslate">
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.channel') }}</div>
-                <el-select v-model="config.sendChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
                   <el-option :label="$t('settings.baidu')" value="Baidu" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.targetLang') }}</div>
-                <el-select v-model="config.sendTargetLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
             </div>
 
-            <div class="form-item" v-if="!config.sendAutoTranslate">
+            <div class="form-item" v-if="!translateConfig.sendAutoTranslate">
               <div class="form-item-left">
                 <div class="form-label">{{ $t('settings.sendMsgSettings') }}</div>
                 <div class="form-desc">{{ $t('settings.sendMsgSettingsDesc') }}</div>
               </div>
-              <el-switch v-model="config.sendAutoNotTranslate" @change="handlesendAutoNotTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.sendAutoNotTranslate" @change="handlesendAutoNotTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
 
-            <div class="form-row" v-if="!config.sendAutoTranslate">
+            <div class="form-row" v-if="!translateConfig.sendAutoTranslate">
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.channel') }}</div>
-                <el-select v-model="config.sendColoseChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendColoseChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
                   <el-option :label="$t('settings.baidu')" value="Baidu" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.sourceLang') }}</div>
-                <el-select v-model="config.sendAutoNotSourceLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendAutoNotSourceLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.targetLang') }}</div>
-                <el-select v-model="config.sendAutoNotTargetLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendAutoNotTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
             </div>
 
-            <div class="form-item" v-if="config.sendAutoTranslate">
+            <div class="form-item" v-if="translateConfig.sendAutoTranslate">
               <div class="form-item-left">
                 <div class="form-label">{{ $t('settings.translatePreview') }}</div>
                 <div class="form-desc">{{ $t('settings.translatePreviewDesc') }}</div>
               </div>
-              <el-switch v-model="config.translatePreview" @change="handleTranslatePreview" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.translatePreview" @change="handleTranslatePreview" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
 
             <div class="form-item">
@@ -92,7 +92,7 @@
                 <div class="form-label">{{ $t('settings.blockChinese') }}</div>
                 <div class="form-desc">{{ $t('settings.blockChineseDesc') }}</div>
               </div>
-              <el-switch v-model="config.blockChineseMessage" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.blockChineseMessage" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
 
             <div class="form-item">
@@ -100,7 +100,7 @@
                 <div class="form-label">{{ $t('settings.blockChineseTrans') }}</div>
                 <div class="form-desc">{{ $t('settings.blockChineseTransDesc') }}</div>
               </div>
-              <el-switch v-model="config.blockChineseTranslation" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.blockChineseTranslation" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
 
             <div class="form-item form-none">
@@ -112,19 +112,19 @@
             <div class="form-row">
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.channel') }}</div>
-                <el-select v-model="config.sendVoiceChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendVoiceChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
                   <el-option :label="$t('settings.baidu')" value="Baidu" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.voiceSourceLang') }}</div>
-                <el-select v-model="config.sendVoiceSourceLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendVoiceSourceLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.voiceTargetLang') }}</div>
-                <el-select v-model="config.sendVoiceTargetLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.sendVoiceTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
@@ -147,19 +147,19 @@
                 </div>
                 <div class="form-desc">{{ $t('settings.receiveAutoTranslateDesc') }}</div>
               </div>
-              <el-switch v-model="config.receiveAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.receiveAutoTranslate" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
 
             <div class="form-row">
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.channel') }}</div>
-                <el-select v-model="config.receiveChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.receiveChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
                   <el-option :label="$t('settings.baidu')" value="Baidu" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.targetLang') }}</div>
-                <el-select v-model="config.receiveTargetLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.receiveTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
@@ -174,19 +174,19 @@
             <div class="form-row">
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.channel') }}</div>
-                <el-select v-model="config.receiveVoiceChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.receiveVoiceChannel" disabled :placeholder="$t('settings.selectPlaceholder')">
                   <el-option :label="$t('settings.baidu')" value="Baidu" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.voiceSourceLang') }}</div>
-                <el-select v-model="config.receiveVoiceSourceLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.receiveVoiceSourceLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
               <div class="form-col">
                 <div class="form-label">{{ $t('settings.voiceTargetLang') }}</div>
-                <el-select v-model="config.receiveVoiceTargetLang" :placeholder="$t('settings.selectPlaceholder')">
+                <el-select v-model="translateConfig.receiveVoiceTargetLang" :placeholder="$t('settings.selectPlaceholder')">
                   <el-option v-for="lang in languageList" :key="lang.id" :label="lang.displayName" :value="lang.code" />
                 </el-select>
               </div>
@@ -206,7 +206,7 @@
                 <div class="form-label">{{ $t('settings.showTranslateConfig') }}</div>
                 <div class="form-desc">{{ $t('settings.showTranslateConfigDesc') }}</div>
               </div>
-              <el-switch v-model="config.showTranslateConfig" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
+              <el-switch v-model="translateConfig.showTranslateConfig" style="--el-switch-on-color: #2ed36a; --el-switch-off-color: #bfbfbf" />
             </div>
           </div>
         </div>
@@ -236,7 +236,7 @@ const expandedSections = reactive({
   chatList: true
 })
 
-const config = reactive({
+const translateConfig = reactive({
   sendAutoTranslate: true,
   sendChannel: 'Baidu',
   sendTargetLang: 'en',
@@ -277,18 +277,51 @@ const toggleSection = (section) => {
 
 const handleSendAutoTranslate = (val) => {
   if (val) {
-    config.sendAutoNotTranslate = false
-    // 互斥逻辑：开启自动翻译时，关闭 AI 回复
+    translateConfig.sendAutoNotTranslate = false
+    // 互斥逻辑：开启自动翻译时，关闭 AI 润色
     ipc.invoke('get-ai-config').then(aiRes => {
       if (aiRes && aiRes.whatsapp) {
         aiRes.whatsapp.aiReplyToggle = false
         ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(aiRes))).then(res => {
           console.log('互斥逻辑：已自动关闭 AI 回复开关', res)
+          localStorage.setItem('aiConfig', JSON.stringify(aiRes))
         })
       }
     })
+     // 互斥逻辑：开启自动翻译时，关闭 AI 翻译
+
+     ipc.invoke('get-ai-translate-config').then(aiTranRes=> { 
+      if(aiTranRes&& aiTranRes.whatsapp) { 
+        aiTranRes.whatsapp.aiTranslationToggle = false
+          ipc.invoke('save-ai-translate-config', JSON.parse(JSON.stringify(aiTranRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭 AI 翻译开关', res)
+          localStorage.setItem('aiTranslateConfig', JSON.stringify(aiTranRes))
+        })
+      }
+     })
   } else {
-    config.sendAutoNotTranslate = true
+    translateConfig.sendAutoNotTranslate = true
+    // 互斥逻辑：关闭自动翻译时，关闭 AI 润色
+    ipc.invoke('get-ai-config').then(aiRes => {
+      if (aiRes && aiRes.whatsapp) {
+        aiRes.whatsapp.aiReplyToggle = false
+        ipc.invoke('save-ai-config', JSON.parse(JSON.stringify(aiRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭 AI 回复开关', res)
+          localStorage.setItem('aiConfig', JSON.stringify(aiRes))
+        })
+      }
+    })
+     // 互斥逻辑：关闭自动翻译时，关闭 AI 翻译
+
+     ipc.invoke('get-ai-translate-config').then(aiTranRes=> { 
+      if(aiTranRes&& aiTranRes.whatsapp) { 
+        aiTranRes.whatsapp.aiTranslationToggle = false
+          ipc.invoke('save-ai-translate-config', JSON.parse(JSON.stringify(aiTranRes))).then(res => {
+          console.log('互斥逻辑：已自动关闭 AI 翻译开关', res)
+          localStorage.setItem('aiTranslateConfig', JSON.stringify(aiTranRes))
+        })
+      }
+     })
   }
 }
 
@@ -296,33 +329,33 @@ const handlesendAutoNotTranslate = (val) => {}
 
 const handleTranslatePreview = (val) => {
   if (val) {
-    config.sendAutoTranslate = true
+    translateConfig.sendAutoTranslate = true
   }
 }
 
 const applyConfig = () => {
-  localStorage.setItem('translateConfig', JSON.stringify(config))
-  ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(config))).then(res => {
+  localStorage.setItem('translateConfig', JSON.stringify(translateConfig))
+  ipc.invoke('save-translate-config', JSON.parse(JSON.stringify(translateConfig))).then(res => {
     console.log('配置已同步到主进程:', res)
   })
   
   Notification.message({ message: t('settings.updateSuccess'), type: 'success' })
-  
-  setTimeout(() => {
-    router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
-  }, 1000)
+  // setTimeout(() => {
+  //   router.push({ path: '/home/whatsapp', query: { refresh: 'true' } })
+  // }, 1000)
 }
 
 onMounted(() => {
   fetchLanguageList()
   ipc.invoke('get-translate-config').then(res => {
     if (res) {
-      Object.assign(config, res)
+      Object.assign(translateConfig, res)
     } else {
       const localConfig = localStorage.getItem('translateConfig')
       if (localConfig) {
-        Object.assign(config, JSON.parse(localConfig))
+        Object.assign(translateConfig, JSON.parse(localConfig))
       }
+      // 如果本地和远程都没有，则使用当前默认值
     }
   })
 })
