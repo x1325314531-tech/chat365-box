@@ -3606,8 +3606,8 @@ function monitorMainNode() {
                     observePaneSide(mainNode);
                     getLanguageList();
                     syncGlobalConfig(); // 初始同步
-                    // 【性能优化】用 setSafeInterval 替代裸 setInterval，防止用户退出再登录时定时器叠加
-                    setSafeInterval('syncGlobalConfig', syncGlobalConfig, 10000); // 每10秒同步一次
+                    // 【性能优化】已迁移至 IPC 事件通知，移除 10s 轮询定时器
+                    // setSafeInterval('syncGlobalConfig', syncGlobalConfig, 10000); // 每10秒同步一次
                     setSafeInterval('mainLoop', () => {
                         processMessageList();
                         processImageMessageList();
@@ -7288,6 +7288,12 @@ if (window.electronAPI && window.electronAPI.ipcRenderer) {
         
         savePersonaNickname(phone, nickname, sex, occupation, tag);
         applyNicknameToDOM(phone, nickname, sex, occupation, tag);
+    });
+
+    // 监听全局配置更新通知 (由主进程在保存配置后触发)
+    window.electronAPI.ipcRenderer.on('config-updated', (event, data) => {
+        console.log('🔔 [Chat365] 收到全局配置更新通知:', data);
+        syncGlobalConfig();
     });
 }
 

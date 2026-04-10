@@ -441,6 +441,16 @@ class Index extends Application {
         configStorage.setItem('translateConfig', args);
         // 同时挂载到 app 对象上，方便后台脚本直接访问
         app.translateConfig = args;
+
+        // 广播配置更新事件
+        if (webContents) {
+          webContents.getAllWebContents().forEach(wc => {
+            if (!wc.isDestroyed()) {
+              wc.send('config-updated', { type: 'translateConfig' });
+            }
+          });
+        }
+
         return { success: true };
       } catch (err) {
         Log.error('保存翻译配置失败:', err);
@@ -455,6 +465,16 @@ class Index extends Application {
         configStorage.setItem('tenantConfig', args);
         // 同时挂载到 app 对象上，方便后台脚本直接访问
         app.tenantConfig = args;
+
+        // 广播配置更新事件
+        if (webContents) {
+          webContents.getAllWebContents().forEach(wc => {
+            if (!wc.isDestroyed()) {
+              wc.send('config-updated', { type: 'tenantConfig' });
+            }
+          });
+        }
+
         return { success: true };
       } catch (err) {
         Log.error('保存租户配置失败:', err);
@@ -483,6 +503,16 @@ class Index extends Application {
         configStorage.setItem('aiConfig', args);
         // 同时挂载到 app 对象上，方便后台脚本直接访问
         app.aiConfig = args;
+
+        // 广播配置更新事件
+        if (webContents) {
+          webContents.getAllWebContents().forEach(wc => {
+            if (!wc.isDestroyed()) {
+              wc.send('config-updated', { type: 'aiConfig' });
+            }
+          });
+        }
+
         return { success: true };
       } catch (err) {
         Log.error('保存AI配置失败:', err);
@@ -512,6 +542,16 @@ class Index extends Application {
         configStorage.setItem('aiTranslateConfig', args);
         // 同时挂载到 app 对象上，方便后台脚本直接访问
         app.aiTranslateConfig = args;
+
+        // 广播配置更新事件
+        if (webContents) {
+          webContents.getAllWebContents().forEach(wc => {
+            if (!wc.isDestroyed()) {
+              wc.send('config-updated', { type: 'aiTranslateConfig' });
+            }
+          });
+        }
+
         return { success: true };
       } catch (err) {
         Log.error('保存AI配置失败:', err);
