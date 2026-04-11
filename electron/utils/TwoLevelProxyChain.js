@@ -161,11 +161,11 @@ async function waitForTcpOpen(host, port, timeoutMs) {
 function resolveGostExePath() {
     const candidates = [];
     if (process.resourcesPath) {
-        candidates.push(path.join(process.resourcesPath, 'gost', 'gost.exe'));
-        candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'resources', 'gost', 'gost.exe'));
-        candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'gost', 'gost.exe'));
+        candidates.push(path.join(process.resourcesPath, 'tunnel', 'tunnel.exe'));
+        candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'resources', 'tunnel', 'tunnel.exe'));
+        candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'tunnel', 'tunnel.exe'));
     }
-    candidates.push(path.join(__dirname, '..', 'resources', 'gost', 'gost.exe'));
+    candidates.push(path.join(__dirname, '..', 'resources', 'tunnel', 'tunnel.exe'));
     for (const p of candidates) {
         try {
             if (fs.existsSync(p)) {
