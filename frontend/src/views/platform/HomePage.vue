@@ -336,7 +336,8 @@ const quickAccessList = ref([
   { id: 'translate', icon: translateIcon, titleKey: 'quickItems.translate', descKey: 'quickItems.translateDesc' },
   { id: 'aiReply', icon: aiReplyIcon, titleKey: 'quickItems.aiReply', descKey: 'quickItems.aiReplyDesc' },
    { id: 'aiTranslate', icon: aiTranslateIcon, titleKey: 'quickItems.aiTranslation', descKey: 'quickItems.aiTranslationDesc' },
-   { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
+  //  { id: 'fans', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
+    { id: 'dashboard', icon: fansIcon, titleKey: 'quickItems.fans', descKey: 'quickItems.fansDesc' },
   // { id: 'material', icon: materialIcon, titleKey: 'quickItems.material', descKey: 'quickItems.materialDesc' },
   // { id: 'wsGroup', icon: wsGroupIcon, titleKey: 'quickItems.wsGroup', descKey: 'quickItems.wsGroupDesc' },
   // { id: 'wsJoin', icon: wsJoinIcon, titleKey: 'quickItems.wsJoin', descKey: 'quickItems.wsJoinDesc' },
@@ -363,7 +364,9 @@ const handleQuickAccess = async (item) => {
     router.push({ path: '/home/settings', query: { activeMenu: menuMap[item.id] } })
   } else if (item.id === 'fans') {
     router.push('/home/fans')
-  } else { 
+  } else if(item.id==='dashboard') { 
+      router.push('/home/dashboard')
+  }else { 
      Notification.message({ 
       message: t('home.developing'),
       type:'info'

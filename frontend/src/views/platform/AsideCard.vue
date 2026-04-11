@@ -229,6 +229,7 @@ async function getAllSessions() {
         }
         
         const card_id = item.card_id || item.cardId;
+         console.log('获取本地会话列表成功0000:', String(item.online_status || item.onlineStatus || 'false') === 'true' || String(item.online_status || item.onlineStatus) === '1' ? 'true' : 'false');
         return {
           ...item,
           cardId: card_id,
@@ -241,7 +242,7 @@ async function getAllSessions() {
           unread_count: item.unread_count || 0
         };
       });
-      
+     
       conversations.splice(0, conversations.length, ...sessionList);
       setActiveStatus();
     }

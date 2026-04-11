@@ -32,6 +32,11 @@ const constantRouterMap = [
         name: 'FansList',
         component: () => import('@/views/platform/FansList.vue')
       },
+        {
+        path: 'dashboard',
+        name: 'dashboardFans',
+        component: () => import('@/views/dashboard/fans/index.vue')
+      },
       {
         path: 'zalo',
         name: 'Zalo',
